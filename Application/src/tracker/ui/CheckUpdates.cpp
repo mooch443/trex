@@ -169,13 +169,13 @@ bool automatically_check() {
     return READ_SETTING(app_check_for_updates, app_update_check_t::Class) == app_update_check_t::automatically;
 }
 
-void display_update_dialog(gui::DrawStructure* graph) {
+bool display_update_dialog(gui::DrawStructure* graph) {
     if(not graph /*&& not GUI_SETTINGS(nowindow)*/) {
         Print("Newer version (",CheckUpdates::newest_version(),") available for download. Visit https://trex.run/docs/update.html for instructions on how to update.");
-        return;
+        return true;
     }
     
-    graph->dialog([](gui::Dialog::Result r) {
+    return graph->dialog([](gui::Dialog::Result r) {
         if(r == gui::Dialog::OKAY) {
             auto website = "https://trex.run/docs/update.html";
 #if __linux__
@@ -202,7 +202,7 @@ void display_update_dialog(gui::DrawStructure* graph) {
 #endif
         }
         
-    }, "The newest available version is <nr>"+CheckUpdates::newest_version()+"</nr>. You have version <str>"+CheckUpdates::current_version()+"</str>. Do you wish to see update instructions?", "Update available", "Yes", "No");
+    }, "The newest available version is <nr>"+CheckUpdates::newest_version()+"</nr>. You have version <str>"+CheckUpdates::current_version()+"</str>. Do you wish to see update instructions?", "Update available", "Yes", "No").has_value();
 }
 
 void write_version_file() {
@@ -247,17 +247,16 @@ void update_loop(gui::DrawStructure* graph) {
             try {
                 auto status = perform(false).get();
                 if(status != VersionStatus::NONE) {
-                    SETTING(app_last_update_version) = std::string(newest_version());
+                    _last_check_success = status != VersionStatus::OLD || display_update_dialog(graph);
+                    if(_last_check_success)
+                        SETTING(app_last_update_version) = std::string(newest_version());
                     write_version_file();
-                    _last_check_success = true;
                     
                     if(status == VersionStatus::NEWEST) {
                         Print("[CHECK_UPDATES] Already have the newest version (",newest_version(),").");
                     } else if(status == VersionStatus::ALREADY_ASKED) {
                         Print("[CHECK_UPDATES] There is a new version available (",newest_version(),"), but you have already acknowledged this. If you want to see instructions again, please go to the top-right menu -> check updates.");
                         
-                    } else {
-                        display_update_dialog(graph);
                     }
                     
                 } else {

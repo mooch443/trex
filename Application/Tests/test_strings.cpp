@@ -135,11 +135,57 @@ using namespace cmn::utils;
 
 constexpr auto merge_time_threshold = ParameterHistory::merge_time_threshold + std::chrono::milliseconds(1);
 
+TEST(GlobalSettingsTests, HistoryDisabledByDefault) {
+    ParameterHistory history;
+    sprite::Map values;
+    values["test"] = int(1);
+    history.value_changed(AccessLevelType::PUBLIC, values, "test");
+
+    history.before_value_changed(AccessLevelType::PUBLIC, values, "test");
+    values["test"] = int(2);
+    history.value_changed(AccessLevelType::PUBLIC, values, "test");
+
+    EXPECT_TRUE(history.empty());
+    EXPECT_FALSE(history.last_changed("test").has_value());
+    EXPECT_FALSE(history.last_value_of("test").has_value());
+    EXPECT_FALSE(history.undo(values).has_value());
+    EXPECT_FALSE(history.redo(values).has_value());
+    EXPECT_EQ(values.at("test").value<int>(), 2);
+}
+
+TEST(GlobalSettingsTests, HistoryMonitoringCanBeDisabled) {
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+        config.values["test"] = int(1);
+        ASSERT_TRUE(config.history.last_value_of("test").has_value());
+
+        config.history.set_monitor_level(std::nullopt);
+        config.values["test"] = int(2);
+        ASSERT_TRUE(config.history.last_value_of("test").has_value());
+        EXPECT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        EXPECT_TRUE(config.history.empty());
+
+        config.history.reset(AccessLevelType::PUBLIC);
+        config.values["test"] = int(3);
+        ASSERT_TRUE(config.history.last_value_of("test").has_value());
+        EXPECT_EQ(config.history.last_value_of("test")->value<int>(), 3);
+
+        config.history.reset();
+        config.values["test"] = int(4);
+        EXPECT_TRUE(config.history.empty());
+        EXPECT_FALSE(config.history.last_value_of("test").has_value());
+        EXPECT_FALSE(config.undo().has_value());
+        EXPECT_FALSE(config.redo().has_value());
+        EXPECT_EQ(config.values.at("test").value<int>(), 4);
+    });
+}
+
 TEST(GlobalSettingsTests, UnduOperation) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     SETTING(test) = int(1);
@@ -167,7 +213,7 @@ TEST(GlobalSettingsTests, UnduOperation) {
 TEST(GlobalSettingsTests, HistoryCallbacksWaitForSettingsReaders) {
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
         config.values["test"] = int(1);
     });
     auto value = GlobalSettings::get("test");
@@ -191,7 +237,7 @@ TEST(GlobalSettingsTests, ComplexUnduOperation) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     SETTING(test) = int(1);
@@ -265,7 +311,7 @@ TEST(GlobalSettingsTests, DoesNotMaintainSystemVariables) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     SETTING(test) = int(1);
@@ -335,7 +381,7 @@ TEST(GlobalSettingsTests, RemovesHistorySimple) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     GlobalSettings::read([](const Configuration& config) {
@@ -411,14 +457,14 @@ TEST(GlobalSettingsTests, AddsInitialValuesAutomatically) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     SETTING(test) = int(1);
     
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     SETTING(test) = int(1234);
@@ -436,7 +482,7 @@ TEST(GlobalSettingsTests, DoesNotCrashWithEmptyHistory) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     GlobalSettings::read([](const Configuration& config) {
@@ -522,7 +568,7 @@ TEST(GlobalSettingsTests, RemovesHistory) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     SETTING(test) = int(1);
@@ -659,7 +705,7 @@ TEST(GlobalSettingsTests, MaintainsHistory) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
     });
     
     SETTING(test) = int(1);

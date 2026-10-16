@@ -491,7 +491,9 @@
 														"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
 														"size":"[{*:0.5:{infocard_width}}, 30]",
 														"list":{
-															"font":{"size":0.5}
+															"font":{"size":0.5},
+															"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+															"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}"
 														}, 
 														"label":{
 															"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
@@ -508,7 +510,9 @@
 														"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
 														"size":"[{*:0.5:{infocard_width}}, 30]",
 														"list":{
-															"font":{"size":0.5}
+															"font":{"size":0.5},
+															"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+															"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}"
 														},
 														"label":{
 															"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",

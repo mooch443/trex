@@ -11,7 +11,6 @@
 namespace cmn::gui {
 
 IMPLEMENT(SceneManager::_switching_error);
-IMPLEMENT(SceneManager::_displaying_error){false};
 
 Scene::Scene(Base& window,
              const std::string& name,
@@ -246,19 +245,13 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
         }
     }
     
-    if (bool expected = false;
-        _displaying_error.compare_exchange_strong(expected, true))
-    {
+    if (not graph.has_open_dialogs()) {
         auto error_str = switching_error().read();
         if (error_str && not error_str->empty()) {
             graph.dialog(
-                [](auto){ _displaying_error = false; },
                 settings::htmlify(utils::ShortenText(*error_str, 1000)),
                 "Error"
             );
-        } else {
-            // No message to show -> immediately reset the flag
-            _displaying_error = false;
         }
     }
     

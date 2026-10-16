@@ -226,14 +226,19 @@
                                             "type":"settings",
                                             "label":{
                                                 "corners":["none"],
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
-                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[80,140,200,170]:[180,180,180,50]}",
+                                                "fill":[20,50,80,220],
                                                 "font":{"size":0.65},
-                                                "color":[255,255,255],
+                                                "color":[235,235,235],
                                                 "size":[250,40]
                                             },
                                             "auto_limit_size": false,
                                             "var":"track_do_history_split",
+                                            "list":{
+                                                "color":[235,235,235],
+                                                "fill":[35,40,45,230],
+                                                "line":[80,140,200,160]
+                                            },
                                             "size":"[{+:25:{max:150:{*:{textfield_w}:0.1}}},40]",
                                             "desc":""
                                         }
@@ -333,12 +338,17 @@
                                     {
                                         "type":"settings",
                                         "var":"calculate_posture",
+                                        "list":{
+                                            "color":[235,235,235],
+                                            "fill":[35,40,45,230],
+                                            "line":[80,140,200,160]
+                                        },
                                         "label":{
                                             "corners":["right"],
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,150]}",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[80,140,200,170]:[180,180,180,50]}",
+                                            "fill":[20,50,80,220],
                                             "font":{"size":0.65},
-                                            "color":[255,255,255]
+                                            "color":[235,235,235]
                                         },
                                         "size":"[{*:{textfield_w}:0.16},40]",
                                         "desc":""
@@ -452,12 +462,17 @@
                                                 "type":"settings",
                                                 "label":{
                                                     "corners":["bottomright"],
-                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
-                                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[80,140,200,170]:[180,180,180,50]}",
+                                                    "fill":[20,50,80,220],
                                                     "font":{"size":0.65},
-                                                    "color":[255,255,255]
+                                                    "color":[235,235,235]
                                                 },
                                                 "var":"midline_invert",
+                                                "list":{
+                                                    "color":[235,235,235],
+                                                    "fill":[35,40,45,230],
+                                                    "line":[80,140,200,160]
+                                                },
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
                                                 "desc":""
                                             }
@@ -490,7 +505,7 @@
             "alpha":1,
             "pad":[10,10,10,10],
             "font":{"size":0.75},
-            "text": "<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>",
+            "text": "<lightgray>Below you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>",
             "max_size":"[{min:512:{-:{window_size.x}:25}},150]"
         }
     },
@@ -596,7 +611,8 @@
                         },
                         "else":{
                             "type":"button",
-                            "text":"{animation}",
+                            "text":"{if:{checks_running}:{animation}:<orange><sym>⚠</sym></orange>}",
+                            "tooltip":"{if:{checks_running}:'':'The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.'}",
                             "fill":[40,40,40,120],
                             "line":[100,100,100,150],
                             "color":[100,100,100],

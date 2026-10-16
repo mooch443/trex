@@ -732,7 +732,7 @@ void BlobView::draw(const DisplayParameters& parm)
                     circ->set_fill_clr(White.alpha(150 * d));
                 else
                     circ->set_fill_clr(White.alpha(25 * d));*/
-                circ->set_line_clr(White.alpha(250));
+                circ->set(LineClr{Black.alpha(150)});
                 circ->set_pos(blob->center());
                 circ->set_scale(s->scale().reciprocal());
                 
@@ -816,6 +816,7 @@ void BlobView::draw(const DisplayParameters& parm)
                 LabelDims_t{200,35},
                 ListDims_t{200,100},
                 LineClr{0,0,0,0},
+                LabelFont_t{0.5},
                 LabelFillClr_t{50,50,50,240},
                 LabelColor_t{200,200,200,240},
                 ListFillClr_t{30,30,30,200},
@@ -917,16 +918,74 @@ void BlobView::draw(const DisplayParameters& parm)
                             SETTING(track_ignore_bdx) = copy;
                         });
                     } else if(auto [_, added] =
-                       copy[frame].insert(clicked_blob_id);
-                       added)
+                              copy[frame].insert(clicked_blob_id);
+                              added)
                     {
                         WorkProgress::add_queue("", [copy](){
                             SETTING(track_ignore_bdx) = copy;
                         });
                     }
+                } else if(item_id == 2) /* CONVERT TO ANNOTATION */ {
+                    auto frame = GUI_SETTINGS(gui_frame);
+                    Print("Converting to annotation ", blob_id);
+                    auto it = cache.display_blobs.find(clicked_blob_id);
+                    if(it != cache.display_blobs.end()) {
+                        /// this will be where we store possible annotations
+                        std::optional<track::detect::Annotation> annotation;
+                        
+                        auto &pred = it->second->blob->prediction();
+                        if(pred.valid()) {
+                            if(not pred.pose.empty()) {
+                                // we can use pose points here
+                                annotation = track::detect::Annotation {
+                                    .clid = pred.clid,
+                                    .type = track::detect::AnnotationType::POSE,
+                                    .points = pred.pose.points
+                                };
+                                
+                            } else if(pred.outlines.has_original_outline()) {
+                                std::vector<Vec2> points{pred.outlines.original_outline.value()};
+                                std::vector<blob::Pose::Point> converted;
+                                
+                                Float2_t threshold = 0.5_F;
+                                std::vector<Vec2> reduced;
+                                do {
+                                    reduced.clear();
+                                    reduce_vertex_line(points, reduced, threshold);
+                                    threshold *= 1.5_F;
+                                } while(reduced.size() >= 150);
+                                
+                                //auto result = poly_convex_hull(&points);
+                                //if(result)
+                                {
+                                    
+                                    for(auto &pt : reduced) {
+                                        converted.emplace_back(pt);
+                                    }
+                                    
+                                    annotation = track::detect::Annotation {
+                                        .clid = pred.clid,
+                                        .type = track::detect::AnnotationType::SEGMENTATION,
+                                        .points = std::move(converted)
+                                    };
+                                }
+                            }
+                        }
+                        
+                        if(annotation) {
+                            auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                            if(not detect_annotations)
+                                detect_annotations.init();
+                            
+                            annotation->uid = uint8_t(detect_annotations[frame].size());
+                            detect_annotations[frame].push_back(std::move(*annotation));
+                            track::detect::AnnotationMap::normalize(detect_annotations);
+                            SETTING(track_detect_annotations) = std::move(detect_annotations);
+                        }
+                    }
                     
                 } else {
-                    auto it = cache.all_ids.find(Idx_t(item_id - 2));
+                    auto it = cache.all_ids.find(Idx_t(item_id - 16));
                     if(it != cache.all_ids.end()) {
                         //auto fish = it->second;
                         auto id = *it;
@@ -948,7 +1007,7 @@ void BlobView::draw(const DisplayParameters& parm)
                         add_manual_match(cache.frame_idx, id, clicked_blob_id);
                         SETTING(gui_mode) = ::gui::mode_t::tracking;
                     } else
-                        Print("Cannot find individual with ID ",item.ID()-1,".");
+                        Print("Cannot find individual with ID ",item.ID()-16,".");
                 }
                 
                 _clicked_blob_id = pv::bid::invalid;
@@ -993,10 +1052,10 @@ void BlobView::draw(const DisplayParameters& parm)
                     {
                         d = (c->estimated_px - *blob_pos).length();
                     }
-                    uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 2) & 0xFFFFFFFF) << 32);
+                    uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 16) & 0xFFFFFFFF) << 32);
 
                     auto identity = Identity::Temporary(id);
-                    items.insert({d, Dropdown::TextItem(identity.name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(2)).get(), identity.name(), (void*)encoded_ids)});
+                    items.insert({d, Dropdown::TextItem(identity.name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(16)).get(), identity.name(), (void*)encoded_ids)});
                 }
             }
             
@@ -1015,6 +1074,8 @@ void BlobView::draw(const DisplayParameters& parm)
                     sorted_items.push_back(Dropdown::TextItem("<b>Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
                 }
             }
+            
+            sorted_items.push_back(Dropdown::TextItem("<b>Convert to annotation</b>", 2, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x2 << 32u) )));
             
             for(auto && [d, item] : items)
                 sorted_items.push_back(item);
@@ -1232,7 +1293,7 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
             auto E = bound.back();
             auto D = euclidean_distance(S, E);
             
-            base.dialog([this, D](Dialog::Result r) {
+            auto dialog = base.dialog([this, D](Dialog::Result r) {
                 if(r != Dialog::OKAY) {
                     return;
                 }
@@ -1244,7 +1305,10 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
                     }, "Do you want to automatically set <ref>track_max_speed</ref>, <ref>detect_size_filter</ref>, and <ref>track_size_filter</ref> based on the given conversion factor?", "Calibrate with known length", "Yes", "No");
                 });
                 
-            }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, <ref>track_size_filter</ref>, <ref>detect_size_filter</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort")->set_custom_element(std::move(e));
+            }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, <ref>track_size_filter</ref>, <ref>detect_size_filter</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort");
+            
+            if(dialog)
+                dialog.value()->set_custom_element(std::move(e));
         }
     }
     
@@ -1656,6 +1720,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                 
                                 AnnotationMap::normalize(detect_annotations);
                                 SETTING(track_detect_annotations) = std::move(detect_annotations);
+                                SETTING(gui_mode) = ::gui::mode_t::annotate;
                                 _current_boundary.clear();
                             }
                         });
@@ -1764,7 +1829,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 });
                 combine->set_children(children);
                 
-                base.wrap_object(*combine);
+                if(not is_system_pressed)
+                    base.wrap_object(*combine);
                 //combine->auto_size(Margin{0, 0});
                 
                 Vec2 p;

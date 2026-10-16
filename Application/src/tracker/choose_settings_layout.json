@@ -539,7 +539,7 @@
             "alpha":1,
             "pad":[10,10,10,10],
             "font":{"size":0.75},
-            "text": "<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>",
+            "text": "<lightgray>Below you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>",
             "max_size":"[{min:512:{-:{window_size.x}:25}},150]"
         }
     },
@@ -632,7 +632,8 @@
                         },
                         "else":{
                             "type":"button",
-                            "text":"{animation}",
+                            "text":"{if:{checks_running}:{animation}:<orange><sym>⚠</sym></orange>}",
+                            "tooltip":"{if:{checks_running}:'':'The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.'}",
                             "fill":[40,40,40,120],
                             "line":[100,100,100,150],
                             "color":[100,100,100],

@@ -316,6 +316,17 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 if(NOT WIN32 AND TREX_WITH_TESTS)
     add_executable(test_imgui program.cpp)
 
+    set(TEST_IMGUI_RESOURCE_DIR "$<TARGET_FILE_DIR:test_imgui>")
+    if(APPLE)
+        set(TEST_IMGUI_RESOURCE_DIR "${TEST_IMGUI_RESOURCE_DIR}/../Resources")
+    endif()
+    add_custom_command(TARGET test_imgui POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/src/fonts"
+            "${TEST_IMGUI_RESOURCE_DIR}/fonts"
+        VERBATIM
+    )
+
     target_link_libraries(test_imgui PUBLIC
         framegrabber_misc
         tracker_tracking

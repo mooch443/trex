@@ -554,13 +554,13 @@ void TrackingState::Statistics::update(const track::Tracker& tracker, Frame_t fr
 }
 
 void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
-    static bool save_state_visible = false;
-    if(save_state_visible)
+    if(not _save_state_pending.expired())
         return;
     
-    save_state_visible = true;
+    auto pending = std::make_shared<StateOperationToken>();
+    _save_state_pending = pending;
     file::Path file = Output::TrackingResults::expected_filename();
-    auto fn = [this, file, gui]() {
+    auto fn = [this, file, gui, pending = std::move(pending)]() {
         bool before = analysis->is_paused();
         analysis->set_paused(true).get();
         
@@ -579,8 +579,6 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
         
         if(!before)
             analysis->set_paused(false).get();
-        
-        save_state_visible = false;
     };
     
     if(file.exists() && !force_overwrite) {
@@ -606,10 +604,8 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
     //                            work().add_queue("Saving backup...", fn);
                         } else {
                             FormatExcept("Cannot rename ",expected," to ",file,".");
-                            save_state_visible = false;
                         }
-                    } else
-                        save_state_visible = false;
+                    }
                     
                 }, "Overwrite tracking previous results at <i>"+file.str()+"</i>?", "Overwrite", "Yes", "Cancel", "Backup old one");
             });
@@ -621,13 +617,13 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
 }
 
 std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from, bool force) {
-    static bool state_visible = false;
-    if(state_visible)
+    if(not _load_state_pending.expired())
         return {};
     
-    state_visible = true;
+    auto pending = std::make_shared<StateOperationToken>();
+    _load_state_pending = pending;
 
-    auto fn = [this, from, gui]() {
+    auto fn = [this, from, gui, pending = std::move(pending)]() {
         //bool before = analysis->is_paused();
         analysis->set_paused(true).get();
         
@@ -922,8 +918,6 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
         
         if(GUI::instance() && (!before || (!finished && SETTING(auto_quit))))
             PD(analysis).set_paused(false).get();*/
-        
-        state_visible = false;
     };
     
     if(gui)
@@ -934,8 +928,6 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                 graph.dialog([this, fn](Dialog::Result result) {
                     if(result == Dialog::Result::OKAY) {
                         addSafeTask("Loading results...", fn);
-                    } else {
-                        state_visible = false;
                     }
                     
                 }, "Are you sure you want to load results from <c><cyan>"+Output::TrackingResults::expected_filename().str()+"</cyan></c>?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");

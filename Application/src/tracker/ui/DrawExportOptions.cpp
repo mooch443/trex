@@ -619,14 +619,21 @@ struct DrawExportOptions::Data {
             }
 
             auto functions = Output::Library::functions();
-            auto pose_fields = default_config::add_missing_pose_fields();
             std::set<std::string> pose_fields_set;
-            if(not pose_fields.empty())
-            {
-                for(auto &[name, mods] : pose_fields) {
-                    functions.emplace_back(name);
-                    pose_fields_set.emplace(utils::lowercase(name));
+            
+            try {
+                auto pose_fields = default_config::add_missing_pose_fields();
+                if(not pose_fields.empty())
+                {
+                    for(auto &[name, mods] : pose_fields) {
+                        functions.emplace_back(name);
+                        pose_fields_set.emplace(utils::lowercase(name));
+                    }
                 }
+                
+            } catch(const std::exception& e) {
+                if(READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t) == track::detect::ObjectDetectionFormat::poses)
+                    SceneManager::set_switching_error(e.what());
             }
             
             std::sort(functions.begin(), functions.end());

@@ -627,7 +627,10 @@ void LoadContext::load_settings_from_source() {
                         "meta_real_width",
                         "frame_rate",
                         "cm_per_pixel",
-                        "detect_type"
+                        "detect_type",
+                        "detect_format",
+                        "detect_classes",
+                        "detect_keypoint_format"
                     };
                     
                     if(not quiet)
@@ -659,6 +662,23 @@ void LoadContext::load_settings_from_source() {
                             {
                                 tmp.at("detect_type").get().copy_to(map);
                                 return &map.at("detect_type").get();
+                            }
+                            return nullptr;
+                        }},
+                        {"detect_classes", [&](auto& map) -> const sprite::PropertyType* {
+                            if (tmp.has("detect_classes"))
+                            {
+                                auto tmp_detect_classes = tmp.at("detect_classes").value<blob::MaybeObjectClass_t>();
+                                auto map_detect_classes = map.has("detect_classes")
+                                        ? map.at("detect_classes").template value<blob::MaybeObjectClass_t>()
+                                        : blob::MaybeObjectClass_t(std::nullopt);
+                                if(tmp_detect_classes
+                                   && not tmp_detect_classes->empty()
+                                   && (not map_detect_classes || map_detect_classes->empty()))
+                                {
+                                    tmp.at("detect_classes").get().copy_to(map);
+                                    return &map.at("detect_classes").get();
+                                }
                             }
                             return nullptr;
                         }}
@@ -706,6 +726,7 @@ void LoadContext::load_settings_from_source() {
                                 //Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
                                 tmp.at(key).get().copy_to(combined.values);
                                 set_config_if_different(key, combined.values);
+                                exclude_from_default.push_back(key);
                             } else {
                                 //Print("* Key not checked ", key);
                             }

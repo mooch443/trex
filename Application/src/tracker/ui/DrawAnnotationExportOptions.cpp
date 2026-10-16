@@ -301,6 +301,7 @@ struct DrawAnnotationExportOptions::Data {
         init_gui();
         update_info();
 
+        parent.set(ZIndex{10});
         graph.wrap_object(parent);
         parent.set_scale(graph.scale().reciprocal());
         _gui.update(graph, &_layout);

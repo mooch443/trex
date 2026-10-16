@@ -480,7 +480,7 @@ std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<s
 #endif
     
     if(not detect_keypoint_format.valid()) {
-        FormatWarning("No valid detect_keypoint_format set. Cannot automatically determine keypoint indexes.");
+        throw RuntimeError("No valid detect_keypoint_format set. Cannot automatically determine keypoint indexes.");
         return {};
     }
     

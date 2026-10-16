@@ -24,6 +24,12 @@ FetchContent_MakeAvailable(googletest)
 include_directories(../src/tracker)
 include_directories(../src/ProcessedVideo)
 
+if(APPLE AND NOT COMMONS_FOR_JS)
+    # Requires a sleeping display at startup, so this is a manual regression target.
+    add_executable(test_glfw_monitor_recovery EXCLUDE_FROM_ALL test_glfw_monitor_recovery.c)
+    target_link_libraries(test_glfw_monitor_recovery PRIVATE Commons::GLFW)
+endif()
+
 add_executable(test_matching test_matching.cpp test_individual.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 

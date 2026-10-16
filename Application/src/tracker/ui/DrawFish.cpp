@@ -1738,7 +1738,7 @@ void Fish::selection_clicked(Event) {
                         return true;
                     
                     auto && [dpos, _difference] = b.difference_image(*GUICache::instance().background(), 0);
-                    auto difference = _difference->to_greyscale();
+                    auto difference = Image::to_greyscale(std::move(_difference));
                     auto rgba = Image::Make(difference->rows, difference->cols, 4);
                 
                     uchar maximum_grey = 255, minimum_grey = 0;
@@ -1769,14 +1769,13 @@ void Fish::selection_clicked(Event) {
                 if(OPTION(gui_show_blobs)
                    && percent <= 1)
                 {
-                    GUICache::instance().processed_frame().transform_blobs([&, bdx, pdx](const pv::Blob& b)
-                                                                           {
+                    GUICache::instance().processed_frame().transform_blobs([&, bdx, pdx](const pv::Blob& b) {
                         if(!is_in(b.blob_id(), bdx, pdx))
                             return true;
                         
                         auto && [image_pos, image] = b.binary_image(*GUICache::instance().background(), FAST_SETTING(track_threshold));
                         auto && [dpos, _difference] = b.difference_image(*GUICache::instance().background(), 0);
-                        auto difference = _difference->to_greyscale();
+                        auto difference = Image::to_greyscale(std::move(_difference));
                         
                         auto rgba = Image::Make(image->rows, image->cols, 4);
                         

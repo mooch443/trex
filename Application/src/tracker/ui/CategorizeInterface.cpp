@@ -735,8 +735,6 @@ void Interface::draw(std::weak_ptr<track::Tracker> tracker, const std::weak_ptr<
 
         if (FAST_SETTING(categories_ordered).empty()) {
             if (!_asked) {
-                _asked = true;
-
                 using namespace gui;
                 derived_ptr<Textfield> textfield{
                     new Textfield{
@@ -763,8 +761,11 @@ void Interface::draw(std::weak_ptr<track::Tracker> tracker, const std::weak_ptr<
 
                     }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
                 
-                d->set_custom_element(textfield);
-                d->layout().Layout::update_layout();
+                if(d) {
+                    _asked = true;
+                    d.value()->set_custom_element(textfield);
+                    d.value()->layout().Layout::update_layout();
+                }
             }
             return;
         }

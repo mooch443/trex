@@ -77,7 +77,7 @@
 
 {
 "type":"condition",
-"var":"{&&:{not:{equal:{global.gui_mode}:raw}}:{||:{global.gui_show_timeline}:{equal:{global.gui_mode}:annotate}}}",
+"var":"{equal:{global.gui_mode}:annotate}",
 "then":
 {
   "type": "each",
@@ -85,7 +85,6 @@
   "do": {
     "type":"collection",
     "children":[
-
       {
         "type": "rect",
         "line": [255,0,0,150],
@@ -108,7 +107,7 @@
         "children":[
           {
             "type":"condition",
-            "var":"{in:{i.type}:[0,1,2,3,4]}",
+            "var":"{in:{i.type}:[0,1,3,4]}",
             "then": {
               "type":"each",
               "var":"{i.pts}",
@@ -117,19 +116,12 @@
                 "type":"condition",
                 "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
                 "then":  {
-                  "type":"collection",
+                  "type":"circle",
+                  "radius":7.5,
                   "origin":[0.5,0.5],
-                  "fill": [0,0,255,0],
-                  "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
-                  "size":[15,15],
-                  "children":[
-                    { "type":"circle",
-                      "radius":7.5,
-
-                      "fill": [255,255,255,50],
-                      "color":[255,255,255,50]
-                    }
-                  ]
+                  "fill": [255,255,255,50],
+                  "color":[255,255,255,50],
+                  "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}"
                 }
               }
             }
@@ -162,7 +154,7 @@
 
       {
         "type":"condition",
-        "var":"{in:{i.type}:[0,1,2,3,4]}",
+        "var":"{in:{i.type}:[0,1,3,4]}",
         "then": {
           "type":"each",
           "var":"{i.pts}",
@@ -180,7 +172,7 @@
                 "z-index": 1,
                 "pos":"{2hud:[{j.x},{j.y}]}",
                 "origin":[0.5,0.5],
-                "fill": [255,255,255,0],
+                "fill": [255,255,255,150],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
                 "color":[255,255,255,255],
                 "drag":"move_detect_annotation:{i.id}:{index}"
@@ -196,6 +188,32 @@
               }
             ]
             }
+          }
+        }
+      },
+
+      {
+        "type":"condition",
+        "var":"{in:{i.type}:[2]}",
+        "then": {
+          "type":"each",
+          "var":"{i.pts}",
+          "as":"j",
+          "do": {
+            "type":"condition",
+            "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
+            "then": {
+                "type":"circle",
+                "radius":8,
+                "modules":["draggable"],
+                "z-index": 1,
+                "pos":"{2hud:[{j.x},{j.y}]}",
+                "origin":[0.5,0.5],
+                "fill": [255,255,255,50],
+                "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
+                "color":[255,255,255,255],
+                "drag":"move_detect_annotation:{i.id}:{index}"
+              }
           }
         }
       },
@@ -246,7 +264,7 @@
 
     {
       "type": "each",
-      "var": "{detect_annotations}",
+      "var": "{detect_annotations:1}",
       "as":"a",
       "do": {
         "type":"condition",
@@ -306,6 +324,7 @@
       "var":"{equal:{global.gui_mode}:annotate}",
       "then":{
         "type":"vlayout",
+        "z-index": 2,
         "pos":[10,90],
         "fill":[30,30,30,220],
         "outer_pad":[10,0,10,0],
@@ -409,17 +428,17 @@
                   "var":"detect_format",
                   "desc":"",
                   "list":{
-                    "font":{"size":0.5}
+                    "font":{"size":0.5},
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,250,50,250]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}" 
                   },
                   "label":{
                     "corners":["all"],
-                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,250]}",
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
                     "font":{"size":0.5}
                   },
                   "pad":[0,0,-1,-1],
-                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
                   "size":[205,30]
                 }
               ],
@@ -653,6 +672,7 @@
                         "action":"ignore_bdxes:{primary_selection.fdx}:{at:0:{primary_selection.tracklet}}:{at:1:{primary_selection.tracklet}}",
                         "font":{"size":0.5},
                         "size":[205,25],
+                        "tooltip":"All objects from this tracklet will be added to <c>track_ignore_bdx</c>, preventing them from being tracked.",
                         "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                         "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
@@ -660,6 +680,7 @@
                       {
                         "type":"button",
                         "text":"<sym>⇰</sym> ignore from here",
+                        "tooltip":"All objects from this tracklet starting from the current frame will be added to <c>track_ignore_bdx</c>, preventing them from being tracked.",
                         "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame},{at:1:{primary_selection.tracklet}}",
                         "font":{"size":0.5},
                         "size":[205,25],
@@ -670,6 +691,7 @@
                       {
                         "type":"button",
                         "text":"<sym>\u2716</sym> ignore <c>bdx[<gray>{primary_selection.bdx}</gray>]</c>",
+                        "tooltip":"The currently selected object (<c>bdx[<gray>{primary_selection.bdx}</gray>]</c>) will be added to <c>track_ignore_bdx</c>, preventing it from being tracked.",
                         "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame}:{global.gui_frame}",
                         "font":{"size":0.5},
                         "size":[205,25],
@@ -886,11 +908,12 @@
                               {
                                 "type":"settings",
                                 "pad":[0,0,-1,-1],
-                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                
                                 "size":"[{*:0.5:{infocard_width}}, 30]",
                                 "list":{
-                                  "font":{"size":0.5}
+                                  "font":{"size":0.5},
+                                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}"
                                 }, 
                                 "label":{
                                   "corners":["bottomleft",0],
@@ -909,7 +932,9 @@
                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
                                 "size":"[{+:1:{*:0.5:{infocard_width}}}, 30]",
                                 "list":{
-                                  "font":{"size":0.5}
+                                  "font":{"size":0.5},
+                                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}"
                                 },
                                 "label":{
                                 "corners":["bottomright",0],
@@ -1308,13 +1333,13 @@
         "pos":"{mulVector:{window_size}:0.5}",
         "origin":[0.5,0.5],
         "fill": [25,25,25,200],
-        "pad":[10,10,10,10],
+        "outer_pad":[15,15,15,15],
         "children":[
           {
             "font":{"size":0.6},
             "type":"stext",
             "max_size":"[{min:650:{-:{window_size.x}:100}},{-:{window_size.y}:100}]",
-            "text":"<b>{basename:{global.source}}</b>\n{#global.video_info}"
+            "text":"<h3>{basename:{global.source}}</h3>\n<gray>some video info provided by the pv file</gray>\n\n{#global.video_info}"
           }
         ]
       },
@@ -1378,6 +1403,7 @@
         {
           "type":"collection",
           "name":"timeline",
+          "z-index": 2,
           "size":"[{width},20]",
           "clickable":true,
           "children":[
@@ -1571,12 +1597,12 @@
     {
       "type":"condition",
       "var":"{||:{hovered:timeline}:{hovered:button_thing}}",
-      "z-index":0,
       "then": {
         "type":"collection",
         "children":[
           {
             "type":"collection",
+            "z-index":2,
             "pos":"[{min:{-:{window_size.x}:75}:{max:75:{mouse.x}}},69]",
             "name":"button_thing",
             "clickable":true,

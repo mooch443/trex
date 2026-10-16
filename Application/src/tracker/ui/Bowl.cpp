@@ -46,7 +46,8 @@ struct Bowl::Data {
             "track_ignore",
             "track_include",
             "visual_field_shapes",
-            "gui_zoom_polygon"
+            "gui_zoom_polygon",
+            "gui_mode"
             
         }, [this](auto name) {
             if(name == "gui_zoom_polygon") {
@@ -379,15 +380,18 @@ void Bowl::update_goals() {
     std::vector<Vec2>* target_points{nullptr};
     const bool key_down = _cache && _cache->key_down(Codes::LShift);
     
-    if (_target_points.empty()
-        && (key_down || not _data || _data->_gui_zoom_polygon.empty()))
-    {
+    auto reset_default = [&](){
         float width_scale = _screen_size.x / _aspect_ratio.x;
         float height_scale = _screen_size.y / _aspect_ratio.y;
         float scale_factor = std::min(width_scale, height_scale);
         _target_scale = Vec2(scale_factor, scale_factor);
         _target_pos = _center_of_screen - _video_size.mul(_target_scale) / 2;
-        
+    };
+    
+    if (_target_points.empty()
+        && (key_down || not _data || _data->_gui_zoom_polygon.empty()))
+    {
+        reset_default();
         return;
     }
     
@@ -397,11 +401,23 @@ void Bowl::update_goals() {
     float min_y = std::numeric_limits<float>::max();
     float max_y = std::numeric_limits<float>::min();
     
-    if(_data && not _data->_gui_zoom_polygon.empty())
+    const auto gui_focus_group = READ_SETTING_WITH_DEFAULT(gui_focus_group, std::vector<Idx_t>{});
+    
+    if(_data
+       && not _data->_gui_zoom_polygon.empty()
+       && (READ_SETTING_WITH_DEFAULT(gui_mode, mode_t::tracking) != mode_t::tracking
+           || gui_focus_group.empty()
+           || _target_points.empty())
+       )
     {
         target_points = &_data->_gui_zoom_polygon;
     } else
         target_points = &_target_points;
+    
+    if(target_points->empty()) {
+        reset_default();
+        return;
+    }
     
     Vec2 sum_of_points(0.0f, 0.0f);
     for (const auto& point : *target_points) {
@@ -417,7 +433,10 @@ void Bowl::update_goals() {
     else
         _max_zoom = READ_SETTING(gui_zoom_limit, Size2);
     
-    Bounds bounding_box(Vec2(min_x, min_y), Size2(max_x - min_x + 1, max_y - min_y + 1));
+    Bounds bounding_box{
+        Vec2(min_x, min_y),
+        Size2(max_x - min_x + 1, max_y - min_y + 1)
+    };
     if(bounding_box.width < _max_zoom.x) {
         auto diff = _max_zoom.x - bounding_box.width;
         bounding_box.x -= diff / 2;

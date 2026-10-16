@@ -425,11 +425,13 @@ void launch_gui(std::future<void>& f) {
         }
         manager.update(&base, *base.graph());
 
-        if(auto warning = next_python_runtime_warning()) {
-            base.graph()->dialog(
-                settings::htmlify(*warning),
-                "<sym>⚠</sym> GPU acceleration unavailable"
-            );
+        if(not base.graph()->has_open_dialogs()) {
+            if(auto warning = next_python_runtime_warning()) {
+                base.graph()->dialog(
+                    settings::htmlify(*warning),
+                    "<sym>⚠</sym> GPU acceleration unavailable"
+                );
+            }
         }
         
         check_pause();

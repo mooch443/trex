@@ -238,13 +238,20 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         
         if(BOOL_SETTING(output_auto_pose)) {
             // Generate only the missing ones
-            auto new_pose_fields = default_config::add_missing_pose_fields();
-            
-            // If there’s nothing new to add, we’re done
-            if (!new_pose_fields.empty())
-            {
-                // Insert the new (missing) ones
-                fields.insert(fields.end(), new_pose_fields.begin(), new_pose_fields.end());
+            try {
+                auto new_pose_fields = default_config::add_missing_pose_fields();
+                
+                // If there’s nothing new to add, we’re done
+                if (not new_pose_fields.empty()) {
+                    // Insert the new (missing) ones
+                    fields.insert(fields.end(), new_pose_fields.begin(), new_pose_fields.end());
+                }
+                
+            } catch(const std::exception&) {
+                /// we will ignore errors unless we have a detect_format of poses
+                /// edit: actually this is already printed and will be set in the GUI, here we ignore it
+                //if(READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t) == track::detect::ObjectDetectionFormat::poses)
+                    //SceneManager::set_switching_error(e.what());
             }
         }
         

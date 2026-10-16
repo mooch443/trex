@@ -388,7 +388,9 @@ void TrackingScene::Data::handle_zooming(Event e) {
         }
     };
 
-    if(READ_SETTING(gui_focus_group, std::vector<track::Idx_t>).empty()) {
+    if(not is_in(READ_SETTING_WITH_DEFAULT(gui_mode, mode_t::tracking), mode_t::tracking)
+       || READ_SETTING_WITH_DEFAULT(gui_focus_group, (std::vector<track::Idx_t>{})).empty())
+    {
         auto gui_zoom_polygon = READ_SETTING(gui_zoom_polygon, std::vector<Vec2>);
         if(gui_zoom_polygon.empty() || gui_zoom_polygon.size() != 4)
         {
@@ -585,6 +587,9 @@ bool TrackingScene::on_global_event(Event event) {
         switch (event.key.code) {
             case Keyboard::Escape:
                 SceneManager::enqueue([](auto, DrawStructure& graph) {
+                    /// ignore while in other dialogs
+                    if(graph.has_open_dialogs())
+                        return;
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -765,6 +770,10 @@ void TrackingScene::settings_callback(std::string_view key) {
                 FOI::replace_all_of(id, std::move(fois));
             _data->update_cached_fois(_state->tracker, _state->video, true);
         }
+    }
+    else if(key == "gui_mode") {
+        //if(_data && _data->_bowl)
+        //    _data->_bowl->set_target_focus({});
     }
     else if(key == "gui_foi_name") {
         _data->update_cached_fois(_state->tracker, _state->video, true);
@@ -967,6 +976,7 @@ void TrackingScene::activate() {
         "gui_show_cliques",
         "gui_show_graph",
         "gui_pose_smoothing",
+        "gui_mode",
         
         "gui_foi_name",
         
@@ -1036,7 +1046,7 @@ void TrackingScene::activate() {
     }
     
     GlobalSettings::write([](Configuration& config){
-        config.history.reset();
+        config.history.reset(AccessLevelType::PUBLIC);
         config.history.ignore_prefix("gui_");
         config.history.ignore_prefix("auto_");
         config.history.ignore({
@@ -1621,9 +1631,11 @@ void TrackingScene::_draw(DrawStructure& graph) {
         }
         
         _data->_bowl->fit_to_screen(coords.screen_size());
-        if(GUI_SETTINGS(gui_auto_scale_focus_one))
+        if(GUI_SETTINGS(gui_auto_scale_focus_one)
+            && is_in(GUI_SETTINGS(gui_mode), mode_t::tracking))
+        {
             _data->_bowl->set_target_focus(targets);
-        else
+        } else
             _data->_bowl->set_target_focus({});
         
         if(loaded.valid())
@@ -1862,6 +1874,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             ActionFunc("quit", [](Action) {
                 SceneManager::enqueue([](auto, DrawStructure& graph) {
+                    /// ignore while in other dialogs
+                    if(graph.has_open_dialogs())
+                        return;
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -2280,11 +2295,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
 
                     auto items = RecentItems::read();
                     if(not items.state().ignore_bdx_warning_shown) {
-                        items.state().ignore_bdx_warning_shown = true;
-                        items.write();
-                        
                         SceneManager::enqueue([id = fish->identity(), start, end, apply_fn](auto, DrawStructure& graph) {
-                            graph.dialog([id = id, start, end, apply_fn](Dialog::Result result) {
+                            auto dialog = graph.dialog([id = id, start, end, apply_fn](Dialog::Result result) {
                                 if(result == Dialog::Result::OKAY) {
                                     /// If the user confirms, we set the ignore_bdxes state.
                                     apply_fn();
@@ -2293,6 +2305,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                     FormatWarning("Not ignoring bdxes for individual ", id, " frames ", start, "-", end);
                                 }
                             }, "Do you want to ignore blobs for <c>"+Meta::toStr(id)+"</c> in frames <c><nr>"+Meta::toStr(start)+"</nr>-<nr>"+Meta::toStr(end)+"</nr></c>?\nThis will add all selected blob ids to <c>track_ignore_bdx</c> and prevent them from being used in future analyses.\n\nYou can always undo this by resetting the <c>track_ignore_bdx</c> setting. <i>You will not be asked about this in the future.</i>", "Ignore blobs", "Yes", "No");
+                            if(dialog) {
+                                auto items = RecentItems::read();
+                                items.state().ignore_bdx_warning_shown = true;
+                                items.write();
+                            }
                         });
                     }
                     else {
@@ -2798,10 +2815,15 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     READ_SETTING(detect_tile_overlap, float));
                 return std::vector<Bounds>(source_tiles.begin(), source_tiles.end());
             }),
-            VarFunc("detect_annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
+            VarFunc("detect_annotations", [this](const VarProps& props) -> std::vector<glz::json_t> {
                 if(not _data)
                     throw InvalidArgumentException("_data not set.");
 
+                std::optional<uint8_t> filter_for_type;
+                if(props.parameters.size() > 0) {
+                    filter_for_type = Meta::fromStr<uint8_t>(props.parameters.front());
+                }
+                
                 std::vector<glz::json_t> result;
                 auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
                 if(not detect_annotations)
@@ -2817,6 +2839,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     for(auto & object : objects) {
                         if(object.type == AnnotationType::EMPTY)
                             continue;
+                        if(filter_for_type
+                           && uint8_t(object.type) != *filter_for_type)
+                        {
+                            continue;
+                        }
+                        
                         Bounds bds(FLT_MAX,FLT_MAX, -FLT_MAX, -FLT_MAX);
                         for(auto &pt : object.points) {
                             if(not pt.valid())

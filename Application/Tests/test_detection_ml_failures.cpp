@@ -498,12 +498,14 @@ TEST_F(MLFailures, ConversionAppliesModelMetadataAndPreservesConfiguredAnnotatio
         python_environment->write_bbx(
             poses ?
                 "for config in configs:\n"
+                "    config.classes = {0: 'pose-animal'}\n"
                 "    config.output_format = TRex.ObjectDetectionFormat.poses\n"
                 "    config.trained_resolution = TRex.DetectResolution(64, 64)\n"
                 "    config.keypoint_format = TRex.KeypointFormat(2, 3)\n"
                 "    config.requires_exact_input_size = True\n"
                 "return configs" :
                 "for config in configs:\n"
+                "    config.classes = {0: 'box-animal'}\n"
                 "    config.output_format = TRex.ObjectDetectionFormat.boxes\n"
                 "    config.trained_resolution = TRex.DetectResolution(96, 96)\n"
                 "return configs",
@@ -519,7 +521,8 @@ TEST_F(MLFailures, ConversionAppliesModelMetadataAndPreservesConfiguredAnnotatio
         EXPECT_EQ(READ_SETTING(detect_requires_exact_input_size, bool), poses);
         EXPECT_EQ(READ_SETTING(detect_keypoint_format, KeypointFormat),
                   poses ? (KeypointFormat{.n_points = 2, .n_dims = 3}) : KeypointFormat{});
-        EXPECT_EQ(READ_SETTING(detect_classes, blob::MaybeObjectClass_t), classes);
+        EXPECT_EQ(READ_SETTING(detect_classes, blob::MaybeObjectClass_t),
+                  (blob::MaybeObjectClass_t{blob::ObjectClass_t{{0, poses ? "pose-animal" : "box-animal"}}}));
         EXPECT_EQ(READ_SETTING(detect_skeleton, std::optional<blob::Pose::Skeletons>), skeleton);
         EXPECT_EQ(READ_SETTING(detect_keypoint_names, KeypointNames), names);
 

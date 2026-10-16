@@ -50,6 +50,19 @@ class LabelCornerFlagsMetaRoundTrip
 class LabelCornerFlagsMetaToStr
     : public ::testing::TestWithParam<LabelCornerFlagsToStrCase> {};
 
+TEST(LabelCornerFlagsTest, DefaultConstructionAndSwap) {
+    LabelCornerFlags flags;
+    EXPECT_EQ(as_corner_flags(flags), CornerFlags{});
+
+    auto tflags = LabelCornerFlags{CornerFlags::Top(4.0f)};
+    auto bflags = LabelCornerFlags{CornerFlags::Bottom(7.0f)};
+    std::swap(tflags, bflags);
+
+    flags = tflags;
+    EXPECT_EQ(as_corner_flags(flags), CornerFlags::Bottom(7.0f));
+    EXPECT_EQ(as_corner_flags(bflags), CornerFlags::Top(4.0f));
+}
+
 TEST_P(LabelCornerFlagsMetaRoundTrip, FromStrToStrFullCycle) {
     const auto& params = GetParam();
 
