@@ -3391,14 +3391,14 @@ TEST(EventBindingTest, ClickActionsOnlyFireOnMouseButtonWithScopedContext) {
     ASSERT_EQ(received_actions.size(), 0u);
 
     ASSERT_NO_THROW(graph.mouse_down(true));
+    ASSERT_EQ(received_actions.size(), 0u);
+
+    ASSERT_NO_THROW(graph.mouse_up(true));
     ASSERT_EQ(received_actions.size(), 1u);
     EXPECT_EQ(received_actions.at(0).name, "select");
     ASSERT_EQ(received_actions.at(0).parameters.size(), 2u);
     EXPECT_EQ(received_actions.at(0).parameters.at(0), "beta");
     EXPECT_EQ(received_actions.at(0).parameters.at(1), "1");
-
-    ASSERT_NO_THROW(graph.mouse_up(true));
-    ASSERT_EQ(received_actions.size(), 1u);
 }
 
 TEST(EventBindingTest, NestedEachClickPreservesOuterAndInnerScopedContext) {
@@ -3488,14 +3488,15 @@ TEST(EventBindingTest, NestedEachClickPreservesOuterAndInnerScopedContext) {
         const auto ambient_snapshot = handler->capture_scoped_variable_values();
 
         ASSERT_NO_THROW(graph.mouse_down(true));
+        ASSERT_EQ(received_actions.size(), 0u);
 
+        ASSERT_NO_THROW(graph.mouse_up(true));
         ASSERT_EQ(received_actions.size(), 1u);
         EXPECT_EQ(received_actions.front().name, "select");
         EXPECT_THAT(
             received_actions.front().parameters,
             ::testing::ElementsAre("outer-beta", "inner-alpha", "0", "1", "ambient"));
 
-        ASSERT_NO_THROW(graph.mouse_up(true));
         EXPECT_EQ(handler->capture_scoped_variable_values().values, ambient_snapshot.values);
         EXPECT_EQ(parse_text("{runtime_value}:{index}:{pindex}", context, state), "ambient:99:98");
     }
