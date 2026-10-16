@@ -496,7 +496,8 @@ bool TrackingScene::on_global_event(Event event) {
        && !graph->has_active_pointer_gesture()
        && (not graph->selected_object()
            || (_data->_background
-               && graph->selected_object()->is_child_of(_data->_background.get()))))
+               && graph->selected_object()->is_child_of(_data->_background.get())))
+       && READ_SETTING(gui_mode, gui::mode_t::Class) == gui::mode_t::annotate)
     {
         auto p = _data->_bowl_mouse; //coords.convert(HUDCoord(graph->mouse_position()));
         //auto p = Vec2(event.move.x, event.move.y);
@@ -510,7 +511,8 @@ bool TrackingScene::on_global_event(Event event) {
 
     if(_data->_drag_box
        && graph
-       && not primary_mouse_down)
+       && not primary_mouse_down
+       && READ_SETTING(gui_mode, gui::mode_t::Class) == gui::mode_t::annotate)
     {
         const Frame_t gui_frame = READ_SETTING(gui_frame, Frame_t);
         const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
@@ -2141,6 +2143,107 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 }
                 
                 throw InvalidArgumentException("Frame ", gui_frame, " has no EMPTY annotations.");
+            }),
+            
+            ActionFunc("add_detection_point_nextto_existing", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+                
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([this, detect_annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front()), point_idx = Meta::fromStr<uint64_t>(action.parameters.back()), action](auto, DrawStructure& graph) {
+                    if(not _data
+                       || not _data->_cache)
+                        throw InvalidArgumentException("No data pointer set. Probably quitting.");
+                    
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be added to.");
+
+                    auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                    auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                    if(it == detect_annotations.end()) {
+                        throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                    }
+
+                    auto annotation = std::find_if(it->second.begin(), it->second.end(), [detect_annotation_uid](const Annotation& candidate) {
+                        return candidate.uid == detect_annotation_uid;
+                    });
+                    if(annotation == it->second.end())
+                        throw InvalidArgumentException("Cannot find detect annotation uid ", detect_annotation_uid, " in ", it->second);
+                    if(annotation->points.size() <= point_idx)
+                        throw InvalidArgumentException(point_idx, " out of range for detect annotation uid ", detect_annotation_uid, " with ", annotation->points.size(), " points.");
+                    
+                    auto pt = annotation->points.at(point_idx);
+                    Print("Adding point next to ", pt, " => ", Vec2(pt) + Vec2(10,10));
+                    
+                    annotation->points.insert(annotation->points.begin() + point_idx + 1, blob::Pose::Point(Vec2(pt) + Vec2(10,10)));
+                    
+                    SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    
+                    auto& gui = _data->dynGUI;
+                    gui.context.update_local_setting(
+                        gui.current_object_handler.get(),
+                        "local.rightclicked_point",
+                        [](sprite::Reference& ref) {
+                            ref.get().set_value_from_string("[]");
+                        });
+                });
+            }),
+            
+            ActionFunc("remove_detection_point", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+                
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([this, detect_annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front()), point_idx = Meta::fromStr<uint64_t>(action.parameters.back()), action](auto, DrawStructure& graph) {
+                    if(not _data
+                       || not _data->_cache)
+                        throw InvalidArgumentException("No data pointer set. Probably quitting.");
+                    
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be added to.");
+
+                    auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                    auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                    if(it == detect_annotations.end()) {
+                        throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                    }
+
+                    auto annotation = std::find_if(it->second.begin(), it->second.end(), [detect_annotation_uid](const Annotation& candidate) {
+                        return candidate.uid == detect_annotation_uid;
+                    });
+                    if(annotation == it->second.end())
+                        throw InvalidArgumentException("Cannot find detect annotation uid ", detect_annotation_uid, " in ", it->second);
+                    if(annotation->points.size() <= point_idx)
+                        throw InvalidArgumentException(point_idx, " out of range for detect annotation uid ", detect_annotation_uid, " with ", annotation->points.size(), " points.");
+                    
+                    auto pt = annotation->points.at(point_idx);
+                    Print("Removing ", pt);
+                    
+                    annotation->points.erase(annotation->points.begin() + point_idx);
+                    if(annotation->points.empty()) {
+                        it->second.erase(annotation);
+                        
+                        if(it->second.empty()) {
+                            detect_annotations.erase(it);
+                        }
+                    }
+                    
+                    SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    
+                    auto& gui = _data->dynGUI;
+                    gui.context.update_local_setting(
+                        gui.current_object_handler.get(),
+                        "local.rightclicked_point",
+                        [](sprite::Reference& ref) {
+                            ref.get().set_value_from_string("[]");
+                        });
+                });
             }),
             
             ActionFunc("move_whole_detect_annotation", [this](const Action& action) {

@@ -1,4 +1,7 @@
 {
+  "locals":{
+    "rightclicked_point": {"type":"int_array","value":[]}
+  },
 "defaults": {
 "vars":{
   "start":"{analysis_range.start}",
@@ -175,7 +178,9 @@
                 "fill": [255,255,255,150],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
                 "color":[255,255,255,255],
-                "drag":"move_detect_annotation:{i.id}:{index}"
+                "drag":"move_detect_annotation:{i.id}:{index}",
+                "click":"set-local:rightclicked_point:[{i.id},{index}]",
+                "clickable":true
               },
               {
                 "type":"stext",
@@ -316,6 +321,35 @@
         "line":[255,0,0,255],
         "fill":[1,1,1,0],
         "corners":["all", 8]
+      }
+    },
+
+    {
+      "type":"condition",
+      "var":"{local.rightclicked_point}",
+      "then":{
+        "type":"list",
+        "z-index": 5,
+        "list":{
+          "size":[200,180],
+          "fill":[30,30,30,220],
+          "line":[255,255,255,150]
+        },
+        "pos":"{addVector:[5,5]:{2hud:{at:{at:1:{local.rightclicked_point}}:{at:pts:{at:{at:0:{local.rightclicked_point}}:{detect_annotations}}}}}}",
+        "items": [
+          {
+            "text":"<c> </c><sym>🖯</sym> <gray>Deselect</gray>",
+            "action": "set-local:rightclicked_point:[]"
+          },
+          {
+            "text": "<c> </c><sym>🖈</sym> New point here",
+            "action": "add_detection_point_nextto_existing:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
+          },
+          {
+            "text": "<c> </c><sym>✀</sym> <orange>Remove point</orange>",
+            "action": "remove_detection_point:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
+          }
+        ]
       }
     },
 

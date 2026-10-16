@@ -941,6 +941,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         using namespace track;
         detect::AnnotationMap annotation_example = detect::AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]],101:[[0,5,[]]]}");
         CONFIG("track_detect_annotations", detect::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` containing detect annotations that can be exported per frame. Geometric annotations can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'. Type IDs are 0=BOX, 1=POSE, 2=SEGMENTATION, 3=OBB, 4=POINT, and 5=EMPTY. EMPTY marks the entire frame as explicitly empty, has no points, and ignores clid. Object annotations take precedence over EMPTY on the same frame. Explicit empty frames export their full image with an empty YOLO label file or no COCO object annotations.", PUBLIC, {std::move(annotation_example)});
+        CONFIG("annotation_mask_point_limit", uint16_t(150), "When converting a mask/segmentation from a detection to an annotation inside the graphical interface, this limits the number of points (and thus reduces the detail) of the resulting annotation. Zero means no limit. This can make the graphical interface less responsive and annotations unnecessarily detailed.");
         
         FrameTags tags{
             {123_f, std::set<FrameTag>{FrameTag("blue"), FrameTag("green")}}

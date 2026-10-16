@@ -406,6 +406,7 @@ struct DrawDetectAnnotationImportOptions::Data {
                                 auto preview = preview_dataset_import(options, scope);
                                 auto imported = apply_dataset_import(preview, options.existing_annotations, options.mode, scope);
                                 SETTING(track_detect_annotations) = std::move(imported);
+                                SETTING(gui_mode) = gui::mode_t::annotate;
                                 if(apply_metadata) {
                                     if(preview.metadata.class_names_changed)
                                         SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{preview.metadata.imported_class_names};

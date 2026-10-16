@@ -945,30 +945,40 @@ void BlobView::draw(const DisplayParameters& parm)
                                 
                             } else if(pred.outlines.has_original_outline()) {
                                 std::vector<Vec2> points{pred.outlines.original_outline.value()};
-                                std::vector<blob::Pose::Point> converted;
-                                
-                                Float2_t threshold = 0.5_F;
                                 std::vector<Vec2> reduced;
-                                do {
-                                    reduced.clear();
-                                    reduce_vertex_line(points, reduced, threshold);
-                                    threshold *= 1.5_F;
-                                } while(reduced.size() >= 150);
+                                std::vector<blob::Pose::Point> converted;
+                                auto ptr = &points;
+                                const auto annotation_mask_point_limit = READ_SETTING_WITH_DEFAULT(annotation_mask_point_limit, uint16_t(150));
                                 
-                                //auto result = poly_convex_hull(&points);
-                                //if(result)
-                                {
+                                if(annotation_mask_point_limit > 2u) {
+                                    Float2_t threshold = 0.5_F;
+                                    static constexpr size_t max_tries = 100u;
+                                    size_t tries{0u};
                                     
-                                    for(auto &pt : reduced) {
-                                        converted.emplace_back(pt);
-                                    }
+                                    do {
+                                        if(not reduce_vertex_line(points, reduced, threshold, annotation_mask_point_limit)) {
+                                            threshold *= 1.5_F;
+                                            reduced.clear();
+                                        } else {
+                                            break;
+                                        }
+                                        
+                                    } while(++tries < max_tries);
                                     
-                                    annotation = track::detect::Annotation {
-                                        .clid = pred.clid,
-                                        .type = track::detect::AnnotationType::SEGMENTATION,
-                                        .points = std::move(converted)
-                                    };
+                                    if(not reduced.empty()
+                                       && valid_polygon(reduced))
+                                        ptr = &reduced;
                                 }
+                                
+                                for(auto &pt : *ptr) {
+                                    converted.emplace_back(pt);
+                                }
+                                
+                                annotation = track::detect::Annotation {
+                                    .clid = pred.clid,
+                                    .type = track::detect::AnnotationType::SEGMENTATION,
+                                    .points = std::move(converted)
+                                };
                             }
                         }
                         
@@ -981,6 +991,7 @@ void BlobView::draw(const DisplayParameters& parm)
                             detect_annotations[frame].push_back(std::move(*annotation));
                             track::detect::AnnotationMap::normalize(detect_annotations);
                             SETTING(track_detect_annotations) = std::move(detect_annotations);
+                            SETTING(gui_mode) = gui::mode_t::annotate;
                         }
                     }
                     

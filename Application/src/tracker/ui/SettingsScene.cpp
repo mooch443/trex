@@ -541,6 +541,7 @@ struct SettingsScene::Data {
 
                                     if(READ_SETTING(filename, file::Path).empty())
 										SETTING(filename) = file::Path(basename);
+                                    _initial_source = array;
                                     SETTING(source) = array;
                                 }
                             }
@@ -597,7 +598,7 @@ struct SettingsScene::Data {
                                     filename = filename.add_extension("pv");
                                 
                                 if(filename.exists()) {
-                                    graph.dialog([
+                                    graph.dialog([this,
                                         before = std::move(before),
                                         defaults = std::move(defaults),
                                         defaults_with_config = std::move(defaults_with_config)
@@ -614,6 +615,7 @@ struct SettingsScene::Data {
                                             
                                         } else {
                                             /// we have to reset settings:
+                                            _initial_source = before.at("source").template value<file::PathArray>();
                                             GlobalSettings::write([&](Configuration& config){
                                                 config.values = before;
                                                 config.defaults = std::move(defaults);
@@ -1022,8 +1024,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
     _selected_source_exists = false;
     
     try {
-        if (source != _initial_source
-            && source.get_paths().size() == 1
+        if (source.get_paths().size() == 1
             && source.get_paths().front().has_extension("pv"))
         {
             //auto output = settings::find_output_name(GlobalSettings::map());
@@ -1075,13 +1076,17 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
         
         SceneManager::enqueue([this, source](){
             try {
-                if(_initial_source.empty()
+                if(source != READ_SETTING(source, file::PathArray))
+                    return;
+
+                if(source != _initial_source
                    && not source.empty())
                 {
+                    if(callback)
+                        GlobalSettings::unregister_callbacks(std::move(callback));
+
+                    settings::reset(sprite::Map{"source", source});
                     load_video_settings(source);
-                    
-                    // set initial source for the first time
-                    _initial_source = source;
                 }
                 
                 (void)source.size(); // load files
@@ -1098,12 +1103,6 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
         FormatExcept("Caught an exception when checking video source.");
 #endif
     }
-    
-    /// some stuff regarding reloading settings when the source changes:
-    /// *currently disabled since it feels bad*
-    //if (source == initial_source) {
-    //    return;
-    //}
 }
 
 void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
@@ -1123,7 +1122,6 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
                         : file::DataLocation::parse("input", source.get_paths().front());
     
     if (not source.empty()
-        && source_path.is_regular()
         && not source_path.has_extension("pv"))
     {
         auto filename = GlobalSettings::read_value<file::Path>("filename");
@@ -1192,6 +1190,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
         }
     }
     
+    _initial_source = READ_SETTING(source, file::PathArray);
     register_callbacks();
 }
 
