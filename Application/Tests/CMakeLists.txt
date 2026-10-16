@@ -213,6 +213,7 @@ endif()
 
 if(WIN32)
 target_compile_options(test_matching PRIVATE /bigobj)
+target_compile_options(test_tracking_export_e2e PRIVATE /bigobj)
 target_compile_options(test_tracking_filename_resolution PRIVATE /bigobj)
 endif()
 
