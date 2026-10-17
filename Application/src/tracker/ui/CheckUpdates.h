@@ -23,7 +23,7 @@ void cleanup();
 void init(cmn::gui::DrawStructure*);
 bool user_has_been_asked();
 bool automatically_check();
-void display_update_dialog(cmn::gui::DrawStructure*);
+bool display_update_dialog(cmn::gui::DrawStructure*);
 void write_version_file();
 
 }

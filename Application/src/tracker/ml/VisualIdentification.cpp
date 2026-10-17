@@ -1,8 +1,13 @@
 #include "VisualIdentification.h"
 #include <ml/AccumulationRuntime.h>
 #include <python/PythonWrapper.h>
+#include <misc/Image.h>
+#include <misc/Path.h>
 #include <misc/frame_t.h>
+#include <processing/Background.h>
 #include <processing/PVBlob.h>
+#include <tracking/Stuffs.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
@@ -128,7 +133,7 @@ void VINetwork::setup(bool force) {
         py::set_variable("learning_rate", READ_SETTING(gpu_learning_rate, float), module_name);
         py::set_variable("batch_size", (long_t)batch_size, module_name);
         py::set_variable("video_length", narrow_cast<long_t>(READ_SETTING(video_length, uint64_t)), module_name);
-        py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()));
+        py::set_variable("verbosity", uint32_t(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class)));
         
         auto filename = VINetwork::network_path();
         try {
@@ -328,6 +333,8 @@ bool VINetwork::weights_available() {
     if (base.add_extension("pth").exists())
         return true;
     // Serialized model bundle (less ideal, but indicates presence of a checkpoint)
+    if (file::Path(base.str() + "_model.pt2").exists())
+        return true;
     if (file::Path(base.str() + "_model.pth").exists())
         return true;
     return false;
@@ -632,7 +639,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 uchar setting_max_epochs = int(READ_SETTING(gpu_max_epochs, uchar));
                 py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), module_name);
                 py::set_variable("min_iterations", long_t(READ_SETTING(gpu_min_iterations, uchar)), module_name);
-                py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()), module_name);
+                py::set_variable("verbosity", uint32_t(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class)), module_name);
                 
                 auto filename = network_path();
                 try {

@@ -14,6 +14,7 @@ class ResultsFormat;
 
 namespace track {
 
+class Tracker;
 class Individual;
 
 // collect all the currently active individuals
@@ -277,7 +278,7 @@ public:
 public:
     using expected_individual_t = std::expected<Individual*, std::string_view>;
     
-    IndividualManager(const PPFrame&);
+    IndividualManager(Tracker&, const PPFrame&);
     ~IndividualManager();
     
     IndividualManager(const IndividualManager&) = delete;
@@ -310,7 +311,7 @@ public:
     [[nodiscard]] static std::expected<set_of_individuals_t*, const char*> active_individuals(Frame_t) noexcept;
     
     //! delete callback is called for each deleted individual, right before it is deleted
-    static void remove_frames(Frame_t from, std::function<void(Individual*)>&& delete_callback = nullptr);
+    static void remove_frames(Tracker& tracker, Frame_t from, std::function<void(Individual*)>&& delete_callback = nullptr);
     static void clear() noexcept;
     
     [[nodiscard]] static expected_individual_t individual_by_id(Idx_t) noexcept;

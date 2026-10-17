@@ -1,13 +1,12 @@
 #pragma once
 #include <commons.pc.h>
 #include <ui/Scene.h>
-//#include <gui/DynamicGUI.h>
-//#include <gui/DrawBase.h>
-#include <ui/RecentItems.h>
-#include <misc/ThreadPool.h>
-#include <tracking/ConnectedTasks.h>
-#include <gui/GUITaskQueue.h>
-#include <core/idx_t.h>
+#include <misc/frame_t.h>
+#include <misc/Timer.h>
+
+namespace track {
+struct Idx_t;
+}
 
 namespace cmn::gui {
 

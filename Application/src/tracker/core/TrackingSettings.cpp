@@ -41,4 +41,44 @@ glz::json_t PoseMidlineIndexes::to_json() const {
     return a;
 }
 
+ShapeList::ShapeList(std::vector<std::vector<Vec2>> shape)
+{
+    update_value(std::move(shape));
+}
+
+std::string ShapeList::toStr() const {
+    return Meta::toStr(_value);
+}
+
+glz::json_t ShapeList::to_json() const {
+    return cvt2json(_value);
+}
+
+void ShapeList::push_back(std::vector<Vec2> points) {
+    fix_value(points);
+    _value.push_back(std::move(points));
+}
+
+void ShapeList::update_value(std::vector<std::vector<Vec2>>&& tmp)
+{
+    for(auto &vec : tmp) {
+        fix_value(vec);
+    }
+    
+    _value = std::move(tmp);
+}
+
+void ShapeList::fix_value(std::vector<Vec2>& vec) {
+    if(vec.size() <= 2)
+        return;
+    
+    auto ptr = poly_convex_hull(&vec);
+    if(ptr && vec != *ptr)
+        vec = *ptr;
+}
+
+bool ShapeList::empty() const {
+    return _value.empty();
+}
+
 }

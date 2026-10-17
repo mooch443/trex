@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <core/DetectionTypes.h>
 #include <core/SoftException.h>
+#include <core/TileCoordinates.h>
 #include <core/idx_t.h>
 #include <misc/frame_t.h>
 #include <misc/Image.h>
@@ -23,13 +24,17 @@ struct TREX_EXPORT ModelConfig {
                 std::string model_path,
                 DetectResolution trained_resolution = {},
                 ObjectDetectionFormat::data::values output = ObjectDetectionFormat::none,
-                std::optional<KeypointFormat> keypoints = std::nullopt)
+                std::optional<KeypointFormat> keypoints = std::nullopt,
+                bool requires_exact_input_size = false,
+                bool try_optimize = false)
         : task(task),
           use_tracking(use_tracking),
+          try_optimize(try_optimize),
           model_path(std::move(model_path)),
           trained_resolution(trained_resolution),
           output_format(output),
-          keypoint_format(keypoints)
+          keypoint_format(keypoints),
+          requires_exact_input_size(requires_exact_input_size)
     {
         if(!yolo::is_valid_default_model(this->model_path)) {
             std::ifstream f(this->model_path.c_str());
@@ -44,8 +49,10 @@ struct TREX_EXPORT ModelConfig {
             "ModelConfig<task=" + Meta::toStr(static_cast<int>(task)) +
             " format=" + Meta::toStr(ObjectDetectionFormat::values.at((size_t)output_format)) +
             " use_tracking=" + Meta::toStr(use_tracking) +
+            " try_optimize=" + Meta::toStr(try_optimize) +
             " model_path='" + model_path +
-            "' trained_resolution=" + Meta::toStr(trained_resolution);
+            "' trained_resolution=" + Meta::toStr(trained_resolution) +
+            " requires_exact_input_size=" + Meta::toStr(requires_exact_input_size);
 
         if(keypoint_format) {
             s += " keypoints=" + Meta::toStr(keypoint_format->n_points) +
@@ -62,11 +69,13 @@ struct TREX_EXPORT ModelConfig {
 
     ModelTaskType task;
     bool use_tracking;
+    bool try_optimize{false};
     std::string model_path;
     DetectResolution trained_resolution;
     ObjectDetectionFormat::data::values output_format;
     detect::yolo::names::owner_map_t classes;
     std::optional<KeypointFormat> keypoint_format;
+    bool requires_exact_input_size;
 };
 
 struct TREX_EXPORT Rect {
@@ -150,6 +159,8 @@ private:
 
 class TREX_EXPORT MaskData {
 private:
+    friend class DetectionMaskAccess;
+
     std::vector<uint8_t> ptr;
     MaskData(std::vector<uint8_t>&& ptr, int rows, int cols, int dims = 1)
         : ptr(std::move(ptr)), mat(rows, cols, CV_8UC(dims), this->ptr.data())
@@ -312,19 +323,23 @@ public:
 };
 
 class TREX_EXPORT Result {
+    friend class DetectionMaskAccess;
+
 public:
     Result(int index,
            Boxes&& boxes,
            std::vector<MaskData>&& masks,
            KeypointData&& keypoints,
            track::detect::ObbData&& obbdata,
-           track::detect::PointData&& points)
+           track::detect::PointData&& points,
+           std::optional<MaskData> semantic_mask = std::nullopt)
         : _index(index),
           _boxes(std::move(boxes)),
           _masks(std::move(masks)),
           _keypoints(std::move(keypoints)),
           _obbdata(std::move(obbdata)),
-          _points(std::move(points))
+          _points(std::move(points)),
+          _semantic_mask(std::move(semantic_mask))
     {
         if(_boxes.num_rows() != 0) {
             if(!_masks.empty() && _masks.size() != _boxes.num_rows())
@@ -334,10 +349,20 @@ public:
             throw std::invalid_argument("Boxes must be empty if obb data is set.");
         if(!_points.empty() && _boxes.num_rows() > 0)
             throw std::invalid_argument("Boxes must be empty if points data is set.");
+        if(_semantic_mask
+           && (_boxes.num_rows() > 0
+               || !_masks.empty()
+               || !_keypoints.empty()
+               || !_obbdata.empty()
+               || !_points.empty()))
+        {
+            throw std::invalid_argument(
+                "A semantic mask cannot be combined with another detection payload.");
+        }
     }
 
     std::string toStr() const {
-        return "Result<" + std::to_string(index()) + "," + _boxes.toStr() + "," + Meta::toStr(_masks) + "," + Meta::toStr(_keypoints) + "," + Meta::toStr(_obbdata) + "," + Meta::toStr(_points) + ">";
+        return "Result<" + std::to_string(index()) + "," + _boxes.toStr() + "," + Meta::toStr(_masks) + "," + Meta::toStr(_keypoints) + "," + Meta::toStr(_obbdata) + "," + Meta::toStr(_points) + ",semantic=" + Meta::toStr(_semantic_mask) + ">";
     }
 
     static consteval std::string_view class_name() {
@@ -351,24 +376,22 @@ protected:
     GETTER(KeypointData, keypoints);
     GETTER(ObbData, obbdata);
     GETTER(PointData, points);
+    GETTER(std::optional<MaskData>, semantic_mask);
 };
 
 class TREX_EXPORT YoloInput {
     GETTER(std::vector<Image::Ptr>, images);
-    GETTER(std::vector<Vec2>, offsets);
-    GETTER(std::vector<Vec2>, scales);
+    GETTER(std::vector<TileGeometry>, tile_geometries);
     GETTER(std::vector<size_t>, orig_id);
     std::function<void(std::vector<Image::Ptr>&&)> _delete;
 
 public:
     YoloInput(std::vector<Image::Ptr>&& images,
-              std::vector<Vec2> offsets,
-              std::vector<Vec2> scales,
+              std::vector<TileGeometry> tile_geometries,
               std::vector<size_t> orig_id,
               std::function<void(std::vector<Image::Ptr>&&)>&& deleter = nullptr)
         : _images(std::move(images)),
-          _offsets(std::move(offsets)),
-          _scales(std::move(scales)),
+          _tile_geometries(std::move(tile_geometries)),
           _orig_id(std::move(orig_id)),
           _delete(std::move(deleter))
     {}
@@ -384,7 +407,7 @@ public:
     }
 
     std::string toStr() const {
-        return "YoloInput<images=" + Meta::toStr(_images) + " offsets=" + Meta::toStr(_offsets) + " scales=" + Meta::toStr(_scales) + " belongs=" + Meta::toStr(_orig_id) + ">";
+        return "YoloInput<images=" + Meta::toStr(_images) + " tile_geometries=" + Meta::toStr(_tile_geometries.size()) + " belongs=" + Meta::toStr(_orig_id) + ">";
     }
 };
 

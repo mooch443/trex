@@ -2,18 +2,26 @@
 
 #include <commons.pc.h>
 #include <core/Network.h>
-#include <core/default_config.h>
 #include <misc/Image.h>
 #include <misc/PackLambda.h>
 #include <core/idx_t.h>
-#include <misc/Path.h>
+#include <misc/ranges.h>
 #include <tracking/TrainingData.h>
-#include <tracking/Stuffs.h>
+#include <core/SoftException.h>
 #include <core/DetectionTypes.h>
 
-namespace Python {
+namespace cmn {
+namespace file {
+class Path;
+}
+}
 
-ENUM_CLASS(TrainingMode,
+namespace track {
+struct BasicStuff;
+struct PostureStuff;
+}
+
+ENUM_CLASS(Python::, TrainingMode,
     None,
     Restart,
     Apply,
@@ -22,6 +30,7 @@ ENUM_CLASS(TrainingMode,
     LoadWeights
 )
 
+namespace Python {
 template<typename T>
 concept image_ptr =    cmn::_clean_same<T, cmn::Image::SPtr>
                     || cmn::_clean_same<T, cmn::Image::Ptr>;

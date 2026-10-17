@@ -1,12 +1,19 @@
 #include "TrackingScene.h"
+#include <pv.h>
+#include <core/idx_t.h>
+#include <ui/ImageGeneratorRegistry.h>
+#include <misc/Image.h>
 #include <misc/GlobalSettings.h>
 #include <gui/IMGUIBase.h>
 #include <gui/DynamicGUI.h>
 #include <ui/RecentItems.h>
 #include <misc/CommandLine.h>
 #include <file/PathArray.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
-//#include <grabber/misc/default_config.h>
 #include <tracking/OutputLibrary.h>
 #include <ui/Categorize.h>
 #include <ui/WorkProgress.h>
@@ -21,22 +28,22 @@
 #include <gui/types/Button.h>
 #include <gui/types/Layout.h>
 #include <ui/TrackingState.h>
-#include <ui/SettingsInitializer.h>
 #include <ui/CategorizeInterface.h>
 #include <ui/DrawPreviewImage.h>
 #include <ui/DrawPosture.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsPaths.h>
 #include <tracking/FilterCache.h>
 #include <core/FOI.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
-#include <ui/InfoCard.h>
 #include <tracking/AutomaticMatches.h>
 #include <ui/DrawDataset.h>
+#include <ui/DrawAnnotationExportOptions.h>
+#include <ui/DrawDetectAnnotationImportOptions.h>
 #include <ui/DrawExportOptions.h>
 #include <python/PythonWrapper.h>
 #include <tracking/MemoryStats.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <ui/GuiSettings.h>
 #include <ui/PreviewAdapterElement.h>
 #include <ui/DrawUniqueness.h>
@@ -50,11 +57,13 @@
 #include <tracking/PPFrame.h>
 #include <core/TileImage.h>
 #include <misc/DisplayValue.h>
-#include <ui/AnnotationScene.h>
+#include <ui/DetectAnnotationScene.h>
 #include <ui/LabelWrapper.h>
 #include <ui/LabelElement.h>
+#include <core/FrameTags.h>
 
 using namespace track;
+using namespace track::detect;
 
 namespace cmn::gui {
 
@@ -65,13 +74,16 @@ struct TrackingScene::Data {
     ImageGeneratorRegistry _image_generators;
     std::unique_ptr<GUICache> _cache;
     std::unique_ptr<DrawDataset> _dataset;
+    std::unique_ptr<DrawAnnotationExportOptions> _annotation_export_options;
+    std::unique_ptr<DrawDetectAnnotationImportOptions> _detect_annotation_import_options;
     std::unique_ptr<DrawExportOptions> _export_options;
     std::unique_ptr<DrawUniqueness> _uniqueness;
     LabelCache_t _unassigned_labels;
     std::unordered_map<Idx_t, Label_t> _labels;
     
+    Settings::track_ignore_bdx_t _track_ignore_bdx;
+    
     std::unique_ptr<TimingStatsCollector::HandleGuard> _display_handle, _waiting_handle;
-    Frame_t _last_displayed_frame;
     
     /// these will help updating some visual stuff whenever
     /// the tracker has added a new frame:
@@ -87,6 +99,14 @@ struct TrackingScene::Data {
     std::unique_ptr<ExternalImage> _gui_mask;
     
     std::unique_ptr<Rect> _drag_box;
+    
+    struct DraggedDetectAnnotation {
+        Drawable* ptr{nullptr};
+        uint64_t detect_annotation_uid{0u};
+        dyn::Action action;
+    };
+    
+    std::optional<DraggedDetectAnnotation> dragged_detect_annotation;
     
     std::unordered_map<Idx_t, std::optional<sprite::Map>> _cache_maps;
     
@@ -132,7 +152,7 @@ struct TrackingScene::Data {
     std::optional<std::vector<std::tuple<Frame_t, Frame_t>>> _cached_fois;
     Float2_t _cached_fois_width{-1};
     
-    bool update_cached_fois(std::weak_ptr<pv::File> video, bool force = false);
+    bool update_cached_fois(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video, bool force = false);
     
     /**
      * @brief Constructor for the Data struct.
@@ -151,7 +171,7 @@ struct TrackingScene::Data {
     void init_empty_map();
 };
 
-bool TrackingScene::Data::update_cached_fois(std::weak_ptr<pv::File> video, bool force) {
+bool TrackingScene::Data::update_cached_fois(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video, bool force) {
     /* --- throttle to max. 1 Hz --- */
     if (not force
         && _last_foi_update.elapsed() <= (GUI_SETTINGS(track_pause) ? 1.0 : 10.0))
@@ -184,7 +204,7 @@ bool TrackingScene::Data::update_cached_fois(std::weak_ptr<pv::File> video, bool
             if(is_uniqueness) {
                 _foi_state.color = Cyan;
                 if(not _uniqueness_provider) {
-                    _uniqueness_provider = std::make_unique<track::UniquenessProvider>(video);
+                    _uniqueness_provider = std::make_unique<track::UniquenessProvider>(tracker, video);
                     _uniqueness_provider->request_update();
                 }
                 return true;
@@ -259,7 +279,7 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
     _background = std::make_unique<AnimatedBackground>(std::move(average), &video, _timing_stats);
     
     _background->add_event_handler(EventType::MBUTTON, [this](Event e){
-        if(e.mbutton.pressed && e.mbutton.started_here) {
+        if(e.mbutton.pressed == false && e.mbutton.started_here) {
             if(_clicked_background)
                 _clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
             else
@@ -288,6 +308,8 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 
     for (auto& [key, code] : _key_map)
         _keymap[key] = false;
+    
+    _track_ignore_bdx = SETTING(track_ignore_bdx).value<Settings::track_ignore_bdx_t>();
 }
 
 void TrackingScene::Data::handle_zooming(Event e) {
@@ -366,7 +388,9 @@ void TrackingScene::Data::handle_zooming(Event e) {
         }
     };
 
-    if(READ_SETTING(gui_focus_group, std::vector<track::Idx_t>).empty()) {
+    if(not is_in(READ_SETTING_WITH_DEFAULT(gui_mode, mode_t::tracking), mode_t::tracking)
+       || READ_SETTING_WITH_DEFAULT(gui_focus_group, (std::vector<track::Idx_t>{})).empty())
+    {
         auto gui_zoom_polygon = READ_SETTING(gui_zoom_polygon, std::vector<Vec2>);
         if(gui_zoom_polygon.empty() || gui_zoom_polygon.size() != 4)
         {
@@ -461,8 +485,90 @@ Idx_t find_wrapped_id(const Set& ids, track::Idx_t current_id, Comparator comp) 
 }
 
 bool TrackingScene::on_global_event(Event event) {
+    if(not _data)
+        return false;
+
+    auto graph = _data->_bowl && _data->_bowl->stage() ? _data->_bowl->stage() : nullptr;
+    const bool primary_mouse_down = graph && graph->is_mouse_down(0);
+    if(event.type == EventType::MMOVE
+       && primary_mouse_down
+       // A split click/drag gesture owns the pointer before it selects anything.
+       && !graph->has_active_pointer_gesture()
+       && (not graph->selected_object()
+           || (_data->_background
+               && graph->selected_object()->is_child_of(_data->_background.get())))
+       && READ_SETTING(gui_mode, gui::mode_t::Class) == gui::mode_t::annotate)
+    {
+        auto p = _data->_bowl_mouse; //coords.convert(HUDCoord(graph->mouse_position()));
+        //auto p = Vec2(event.move.x, event.move.y);
+
+        if(not _data->_drag_box)
+            _data->_drag_box = std::make_unique<Rect>(Loc{p});
+
+        auto pos = _data->_drag_box->pos();
+        _data->_drag_box->create(Size{p - pos + Vec2(1)}, FillClr{Red.alpha(50)});
+    }
+
+    if(_data->_drag_box
+       && graph
+       && not primary_mouse_down
+       && READ_SETTING(gui_mode, gui::mode_t::Class) == gui::mode_t::annotate)
+    {
+        const Frame_t gui_frame = READ_SETTING(gui_frame, Frame_t);
+        const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
+        
+        const auto box = _data->_drag_box->bounds();
+        const auto x0 = std::min(box.x, box.x + box.width);
+        const auto y0 = std::min(box.y, box.y + box.height);
+        const auto x1 = std::max(box.x, box.x + box.width);
+        const auto y1 = std::max(box.y, box.y + box.height);
+        const auto width = x1 - x0;
+        const auto height = y1 - y0;
+
+        if(width >= 10
+           && height >= 10
+           && gui_frame.valid()
+           && detect_format == track::detect::ObjectDetectionFormat::boxes)
+        {
+            using Point = blob::Pose::Point;
+            Annotation annotation{
+                .uid = 0u,
+                .clid = 0u,
+                .type = AnnotationType::BOX,
+                .points = std::vector<Point>{
+                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y0)),
+                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y0)),
+                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y1)),
+                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y1))
+                }
+            };
+
+            auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+
+            if(not detect_annotations)
+                detect_annotations.init();
+            auto& field = detect_annotations[gui_frame];
+            annotation.uid = narrow_cast<uint8_t>(field.size());
+
+            field.push_back(std::move(annotation));
+
+            AnnotationMap::normalize(detect_annotations);
+            SETTING(track_detect_annotations) = std::move(detect_annotations);
+        }
+        _data->_drag_box = nullptr;
+    }
+    if(graph
+       && not primary_mouse_down
+       && _data->_drag_box)
+    {
+        _data->_drag_box = nullptr;
+    }
+
+
     if(event.type == EventType::MBUTTON || event.type == EventType::SCROLL) {
         _data->_zoom_dirty = true;
+        if(event.type == EventType::SCROLL)
+            _data->handle_zooming(event);
     }
     if(event.type == EventType::WINDOW_RESIZED) {
         _data->_zoom_dirty = true;
@@ -483,6 +589,9 @@ bool TrackingScene::on_global_event(Event event) {
         switch (event.key.code) {
             case Keyboard::Escape:
                 SceneManager::enqueue([](auto, DrawStructure& graph) {
+                    /// ignore while in other dialogs
+                    if(graph.has_open_dialogs())
+                        return;
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -524,7 +633,19 @@ bool TrackingScene::on_global_event(Event event) {
                 _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
                 break;
             case Keyboard::Z:
-                _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
+                if(not graph->is_system_pressed()) {
+                    _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
+                    break;
+                } else {
+                    GlobalSettings::write([shift_down = graph->is_key_pressed(Keyboard::LShift) || graph->is_key_pressed(Keyboard::RShift)](Configuration& config){
+                        auto keys = shift_down ? config.redo() : config.undo();
+                        if(keys) {
+                            Print("* reverted ", keys.value());
+                        } else {
+                            Print("* nothing to revert.");
+                        }
+                    });
+                }
                 break;
             case Keyboard::G:
                 SETTING(gui_show_graph) = not BOOL_SETTING(gui_show_graph);
@@ -573,16 +694,19 @@ bool TrackingScene::on_global_event(Event event) {
                }
                 break;
             }
-            case Keyboard::D:
-                SETTING(gui_mode) = GUI_SETTINGS(gui_mode) == mode_t::tracking ? mode_t::blobs : mode_t::tracking;
+            case Keyboard::D: {
+                auto current_mode = GUI_SETTINGS(gui_mode);
+                SETTING(gui_mode) = current_mode == mode_t::tracking ? mode_t::raw : mode_t::tracking;
+
                 _data->_cache->set_tracking_dirty();
                 _data->_cache->set_blobs_dirty();
                 _data->_cache->set_redraw();
                 break;
+            }
                 
             case Keyboard::F: {
                 SceneManager::enqueue([](IMGUIBase* base, DrawStructure& graph){
-                    if(graph.is_key_pressed(Codes::LSystem))
+                    if(graph.is_system_pressed())
                     {
                         base->toggle_fullscreen(graph);
                     }
@@ -621,8 +745,40 @@ void TrackingScene::settings_callback(std::string_view key) {
         auto stats = _data->_timing_stats;
         _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, READ_SETTING(gui_frame, Frame_t)));
     }*/
-    if(key == "gui_foi_name") {
-        _data->update_cached_fois(_state->video, true);
+    if(key == "track_detect_annotations"
+       || key == "track_frame_tags")
+    {
+        auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+        auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+        
+        static const std::string manual_annotations_foi_name = "annotated";
+        std::set<FOI> fois;
+        for(auto &[frame, frame_detect_annotations]: detect_annotations) {
+            (void)frame_detect_annotations;
+            fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
+        }
+        for(auto &[frame, tags] : track_frame_tags) {
+            fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
+        }
+
+        if(not fois.empty()) {
+            /// Resolve the id AFTER constructing the FOIs: the reason is registered
+            /// lazily on first construction, so reading it earlier returns -1 and files
+            /// the annotations under the "none" slot on the very first edit.
+            auto id = FOI::to_id(manual_annotations_foi_name);
+            if(id == -1)
+                FormatError("Failed to resolve FOI id for type ", manual_annotations_foi_name, ".");
+            else
+                FOI::replace_all_of(id, std::move(fois));
+            _data->update_cached_fois(_state->tracker, _state->video, true);
+        }
+    }
+    else if(key == "gui_mode") {
+        //if(_data && _data->_bowl)
+        //    _data->_bowl->set_target_focus({});
+    }
+    else if(key == "gui_foi_name") {
+        _data->update_cached_fois(_state->tracker, _state->video, true);
         return;
     }
     else if(key == "gui_wait_for_background") {
@@ -665,14 +821,56 @@ void TrackingScene::settings_callback(std::string_view key) {
               && _data
               && _data->_cache)
     {
-        if(Tracker::end_frame().valid()
-           && _data->_cache->frame_idx.valid()
-           && Tracker::end_frame() >= _data->_cache->frame_idx)
-        {
-            WorkProgress::add_queue("", [frame = _data->_cache->frame_idx, this](){
-                Tracker::instance()->_remove_frames(frame);
-                if(_state)
-                    _state->analysis->set_paused(false);
+        Frame_t changed_frame = _data->_cache->frame_idx;
+        
+        if(key == "track_ignore_bdx") {
+            changed_frame = {};
+            
+            if(auto value = SETTING(track_ignore_bdx).value<Settings::track_ignore_bdx_t>();
+               _data->_track_ignore_bdx != value)
+            {
+                for(auto &[frame, bdxes] : value) {
+                    auto it = _data->_track_ignore_bdx.find(frame);
+                    if(it == _data->_track_ignore_bdx.end()
+                       || it->second != bdxes)
+                    {
+                        changed_frame = frame;
+                        break;
+                    }
+                }
+                
+                for(auto &[frame, bdxes] : _data->_track_ignore_bdx) {
+                    if(changed_frame.valid()
+                       && changed_frame < frame)
+                    {
+                        /// dont overwrite later frames
+                        break;
+                    }
+                    
+                    if(auto it = value.find(frame);
+                       it == value.end())
+                    {
+                        changed_frame = frame;
+                        break;
+                    }
+                }
+                
+                /// couldnt find it here if `changed_frame` is not valid.
+                /// in which case nothing happens.
+                _data->_track_ignore_bdx = std::move(value);
+            }
+        }
+        
+        if(changed_frame.valid()) {
+            WorkProgress::add_queue("", [frame = changed_frame, this](){
+                if(not _state) {
+                    FormatError("No tracker exists because the scene doesnt exist anymore.");
+                    return;
+                }
+                
+                _state->analysis->set_paused(true).get();
+                _state->tracker->_remove_frames(frame);
+                _state->analysis->set_paused(false).get();
             });
         }
     }
@@ -684,6 +882,7 @@ void TrackingScene::settings_callback(std::string_view key) {
              "cam_undistort_vector",
              "analysis_range",
              "track_threshold",
+             "blob_split_algorithm",
              "track_posture_threshold",
              "track_size_filter",
              "frame_rate",
@@ -694,9 +893,12 @@ void TrackingScene::settings_callback(std::string_view key) {
              "individual_image_size",
              "individual_image_scale",
              "gui_zoom_polygon",//"gui_zoom_limit",
+                "track_detect_annotations",
+                "track_frame_tags",
              "detect_skeleton",
             "gui_pose_smoothing",
-             "track_include", "track_ignore"))
+             "track_include", "track_ignore",
+                "track_detect_annotations"))
     {
         redraw_all();
     }
@@ -704,6 +906,7 @@ void TrackingScene::settings_callback(std::string_view key) {
     if(key == "gui_focus_group"
        || key == "gui_fish_label"
        || key == "detect_skeleton"
+       || key == "track_detect_annotations"
        || utils::beginsWith(key, "heatmap_"))
     {
         if(_data && _data->_cache) {
@@ -722,14 +925,16 @@ void TrackingScene::settings_callback(std::string_view key) {
     }
     
     if(key == "output_prefix") {
-        window()->set_title(window_title());
+        window()->set_title(settings::window_title());
     }
 }
 
 void TrackingScene::activate() {
     WorkProgress::instance().start();
-    
-    settings::initialize_filename_for_tracking();
+
+    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_existing_output_name(config.values);
+    });
     
     _state = std::make_unique<TrackingState>(SceneManager::getInstance().gui_task_queue());
     
@@ -773,6 +978,7 @@ void TrackingScene::activate() {
         "gui_show_cliques",
         "gui_show_graph",
         "gui_pose_smoothing",
+        "gui_mode",
         
         "gui_foi_name",
         
@@ -785,6 +991,7 @@ void TrackingScene::activate() {
         "track_background_subtraction",
         "meta_encoding",
         "track_threshold",
+        "blob_split_algorithm",
         "track_posture_threshold",
         "track_size_filter",
         "track_include", "track_ignore",
@@ -798,7 +1005,8 @@ void TrackingScene::activate() {
         
         "output_prefix",
         
-        "gui_wait_for_background"
+        "gui_wait_for_background",
+        "track_detect_annotations",
         
         //"gui_frame"
         
@@ -838,6 +1046,17 @@ void TrackingScene::activate() {
             _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename(), true);
         }
     }
+    
+    GlobalSettings::write([](Configuration& config){
+        config.history.reset(AccessLevelType::PUBLIC);
+        config.history.ignore_prefix("gui_");
+        config.history.ignore_prefix("auto_");
+        config.history.ignore({
+            "track_pause",
+            "heatmap_ids",
+            "accumulation_sufficient_uniqueness"
+        });
+    });
 }
 
 void TrackingScene::redraw_all() {
@@ -954,7 +1173,6 @@ void TrackingScene::deactivate() {
     Configuration combined;
     combined.values.set_print_by_default(false);
     
-    grab::default_config::get(combined);
     default_config::get(combined);
     
     for(auto key : combined.values.keys()) {
@@ -981,6 +1199,11 @@ void TrackingScene::deactivate() {
     
     GlobalSettings::set_current_defaults(combined.values);
     GlobalSettings::set_current_defaults_with_config(combined.values);
+    
+    GlobalSettings::write([](Configuration& config){
+        Print("* resetting parameter history");
+        config.history.reset();
+    });
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex, bool automatic) {
@@ -1078,14 +1301,11 @@ void TrackingScene::update_run_loop() {
             _data->_background
             && _data->_background->valid()
             && BOOL_SETTING(gui_wait_for_background);
-        const Frame_t video_conversion_start = _state && _state->video && _state->video->header().conversion_range.start.has_value() ? Frame_t(_state->video->header().conversion_range.start.value()) : Frame_t{};
         const bool gui_show_video_background = BOOL_SETTING(gui_show_video_background);
         const bool gui_wait_for_pv = BOOL_SETTING(gui_wait_for_pv);
         const Frame_t gui_displayed_frame = READ_SETTING(gui_displayed_frame, Frame_t);
         const Frame_t background_displayed_frame = _data->_background && _data->_background->valid()
-            ? (video_conversion_start.valid() && _data->_background->displayed_frame().valid()
-               ? _data->_background->displayed_frame().try_sub(video_conversion_start)
-               : _data->_background->displayed_frame())
+            ? _data->_background->displayed_frame()
         : Frame_t{};
         
         _data->_cache->set_load_frames_blocking(false);
@@ -1163,6 +1383,55 @@ void TrackingScene::_draw(DrawStructure& graph) {
     if(not _data)
         return;
     
+    if(_data->dragged_detect_annotation
+       && not graph.is_mouse_down(0))
+    {
+        if(_data->dragged_detect_annotation->ptr == graph.selected_object()) {
+            auto selected = _data->dragged_detect_annotation->ptr;
+            auto detect_annotation_uid = _data->dragged_detect_annotation->detect_annotation_uid;
+            auto action = _data->dragged_detect_annotation->action;
+            
+            auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+            auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+            if(it == detect_annotations.end()) {
+                throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+            }
+
+            auto annotation = std::find_if(it->second.begin(), it->second.end(), [detect_annotation_uid](const Annotation& candidate) {
+                return candidate.uid == detect_annotation_uid;
+            });
+            if(annotation == it->second.end())
+                throw InvalidArgumentException("Cannot find detect annotation uid ", detect_annotation_uid, " in ", it->second);
+            
+            auto coords = FindCoord::get();
+            auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
+            auto absolute = coords.convert(HUDCoord(selected->absolute_drag_start())).map(roundf);
+            Print("Pos = ", pos, " absolute=",absolute, " diff=", pos - absolute);
+            
+            Vec2 xy(FLT_MAX, FLT_MAX);
+            for(auto& pt : annotation->points) {
+                if(pt.x < xy.x) xy.x = pt.x;
+                if(pt.y < xy.y) xy.y = pt.y;
+            }
+            
+            if(xy.x != FLT_MAX
+               && xy.y != FLT_MAX)
+            {
+                for(auto& pt : annotation->points) {
+                    Print("pt=",pt," adding ", pos - absolute, " => ", Vec2(pt) + pos - absolute);
+                    pt = Vec2(pt) + pos - absolute;
+                    //if(pt.y < xy.y) xy.y = pt.y;
+                }
+                
+                SETTING(track_detect_annotations) = std::move(detect_annotations);
+                
+                
+            }
+        }
+        
+        _data->dragged_detect_annotation.reset();
+    }
+    
     if(_data->_tracker_has_added_frames
        //&& _state && _state->analysis->is_paused()
        && _data->_cache)
@@ -1179,7 +1448,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     auto coords = FindCoord::get();
     
     if(not _data->_cache) {
-        _data->_cache = std::make_unique<GUICache>(&graph, _state->video, _data->_timing_stats);
+        _data->_cache = std::make_unique<GUICache>(&graph, _state->tracker, _state->video, _data->_timing_stats);
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
         _data->_bowl->set_video_aspect_ratio(_state->video->size().width, _state->video->size().height);
         _data->_bowl->fit_to_screen(coords.screen_size());
@@ -1211,7 +1480,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     /// Update FOIs if necessary.
-    _data->update_cached_fois(_state->video);
+    _data->update_cached_fois(_state->tracker, _state->video);
 
     for (auto& [key, code] : _key_map) {
         _data->_keymap[key] = graph.is_key_pressed(code);
@@ -1364,9 +1633,11 @@ void TrackingScene::_draw(DrawStructure& graph) {
         }
         
         _data->_bowl->fit_to_screen(coords.screen_size());
-        if(GUI_SETTINGS(gui_auto_scale_focus_one))
+        if(GUI_SETTINGS(gui_auto_scale_focus_one)
+            && is_in(GUI_SETTINGS(gui_mode), mode_t::tracking))
+        {
             _data->_bowl->set_target_focus(targets);
-        else
+        } else
             _data->_bowl->set_target_focus({});
         
         if(loaded.valid())
@@ -1399,7 +1670,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     if(_data->_cache->frame_idx.valid())
-        _data->_bowl->update(_data->_cache->frame_idx, graph, coords);
+        _data->_bowl->update(_state->tracker->frames(), _data->_cache->frame_idx, graph, coords);
     _data->_bowl_mouse = coords.convert(HUDCoord(graph.mouse_position())); //_data->_bowl->global_transform().getInverse().transformPoint(graph.mouse_position());
     
     /*const auto mode = GUI_SETTINGS(gui_mode);
@@ -1410,7 +1681,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //_data->_bowl->set(LineClr{Cyan});
     //_data->_bowl.set(FillClr{Yellow});
     
-    if(GUI_SETTINGS(gui_mode) == mode_t::blobs) {
+    if(is_in(GUI_SETTINGS(gui_mode), mode_t::raw, mode_t::annotate)) {
         cmn::gui::tracker::draw_blob_view({
             .graph = graph,
             .cache = *_data->_cache,
@@ -1420,17 +1691,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     cmn::gui::tracker::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
     
-    if(GUI_SETTINGS(gui_show_timeline)
-       && GUI_SETTINGS(gui_mode) == mode_t::tracking)
-    {
-        for(auto &[id, ptr] : _data->_cache->_displayed_graphs) {
-            ptr->draw(graph);
-        }
-    }
-    
     _data->dynGUI.update(graph, nullptr);
     
-    Categorize::draw(_state->video, (IMGUIBase*)window(), graph);
+    Categorize::draw(_state->tracker, _state->video, (IMGUIBase*)window(), graph);
     
     //DrawPreviewImage::draw(_state->tracker->background(), _data->_cache->processed_frame(), GUI_SETTINGS(gui_frame), graph);
     
@@ -1441,7 +1704,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     if(GUI_SETTINGS(gui_show_dataset)) {
         if(not _data->_dataset)
             _data->_dataset = std::make_unique<DrawDataset>();
-        _data->_dataset->set_data(_data->_cache->frame_idx, *_data->_cache);
+        _data->_dataset->set_data(*_state->tracker, _data->_cache->frame_idx, *_data->_cache);
         graph.wrap_object(*_data->_dataset);
         
     } else if(_data->_dataset) {
@@ -1456,10 +1719,28 @@ void TrackingScene::_draw(DrawStructure& graph) {
     } else if(_data->_export_options) {
         _data->_export_options = nullptr;
     }
+
+    if(GUI_SETTINGS(gui_show_annotation_export_options)) {
+        if(not _data->_annotation_export_options)
+            _data->_annotation_export_options = std::make_unique<DrawAnnotationExportOptions>(_state->video);
+        _data->_annotation_export_options->draw(graph);
+
+    } else if(_data->_annotation_export_options) {
+        _data->_annotation_export_options = nullptr;
+    }
+
+    if(GUI_SETTINGS(gui_show_detect_annotation_import_options)) {
+        if(not _data->_detect_annotation_import_options)
+            _data->_detect_annotation_import_options = std::make_unique<DrawDetectAnnotationImportOptions>();
+        _data->_detect_annotation_import_options->draw(graph);
+
+    } else if(_data->_detect_annotation_import_options) {
+        _data->_detect_annotation_import_options = nullptr;
+    }
     
     if(GUI_SETTINGS(gui_show_uniqueness)) {
         if(not _data->_uniqueness) {
-            _data->_uniqueness = std::make_unique<DrawUniqueness>(_data->_cache.get(), _state->video);
+            _data->_uniqueness = std::make_unique<DrawUniqueness>(_data->_cache.get(), _state->tracker, _state->video);
         }
         
         _data->_uniqueness->set(_data->_cache->frame_idx);
@@ -1468,17 +1749,33 @@ void TrackingScene::_draw(DrawStructure& graph) {
     } else if(_data->_uniqueness) {
         _data->_uniqueness = nullptr;
     }
+
+    if(GUI_SETTINGS(gui_show_timeline)
+       && GUI_SETTINGS(gui_mode) == mode_t::tracking)
+    {
+        for(auto &[id, ptr] : _data->_cache->_displayed_graphs) {
+            ptr->draw(graph);
+        }
+    }
     
     //if(not graph.root().is_dirty() && not graph.root().is_animating())
     //    std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
     //Print("dirty = ", graph.root().is_dirty());
-    if(graph.root().is_dirty())
+    if(graph.root().is_dirty()) {
         last_dirty.reset();
+        //Print("* dirty");
+    }
     else if(last_dirty.elapsed() > 0.25)
     {
         graph.root().set_dirty();
         last_dirty.reset();
-    }
+        //Print("* default reset");
+    } else if(last_dirty.elapsed() >= 0.05) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        //Print("* waiting");
+    } /*else {
+        Print("Nothing happens but we keep polling a bit");
+    }*/
 }
 
 void TrackingScene::next_poi(Idx_t _s_fdx) {
@@ -1571,7 +1868,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             
                 overall.print();
                 
-                mem::TrackerMemoryStats stats;
+                mem::TrackerMemoryStats stats{*_state->tracker};
                 stats.print();
                 
                 mem::OutputLibraryMemoryStats ol;
@@ -1579,6 +1876,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             ActionFunc("quit", [](Action) {
                 SceneManager::enqueue([](auto, DrawStructure& graph) {
+                    /// ignore while in other dialogs
+                    if(graph.has_open_dialogs())
+                        return;
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -1603,7 +1903,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 if(parm == "gui_frame") {
                     set_frame(Meta::fromStr<Frame_t>(value), false);
                 } else
-                    GlobalSettings::get(parm).get().set_value_from_string(value);
+                    GlobalSettings::write([&](Configuration& config) {
+                        config.values[parm].get().set_value_from_string(value);
+                    });
             }),
             ActionFunc("change_scene", [](Action action) {
                 /**
@@ -1651,6 +1953,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             ActionFunc("export_data", [](Action){
                 SETTING(gui_show_export_options) = true;
             }),
+            ActionFunc("export_annotations", [](Action){
+                SETTING(gui_show_annotation_export_options) = true;
+            }),
+            ActionFunc("import_detect_annotations", [](Action){
+                SETTING(gui_show_detect_annotation_import_options) = true;
+            }),
             ActionFunc("python", [](Action action){
                 /**
                  * @param command  The Python command to execute.
@@ -1694,7 +2002,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             ActionFunc("categorize", [this](Action){
                 _state->_controller->_busy = true;
-                Categorize::show(_state->video,
+                Categorize::show(_state->tracker, _state->video,
                     [this](){
                         _state->_controller->_busy = false;
                         if(BOOL_SETTING(auto_quit))
@@ -1721,6 +2029,46 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     Print("callback ");
                 }, _state->_controller);
             }),
+            
+            ActionFunc("add_tag", [this](Action action) {
+                REQUIRE_EXACTLY(1, action);
+                
+                if(not _data || not _data->_cache) {
+                    throw RuntimeError("Dialog is closing.");
+                }
+                
+                auto frame = _data->_cache->frame_idx;
+                auto tag = Meta::fromStr<FrameTag>(action.parameters.front());
+                
+                if(frame.valid()) {
+                    safely_change_setting("track_frame_tags", [&](track::FrameTags& tags){
+                        tags[frame].insert(tag);
+                    });
+                }
+            }),
+            ActionFunc("remove_tag", [this](Action action) {
+                if(not _data || not _data->_cache) {
+                    throw RuntimeError("Dialog is closing.");
+                }
+                
+                auto frame = _data->_cache->frame_idx;
+                auto tag = Meta::fromStr<FrameTag>(action.parameters.front());
+                
+                if(frame.valid()) {
+                    safely_change_setting("track_frame_tags", [&](track::FrameTags& tags){
+                        auto it = tags.find(frame);
+                        if(it == tags.end())
+                            return;
+                        
+                        auto kit = it->second.find(tag);
+                        if(kit == it->second.end())
+                            return;
+                        
+                        it->second.erase(kit);
+                    });
+                }
+            }),
+            
             ActionFunc("remove_automatic_matches", [this](const Action& action) {
                 /**
                  * @param fdx    The fish index for which to remove matches.
@@ -1753,6 +2101,245 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 Print("Got ", action.name, ": ", action.parameters);
             }),
             
+            ActionFunc("add_empty_annotation", [](const Action& action) {
+                REQUIRE_EXACTLY(0, action);
+                const auto gui_frame = READ_SETTING(gui_frame, Frame_t);
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    detect_annotations.init();
+                auto& field = detect_annotations[gui_frame];
+                if(field.empty()) {
+                    field.push_back(detect::Annotation{
+                        .uid = 0u,
+                        .clid = 255u,
+                        .type = AnnotationType::EMPTY
+                    });
+                }
+                SETTING(track_detect_annotations) = std::move(detect_annotations);
+            }),
+            
+            ActionFunc("remove_empty_annotation", [](const Action& action) {
+                REQUIRE_EXACTLY(0, action);
+                const auto gui_frame = READ_SETTING(gui_frame, Frame_t);
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    detect_annotations.init();
+                auto fit = detect_annotations.find(gui_frame);
+                if(fit == detect_annotations.end())
+                    throw InvalidArgumentException("Frame ", gui_frame, " has no annotations.");
+                auto& field = fit->second;
+                if(not field.empty()) {
+                    for(auto it = field.begin(); it != field.end(); ++it) {
+                        if(it->type == AnnotationType::EMPTY) {
+                            field.erase(it);
+                            if(field.empty()) {
+                                detect_annotations.erase(fit);
+                            }
+                            break;
+                        }
+                    }
+                    SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    return;
+                }
+                
+                throw InvalidArgumentException("Frame ", gui_frame, " has no EMPTY annotations.");
+            }),
+            
+            ActionFunc("add_detection_point_nextto_existing", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+                
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([this, detect_annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front()), point_idx = Meta::fromStr<uint64_t>(action.parameters.back()), action](auto, DrawStructure& graph) {
+                    if(not _data
+                       || not _data->_cache)
+                        throw InvalidArgumentException("No data pointer set. Probably quitting.");
+                    
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be added to.");
+
+                    auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                    auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                    if(it == detect_annotations.end()) {
+                        throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                    }
+
+                    auto annotation = std::find_if(it->second.begin(), it->second.end(), [detect_annotation_uid](const Annotation& candidate) {
+                        return candidate.uid == detect_annotation_uid;
+                    });
+                    if(annotation == it->second.end())
+                        throw InvalidArgumentException("Cannot find detect annotation uid ", detect_annotation_uid, " in ", it->second);
+                    if(annotation->points.size() <= point_idx)
+                        throw InvalidArgumentException(point_idx, " out of range for detect annotation uid ", detect_annotation_uid, " with ", annotation->points.size(), " points.");
+                    
+                    auto pt = annotation->points.at(point_idx);
+                    Print("Adding point next to ", pt, " => ", Vec2(pt) + Vec2(10,10));
+                    
+                    annotation->points.insert(annotation->points.begin() + point_idx + 1, blob::Pose::Point(Vec2(pt) + Vec2(10,10)));
+                    
+                    SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    
+                    auto& gui = _data->dynGUI;
+                    gui.context.update_local_setting(
+                        gui.current_object_handler.get(),
+                        "local.rightclicked_point",
+                        [](sprite::Reference& ref) {
+                            ref.get().set_value_from_string("[]");
+                        });
+                });
+            }),
+            
+            ActionFunc("remove_detection_point", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+                
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([this, detect_annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front()), point_idx = Meta::fromStr<uint64_t>(action.parameters.back()), action](auto, DrawStructure& graph) {
+                    if(not _data
+                       || not _data->_cache)
+                        throw InvalidArgumentException("No data pointer set. Probably quitting.");
+                    
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be added to.");
+
+                    auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                    auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                    if(it == detect_annotations.end()) {
+                        throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                    }
+
+                    auto annotation = std::find_if(it->second.begin(), it->second.end(), [detect_annotation_uid](const Annotation& candidate) {
+                        return candidate.uid == detect_annotation_uid;
+                    });
+                    if(annotation == it->second.end())
+                        throw InvalidArgumentException("Cannot find detect annotation uid ", detect_annotation_uid, " in ", it->second);
+                    if(annotation->points.size() <= point_idx)
+                        throw InvalidArgumentException(point_idx, " out of range for detect annotation uid ", detect_annotation_uid, " with ", annotation->points.size(), " points.");
+                    
+                    auto pt = annotation->points.at(point_idx);
+                    Print("Removing ", pt);
+                    
+                    annotation->points.erase(annotation->points.begin() + point_idx);
+                    if(annotation->points.empty()) {
+                        it->second.erase(annotation);
+                        
+                        if(it->second.empty()) {
+                            detect_annotations.erase(it);
+                        }
+                    }
+                    
+                    SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    
+                    auto& gui = _data->dynGUI;
+                    gui.context.update_local_setting(
+                        gui.current_object_handler.get(),
+                        "local.rightclicked_point",
+                        [](sprite::Reference& ref) {
+                            ref.get().set_value_from_string("[]");
+                        });
+                });
+            }),
+            
+            ActionFunc("move_whole_detect_annotation", [this](const Action& action) {
+                REQUIRE_EXACTLY(1, action);
+                
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([this, detect_annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front()), action](auto, DrawStructure& graph) {
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be moved.");
+                    
+                    if(not _data->dragged_detect_annotation) {
+                        _data->dragged_detect_annotation = Data::DraggedDetectAnnotation{
+                            .ptr = selected,
+                            .detect_annotation_uid = detect_annotation_uid,
+                            .action = action
+                        };
+                    }
+                });
+            }),
+            
+            ActionFunc("move_detect_annotation", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+
+                auto detect_annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front());
+                auto point_idx = Meta::fromStr<uint64_t>(action.parameters.back());
+
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([=](auto, DrawStructure& graph) {
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be moved.");
+
+                    auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                    auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                    if(it == detect_annotations.end()) {
+                        throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                    }
+
+                    auto annotation = std::find_if(it->second.begin(), it->second.end(), [detect_annotation_uid](const Annotation& candidate) {
+                        return candidate.uid == detect_annotation_uid;
+                    });
+                    if(annotation == it->second.end())
+                        throw InvalidArgumentException("Cannot find detect annotation uid ", detect_annotation_uid, " in ", it->second);
+                    if(annotation->points.size() <= point_idx)
+                        throw InvalidArgumentException(point_idx, " out of range for detect annotation uid ", detect_annotation_uid, " with ", annotation->points.size(), " points.");
+
+                    auto coords = FindCoord::get();
+                    auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
+
+                    if(not Vec2(pos).Equals((Vec2)annotation->points.at(point_idx))) {
+                        annotation->points.at(point_idx) = pos;
+                        SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    }
+                });
+            }),
+
+            ActionFunc("remove_detect_annotation", [](const Action& action) {
+                REQUIRE_EXACTLY(1, action);
+                auto object_id = Meta::fromStr<uint64_t>(action.parameters.front());
+
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    return; /// Not found
+                auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                if(it == detect_annotations.end()) {
+                    throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                }
+
+                auto &field = it->second;
+                for(auto kit = field.begin(); kit != field.end(); ++kit) {
+                    if(kit->uid == object_id) {
+                        field.erase(kit);
+
+                        if(field.empty()) {
+                            detect_annotations.erase(it);
+                        } else {
+                            uint8_t index = 0;
+                            for(auto &a : field) {
+                                a.uid = index++;
+                            }
+                        }
+                        SETTING(track_detect_annotations) = std::move(detect_annotations);
+                        return;
+                    }
+                }
+
+                throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+            }),
+
             ActionFunc("ignore_bdxes", [this](const Action& action) {
                 /**
                  * @param fdx
@@ -1811,11 +2398,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
 
                     auto items = RecentItems::read();
                     if(not items.state().ignore_bdx_warning_shown) {
-                        items.state().ignore_bdx_warning_shown = true;
-                        items.write();
-                        
                         SceneManager::enqueue([id = fish->identity(), start, end, apply_fn](auto, DrawStructure& graph) {
-                            graph.dialog([id = id, start, end, apply_fn](Dialog::Result result) {
+                            auto dialog = graph.dialog([id = id, start, end, apply_fn](Dialog::Result result) {
                                 if(result == Dialog::Result::OKAY) {
                                     /// If the user confirms, we set the ignore_bdxes state.
                                     apply_fn();
@@ -1823,7 +2407,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                     /// If the user cancels, we do not set the ignore_bdxes state.
                                     FormatWarning("Not ignoring bdxes for individual ", id, " frames ", start, "-", end);
                                 }
-                            }, "Do you want to ignore blobs for <c>"+Meta::toStr(id)+"</c> in frames <c><nr>"+Meta::toStr(start)+"</nr>-<nr>"+Meta::toStr(end)+"</nr></c>?\nThis will add all selected blob ids to <c>track_ignore_bdxes</c> and prevent them from being used in future analyses.\n\nYou can always undo this by resetting the <c>track_ignore_bdxes</c> setting. <i>You will not be asked about this in the future.</i>", "Ignore blobs", "Yes", "No");
+                            }, "Do you want to ignore blobs for <c>"+Meta::toStr(id)+"</c> in frames <c><nr>"+Meta::toStr(start)+"</nr>-<nr>"+Meta::toStr(end)+"</nr></c>?\nThis will add all selected blob ids to <c>track_ignore_bdx</c> and prevent them from being used in future analyses.\n\nYou can always undo this by resetting the <c>track_ignore_bdx</c> setting. <i>You will not be asked about this in the future.</i>", "Ignore blobs", "Yes", "No");
+                            if(dialog) {
+                                auto items = RecentItems::read();
+                                items.state().ignore_bdx_warning_shown = true;
+                                items.write();
+                            }
                         });
                     }
                     else {
@@ -1849,6 +2438,20 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     return false;
                 return _state->analysis->is_paused();
             }),
+            VarFunc("global_history", [](const VarProps&) {
+                return GlobalSettings::read([](const Configuration& config) {
+                    std::vector<std::map<std::string, std::string>> converted;
+                    for(auto &item : config.history) {
+                        auto keys = item.values.keys();
+                        converted.emplace_back();
+                        for(auto key : keys) {
+                            converted.back()[key] = item.values.at(key)->valueString();
+                        }
+                    }
+                    
+                    return cvt2json(converted);
+                });
+            }),
             VarFunc("is_checking_tracklet_identities", [](const VarProps&) -> bool {
                 return Tracker::is_checking_tracklet_identities.load();
             }),
@@ -1869,12 +2472,30 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     throw InvalidArgumentException("Need exactly one argument for ", props);
 
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
-                return _data->_cache->tracked_frames.contains(frame);
+                return _data->_cache->tracked_frames().contains(frame);
             }),
             VarFunc("foi_color", [this](const VarProps&) -> Color {
                 if(not _data)
                     throw RuntimeError("No _data.");
                 return _data->_foi_state.color;
+            }),
+            VarFunc("current_frame_tags", [this](const VarProps&) -> std::set<FrameTag> {
+                auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+                if(not _data || not _data->_cache)
+                    throw RuntimeError("GUI is shutting down.");
+                
+                auto frame = _data->_cache->frame_idx;
+                auto it = track_frame_tags.find(frame);
+                if(it != track_frame_tags.end()) {
+                    return it->second;
+                }
+                
+                return {};
+            }),
+            VarFunc("unique_frame_tags", [](const VarProps&) -> std::set<std::string_view> {
+                static track::FrameTags track_frame_tags;
+                track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+                return track_frame_tags.unique();
             }),
             VarFunc("active_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)
@@ -1887,7 +2508,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         return _data->_last_active_individuals;
                     }
                     
-                    if(_state->tracker->properties(frame)) {
+                    if(_state->tracker->frames().properties(frame)) {
                         auto individuals = Tracker::active_individuals(frame);
                         size_t N = 0;
                         for(auto fish : individuals)
@@ -1972,7 +2593,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         return _data->_last_live_individuals;
                     }
                     
-                    if(_state->tracker->properties(frame)) {
+                    if(_state->tracker->frames().properties(frame)) {
                         size_t count{0u};
                         for(auto fish : Tracker::active_individuals(frame)) {
                             if(fish->has(frame))
@@ -2055,6 +2676,27 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 }
                 return result;
             }),
+            VarFunc("frame_is_annotated_empty", [this](const VarProps& props) -> bool {
+                REQUIRE_EXACTLY(0, props);
+                if(not _data || not _data->_cache)
+                    throw InvalidArgumentException("_data not set.");
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    return false;
+                
+                auto frame = _data->_cache->frame_idx;
+                if(auto it = detect_annotations.find(frame);
+                   it != detect_annotations.end())
+                {
+                    for(auto &a : it->second) {
+                        if(a.type == AnnotationType::EMPTY) {
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
+            }),
             
             VarFunc("primary_selection", [this](const VarProps& props) -> std::string {
                 if(not _data)
@@ -2108,19 +2750,21 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                 /// add curve speed
                                 map["speed"] = stuff->centroid.speed<Units::CM_AND_SECONDS>();
                                 
-                                auto query = _data->_cache->blob_grid().query(stuff->centroid.pos<Units::PX_AND_SECONDS>(), FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
                                 auto min_d = 0.f;
                                 pv::bid min_bdx;
                                 Idx_t min_fdx;
-                                for(auto &[d, bdx] : query) {
-                                    if(bdx != it->second.bdx
-                                       && (d < min_d || not min_bdx.valid()))
-                                    {
-                                        auto fit = _data->_cache->blob_selected_fish.find(bdx);
-                                        if(fit != _data->_cache->blob_selected_fish.end()) {
-                                            min_fdx = fit->second;
-                                            min_d = d;
-                                            min_bdx = bdx;
+                                if(not _data->_cache->blob_grid_empty()) {
+                                    auto query = _data->_cache->blob_grid().query(stuff->centroid.pos<Units::PX_AND_SECONDS>(), FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+                                    for(auto &[d, bdx] : query) {
+                                        if(bdx != it->second.bdx
+                                           && (d < min_d || not min_bdx.valid()))
+                                        {
+                                            auto fit = _data->_cache->blob_selected_fish.find(bdx);
+                                            if(fit != _data->_cache->blob_selected_fish.end()) {
+                                                min_fdx = fit->second;
+                                                min_d = d;
+                                                min_bdx = bdx;
+                                            }
                                         }
                                     }
                                 }
@@ -2206,9 +2850,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {
-                if(not _state->tracker->start_frame().valid())
+                if(not _state->tracker->frames().start_frame().valid())
                     return Range<Frame_t>(_data->_analysis_range.load().start(), _data->_analysis_range.load().start());
-                return Range<Frame_t>{ _state->tracker->start_frame(), _state->tracker->end_frame() + 1_f };
+                return Range<Frame_t>{ _state->tracker->frames().start_frame(), _state->tracker->frames().end_frame() + 1_f };
             }),
             
             VarFunc("analysis_range", [this](const VarProps&) -> Range<Frame_t> {
@@ -2243,6 +2887,14 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto p = Meta::fromStr<Vec2>(props.parameters.front());
                 return coords.convert(BowlCoord(p));
             }),
+            VarFunc("vec2hud", [](const VarProps& props) {
+                auto coords = FindCoord::get();
+                auto pts = Meta::fromStr<std::vector<Vec2>>(props.parameters.front());
+                for(auto &p : pts) {
+                    p = coords.convert(BowlCoord(p));
+                }
+                return pts;
+            }),
             VarFunc("size2hud", [](const VarProps& props) {
                 auto coords = FindCoord::get();
                 auto p = Meta::fromStr<Size2>(props.parameters.front());
@@ -2256,18 +2908,105 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             VarFunc("status_text", [](const VarProps&) -> std::string {
                 return "";
-            })
+            }),
+            VarFunc("tiles", [](const VarProps&) -> std::vector<Bounds> {
+                const auto source_tiles = compute_tile_bounds(
+                    READ_SETTING(video_size, Size2),
+                    track::detect::get_model_image_size(),
+                    READ_SETTING(detect_tile_target_width, uint16_t),
+                    READ_SETTING(detect_tile_image, uchar),
+                    READ_SETTING(detect_tile_overlap, float));
+                return std::vector<Bounds>(source_tiles.begin(), source_tiles.end());
+            }),
+            VarFunc("detect_annotations", [this](const VarProps& props) -> std::vector<glz::json_t> {
+                if(not _data)
+                    throw InvalidArgumentException("_data not set.");
+
+                std::optional<uint8_t> filter_for_type;
+                if(props.parameters.size() > 0) {
+                    filter_for_type = Meta::fromStr<uint8_t>(props.parameters.front());
+                }
+                
+                std::vector<glz::json_t> result;
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    return result;
+
+                auto frame = READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t());
+                if(auto it = detect_annotations.find(frame);
+                   it != detect_annotations.end())
+                {
+                    result.reserve(it->second.size());
+
+                    const auto& objects = it->second;
+                    for(auto & object : objects) {
+                        if(object.type == AnnotationType::EMPTY)
+                            continue;
+                        if(filter_for_type
+                           && uint8_t(object.type) != *filter_for_type)
+                        {
+                            continue;
+                        }
+                        
+                        Bounds bds(FLT_MAX,FLT_MAX, -FLT_MAX, -FLT_MAX);
+                        for(auto &pt : object.points) {
+                            if(not pt.valid())
+                                continue;
+
+                            if(pt.x >= bds.width) bds.width = pt.x;
+                            if(pt.x < bds.x) bds.x = pt.x;
+                            if(pt.y >= bds.height) bds.height = pt.y;
+                            if(pt.y < bds.y) bds.y = pt.y;
+                        }
+                        if(bds.x == FLT_MAX)
+                            continue;
+
+                        result.push_back(glz::json_t::object_t{
+                            {"id", object.uid},
+                            {"clid", object.clid},
+                            {"seed_frame", frame.to_json() },
+                            {"type", (uint8_t)object.type },
+                            {"x", bds.x},
+                            {"y", bds.y},
+                            {"w", bds.width - bds.x},
+                            {"h", bds.height - bds.y},
+                            {"pts", cvt2json(object.points)}
+                        });
+                    }
+                }
+
+                return result;
+            }),
         }
     };
     
-    g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> const track::PPFrame* {
+    dyn::Modules::add(Modules::Module{
+        ._name = "draggable",
+        ._apply = [](size_t, State&, const Layout::Ptr& o) {
+            o->set_draggable();
+        }
+    });
+
+    g.context.custom_elements["label"] = std::unique_ptr<CustomElement>(
+            new LabelElement(&_data->_unassigned_labels, &_data->_labels, [this]() -> double {
+                if(_data
+                   && _data->_cache)
+                {
+                    return _data->_cache->dt();
+                }
+                return 0;
+            })
+    );
+    g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> std::shared_ptr<const track::Tracker> {
+        return _state ? _state->tracker : nullptr;
+    }, [this]() -> const track::PPFrame* {
         if(not _data || not _data->_cache)
             return nullptr;
         return &_data->_cache->processed_frame();
         
     }, [this](Idx_t fdx) -> std::tuple<const constraints::FilterCache*, std::optional<BdxAndPred>>
     {
-        if(not _data || not _data->_cache)
+        if(not _data || not _data->_cache || not fdx.valid())
             return {nullptr, std::nullopt};
         
         const constraints::FilterCache* filters{nullptr};
@@ -2343,7 +3082,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }
             
             if(not _data
-                || (not _data->update_cached_fois(_state->video)
+                || (not _data->update_cached_fois(_state->tracker, _state->video)
                     && width == _data->_cached_fois_width)
                 || not _data->_cached_fois.has_value())
             {

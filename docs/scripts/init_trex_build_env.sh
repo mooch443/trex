@@ -7,10 +7,11 @@ usage() {
 Initialize a fresh conda environment for building TRex.
 
 Usage:
-  docs/scripts/init_trex_build_env.sh [--env-name NAME] [--recreate] [--skip-post-link]
+  docs/scripts/init_trex_build_env.sh [--env-name NAME] [--trex-configure PROFILE] [--recreate] [--skip-post-link]
 
 Options:
   --env-name NAME   Conda environment name to create or update (default: trex-build)
+  --trex-configure  Native dependency profile: buildall or minimal (default: buildall)
   --recreate        Remove the target environment before creating it again
   --skip-post-link  Do not run conda/post-link.sh after installing packages
   -h, --help        Show this help text
@@ -25,6 +26,7 @@ EOF
 }
 
 env_name="trex-build"
+trex_configure="buildall"
 recreate=0
 skip_post_link=0
 
@@ -41,6 +43,18 @@ while [[ $# -gt 0 ]]; do
         --recreate)
             recreate=1
             shift
+            ;;
+        --trex-configure)
+            if [[ $# -lt 2 ]]; then
+                echo "Missing value for --trex-configure" >&2
+                exit 1
+            fi
+            trex_configure="$2"
+            if [[ "${trex_configure}" != "buildall" && "${trex_configure}" != "minimal" ]]; then
+                echo "--trex-configure must be buildall or minimal" >&2
+                exit 1
+            fi
+            shift 2
             ;;
         --skip-post-link)
             skip_post_link=1
@@ -85,13 +99,21 @@ common_packages=(
     pkg-config
     nasm
     icu
-    ffmpeg
+    "ffmpeg<8"
     numpy=1.26
     scikit-learn
     requests
     psutil
     c-compiler
     cxx-compiler
+)
+
+minimal_packages=(
+    zlib
+    libpng
+    libzip
+    "libopencv[version='>=4,<5',build='*headless*']"
+    "py-opencv[version='>=4,<5',build='*headless*']"
 )
 
 linux_packages=(
@@ -131,6 +153,9 @@ if [[ ${recreate} -eq 1 && ${env_exists} -eq 1 ]]; then
 fi
 
 packages=("${common_packages[@]}")
+if [[ "${trex_configure}" == "minimal" ]]; then
+    packages+=("${minimal_packages[@]}")
+fi
 if [[ "${os_name}" == "Linux" ]]; then
     packages+=("${linux_packages[@]}")
 elif [[ "${os_name}" != "Darwin" ]]; then
@@ -159,10 +184,11 @@ Next steps:
   conda activate ${env_name}
   cd ${repo_root}/Application
   mkdir -p build && cd build
-  ../trex_build_unix.sh
+  TREX_CONFIGURE=${trex_configure} ../trex_build_unix.sh
 
 For a local package build instead:
   conda activate ${env_name}
   cd ${repo_root}/conda
+  python select_config.py ${trex_configure}
   conda build .
 EOF

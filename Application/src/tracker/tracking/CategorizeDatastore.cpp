@@ -1,5 +1,10 @@
 #include "CategorizeDatastore.h"
+#include <pv.h>
 #include <gui/Transform.h>
+#include <processing/Background.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/FilterCache.h>
@@ -286,7 +291,7 @@ Label::Ptr DataStore::label(MaybeLabel ID) {
     return nullptr;
 }
 
-Sample::Ptr DataStore::random_sample(std::weak_ptr<pv::File> source, Idx_t fid) {
+Sample::Ptr DataStore::random_sample(const data::FrameRepository& repo, const Background& background, std::weak_ptr<pv::File> source, Idx_t fid) {
     static std::mutex rdmtx;
     static std::mt19937 mt{rd()};
     std::shared_ptr<TrackletInformation> tracklet;
@@ -310,14 +315,14 @@ Sample::Ptr DataStore::random_sample(std::weak_ptr<pv::File> source, Idx_t fid) 
             return Sample::Invalid();
         
         const auto min_len = FAST_SETTING(categories_train_min_tracklet_length);
-        return sample(source, tracklet, fish, 150u, min_len);
+        return sample(repo, background, source, tracklet, fish, 150u, min_len);
         
     }).or_else([](auto) -> std::expected<Sample::Ptr, const char*> {
         return Sample::Invalid();
     }).value();
 }
 
-Sample::Ptr DataStore::get_random(std::weak_ptr<pv::File> source) {
+Sample::Ptr DataStore::get_random(const data::FrameRepository& repo, const Background& background, std::weak_ptr<pv::File> source) {
     static std::mutex rdmtx;
     static std::mt19937 mt(rd());
     
@@ -332,7 +337,7 @@ Sample::Ptr DataStore::get_random(std::weak_ptr<pv::File> source) {
         std::lock_guard g(rdmtx);
         fid = Idx_t(individual_dist(mt));
     }
-    return DataStore::random_sample(source, fid);
+    return DataStore::random_sample(repo, background, source, fid);
 }
 
 DataStore::Composition DataStore::composition() {
@@ -797,7 +802,7 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
         
         auto f = file::DataLocation::parse("output", file::Path((std::string)READ_SETTING(filename, file::Path).filename()+"_categorize.log")).fopen("ab");
         text += "\n";
-        fwrite(text.c_str(), sizeof(char), text.length(), f.get());
+        f.write(text.c_str(), text.length());
     }
 }
 #endif
@@ -838,7 +843,7 @@ void DataStore::clear_cache() {
 }
 
 
-std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& frame, const std::shared_ptr<TrackletInformation>&, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
+std::shared_ptr<PPFrame> cache_pp_frame(const data::FrameRepository& repo, const Background& background, pv::File* video_source, const Frame_t& frame, const std::shared_ptr<TrackletInformation>&, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
     //if(Work::terminate())
     //    return nullptr;
     
@@ -892,7 +897,8 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
             auto& video_file = *video_source;
             video_file.read_with_encoding(video_frame, frame, Background::meta_encoding());
 
-            Tracker::preprocess_frame(std::move(video_frame), *ptr, NULL, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
+            Tracker::preprocess_frame(std::move(video_frame), *ptr, NULL, repo, background,
+                                      NeedGrid::NoNeed, HistorySplitPolicy::Apply);
             ptr->transform_blobs([](pv::Blob& b){
                 b.calculate_moments();
             });
@@ -1057,6 +1063,8 @@ std::mutex debug_mutex;
 ///#endif
 
 Sample::Ptr DataStore::temporary(
+     const data::FrameRepository& repo,
+     const Background& background,
      pv::File* video_source,
      const std::shared_ptr<TrackletInformation>& tracklet,
      Individual* fish,
@@ -1185,11 +1193,13 @@ Sample::Ptr DataStore::temporary(
     const auto normalize = default_config::valid_individual_image_normalization();
     const auto dims = FAST_SETTING(individual_image_size);
 
+    cv::Mat mask_buffer, image_buffer;
+
     for(auto &[index, frame, ptr] : stuff_indexes) {
 
         //if(!ptr || !Work::initialized())
 //        {
-            ptr = cache_pp_frame(video_source, frame, tracklet, _delete, _create, _reuse);
+            ptr = cache_pp_frame(repo, background, video_source, frame, tracklet, _delete, _create, _reuse);
 
 //#ifndef NDEBUG
 //            ++_create;
@@ -1227,7 +1237,8 @@ Sample::Ptr DataStore::temporary(
             auto posture = fish->posture_stuff(frame);
             midline = posture ? fish->calculate_midline_for(*posture) : nullptr;
             
-            custom_len = *constraints::local_midline_length(fish, range);
+            /// TODO: recognition border() essentially removed
+            custom_len = *constraints::local_midline_length(fish, range, nullptr);
         }
         
         if(basic->frame != frame) {
@@ -1239,18 +1250,22 @@ Sample::Ptr DataStore::temporary(
         if (blob) { //&& it != fish->tracklets().end()) {
             //LockGuard guard("Categorize::sample");
             
-            auto [image, pos] =
-                constraints::diff_image(normalize,
-                                        blob.get(),
-                                        midline ? midline->transform(normalize) : gui::Transform(),
-                                        custom_len.median_midline_length_px,
-                                        dims,
-                                        Tracker::background());
+            auto output = Image::Make();
+            auto pt =
+                constraints::diff_image_cached(mask_buffer,
+                                               image_buffer,
+                                               *output,
+                                               normalize,
+                                               blob.get(),
+                                               midline ? midline->transform(normalize) : gui::Transform(),
+                                               custom_len.median_midline_length_px,
+                                               dims,
+                                               &background);
             
-            if (image) {
-                images.emplace_back(std::move(image));
+            if (pt) {
+                images.emplace_back(std::move(output));
                 indexes.emplace_back(basic->frame);
-                positions.emplace_back(pos);
+                positions.emplace_back(*pt);
                 blob_ids.emplace_back(blob->blob_id());
             } else
                 FormatWarning("Image failed (Fish", fish->identity().ID(),", frame ",frame,")");
@@ -1281,6 +1296,8 @@ Sample::Ptr DataStore::temporary(
 }
 
 Sample::Ptr DataStore::sample(
+        const data::FrameRepository& repo,
+        const Background& background,
         const std::weak_ptr<pv::File>& source,
         const std::shared_ptr<TrackletInformation>& segment,
         Individual* fish,
@@ -1299,7 +1316,7 @@ Sample::Ptr DataStore::sample(
     if(not lock)
         return Sample::Invalid();
     
-    auto s = temporary(lock.get(), segment, fish, max_samples, min_samples);
+    auto s = temporary(repo, background, lock.get(), segment, fish, max_samples, min_samples);
     if(s == Sample::Invalid())
         return Sample::Invalid();
     

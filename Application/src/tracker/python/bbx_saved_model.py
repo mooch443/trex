@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+"""Production entry points used by the C++ detector bridge."""
+
 from typing import List, Optional
 
 from trex_detection_model import TRexDetection
 import TRex
 
-from trex_yolo import YOLOModel, TRexYOLO
+from trex_yolo import YOLOModel
+from trex_rfdetr import RFDETRModel, is_rfdetr_checkpoint
 
 model: Optional[TRexDetection] = None
 image_size = [640,640]
@@ -24,6 +27,7 @@ conf_threshold = 0.1
 
 seen, windows, dt = 0, [], None
 
+
 def load_yolo(configs : List[TRex.ModelConfig]):
     import torch
     TRex.log("Clearing caches...")
@@ -36,20 +40,54 @@ def load_yolo(configs : List[TRex.ModelConfig]):
     global model
     models = []
     for config in configs:
-        models.append(YOLOModel(config))
+        model_class = (
+            RFDETRModel
+            if is_rfdetr_checkpoint(config.model_path)
+            else YOLOModel
+        )
+        models.append(model_class(config))
+
+    if any(isinstance(candidate, RFDETRModel) for candidate in models):
+        if any(config.task == TRex.ModelTaskType.region for config in configs):
+            raise ValueError(
+                "RF-DETR cannot currently be combined with a region_model. "
+                "Region crops do not yet pass through the C++ exact-size preparation path."
+            )
     
     print("Configs: ", models)
-    model = TRexYOLO(models)
-    TRex.log("Loaded YOLO models: "+str([model.config for model in model.models]))
+    model = TRexDetection(models)
+    TRex.log("Loaded detection models: "+str([model.config for model in model.models]))
     return [model.config for model in model.models]
 
 def predict(input : TRex.YoloInput) -> List[TRex.Result]:
+    import os
+
     global model
     conf_threshold = float(TRex.setting("detect_conf_threshold"))
     iou_threshold : Optional[float] = TRex.setting("detect_iou_threshold")
     if not model:
         raise ValueError("Model not loaded. Please load the model before predicting.")
 
-    return model.inference(input, 
-                           conf_threshold = conf_threshold, 
-                           iou_threshold = iou_threshold)
+    destination = os.environ.get("TREX_RFDETR_E2E_APP_DUMP")
+    if destination:
+        # TEST-ONLY: the helper lives in Application/Tests and is available
+        # only to the opt-in full application parity test.
+        from trex_detector_e2e_capture import (
+            capture_input,
+            write_result_dump,
+        )
+        input_path = capture_input(input, destination)
+    results = model.inference(
+        input,
+        conf_threshold=conf_threshold,
+        iou_threshold=iou_threshold,
+    )
+    if destination:
+        write_result_dump(
+            results,
+            destination,
+            input_path,
+            conf_threshold,
+            iou_threshold,
+        )
+    return results
