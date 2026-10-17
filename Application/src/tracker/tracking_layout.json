@@ -1364,6 +1364,7 @@
       "var":"{hovered:info_symbol}",
       "then":{
         "type":"hlayout",
+        "z-index":50,
         "pos":"{mulVector:{window_size}:0.5}",
         "origin":[0.5,0.5],
         "fill": [25,25,25,200],

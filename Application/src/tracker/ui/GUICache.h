@@ -111,7 +111,6 @@ namespace globals {
         (bool, gui_show_export_options),
         (bool, gui_show_annotation_export_options),
         (bool, gui_show_detect_annotation_import_options),
-        (bool, gui_show_recognition_bounds),
         (bool, gui_show_midline_histogram),
         (bool, gui_show_histograms),
         (bool, gui_auto_scale),

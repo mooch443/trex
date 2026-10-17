@@ -1479,46 +1479,22 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         }
         
         const auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
-        if(is_in(type, track::detect::ObjectDetectionType::yolo, track::detect::ObjectDetectionType::none)
-           || READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{}))
+        if(type == track::detect::ObjectDetectionType::yolo)
         {
-            explicitly_include.emplace("detect_classes");
-            explicitly_include.emplace("detect_format");
-            
-            if(auto format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
-               format != track::detect::ObjectDetectionFormat::poses
-               && type != track::detect::ObjectDetectionType::none)
-            {
-                exclude_fields.push_back("detect_skeleton");
-                exclude_fields.push_back("detect_keypoint_format");
-                exclude_fields.push_back("detect_keypoint_names");
-                
-            } else {
-                explicitly_include.emplace("detect_skeleton");
-                explicitly_include.emplace("detect_keypoint_format");
-                explicitly_include.emplace("detect_keypoint_names");
-            }
-            
-            if(READ_SETTING(region_model, file::Path).empty()) {
-                exclude_fields.push_back("region_model");
-            }
-            
+            explicitly_include.insert({
+                "detect_iou_threshold",
+                "detect_skeleton",
+                "detect_conf_threshold",
+                "detect_keypoint_threshold",
+                "detect_model",
+                "detect_format",
+                "detect_classes",
+                "detect_keypoint_format",
+                "detect_keypoint_names"
+            });
         } else {
-            exclude_fields.push_back("detect_iou_threshold");
-            exclude_fields.push_back("detect_skeleton");
-            exclude_fields.push_back("detect_conf_threshold");
-            exclude_fields.push_back("detect_keypoint_threshold");
-            exclude_fields.push_back("detect_model");
-            exclude_fields.push_back("detect_format");
-            exclude_fields.push_back("detect_classes");
-            exclude_fields.push_back("detect_keypoint_format");
-            exclude_fields.push_back("detect_keypoint_names");
-            
             explicitly_include.emplace("detect_threshold");
         }
-        
-        if(type == track::detect::ObjectDetectionType::none)
-            explicitly_include.emplace("detect_threshold");
         
         /**
          * Exclude some settings based on what would automatically be assigned

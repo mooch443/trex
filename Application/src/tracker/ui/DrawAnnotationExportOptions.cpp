@@ -40,8 +40,8 @@ struct DrawAnnotationExportOptions::Data {
     DynamicGUI _gui;
 
     Format _format{dataset::format_t::yolo};
-    std::string _background_percent_text{"0"};
-    std::string _suffix_text;
+    std::string _output_directory_text;
+    std::optional<pfd::select_folder> _folder_dialog;
 
     Summary _summary;
     glz::json_t _info;
@@ -55,6 +55,11 @@ struct DrawAnnotationExportOptions::Data {
         parent.update([&](Entangled& e) {
             e.advance_wrap(_layout);
         });
+    }
+
+    ~Data() {
+        if(_folder_dialog)
+            _folder_dialog->kill();
     }
 
     std::vector<std::string> configured_keypoint_names() const {
@@ -71,15 +76,10 @@ struct DrawAnnotationExportOptions::Data {
         return map;
     }
 
-    float background_percent() const {
-        try {
-            return Meta::fromStr<float>(_background_percent_text);
-        } catch(...) {
-            return -1.f;
-        }
-    }
-
     file::Path output_directory() const {
+        if(!_output_directory_text.empty())
+            return file::Path(_output_directory_text);
+
         file::Path input = READ_SETTING(filename, file::Path).filename();
         if(input.empty()) {
             auto source = READ_SETTING(source, file::PathArray);
@@ -91,9 +91,6 @@ struct DrawAnnotationExportOptions::Data {
             input = file::Path("annotation_dataset");
 
         std::string folder = (std::string)input.filename() + "_annotations_" + _format.str();
-        auto suffix = file::sanitize_filename(_suffix_text, '_');
-        if(!suffix.empty())
-            folder += "_" + suffix;
         return file::DataLocation::parse("output", folder);
     }
 
@@ -119,7 +116,6 @@ struct DrawAnnotationExportOptions::Data {
         if(range.start >= 0)
             options.source_start = Frame_t(range.start);
         options.keypoint_names = default_keypoint_names(select_annotations(options), configured_keypoint_names());
-        options.background_percent = background_percent();
         return options;
     }
 
@@ -142,9 +138,6 @@ struct DrawAnnotationExportOptions::Data {
         if(!parts.empty())
             text += " (" + join(parts, ", ") + ")";
         text += " in <b>" + Meta::toStr(_summary.annotated_frames) + "</b> images.";
-
-        if(_summary.background_frames > 0)
-            text += "\nPlus <b>" + Meta::toStr(_summary.background_frames) + "</b> background images, <b>" + Meta::toStr(_summary.total_images) + "</b> images in total.";
 
         if(_summary.counts.poses > 0)
             text += "\nPose keypoints: <nr>" + Meta::toStr(_summary.keypoint_names.size()) + "</nr> (" + join(_summary.keypoint_names, ", ") + ")";
@@ -175,8 +168,8 @@ struct DrawAnnotationExportOptions::Data {
 
         _info = glz::json_t::object_t{
             {"format", glz::json_t(_format.str())},
-            {"background_percent", glz::json_t(_background_percent_text)},
-            {"suffix", glz::json_t(_suffix_text)},
+            {"output_directory", glz::json_t(_output_directory_text)},
+            {"default_output_directory", glz::json_t(options.output_directory.str())},
             {"detect_format", glz::json_t(options.detect_format.str())},
             {"selected_count", glz::json_t(_summary.counts.total())},
             {"has_annotations", glz::json_t(raw_counts.total() > 0)},
@@ -199,13 +192,19 @@ struct DrawAnnotationExportOptions::Data {
                         REQUIRE_EXACTLY(1, action);
                         _format = Meta::fromStr<Format>(action.first());
                     }),
-                    ActionFunc("set-background-percent", [this](const Action& action) {
+                    ActionFunc("set-output-directory", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
-                        _background_percent_text = action.first();
+                        _output_directory_text = action.first();
                     }),
-                    ActionFunc("set-suffix", [this](const Action& action) {
-                        REQUIRE_EXACTLY(1, action);
-                        _suffix_text = action.first();
+                    ActionFunc("choose-output-directory", [this](const Action&) {
+                        if(_folder_dialog)
+                            return;
+                        auto folder = output_directory();
+                        if(!folder.is_folder())
+                            folder = folder.remove_filename();
+                        if(!folder.is_folder())
+                            folder = {};
+                        _folder_dialog.emplace("Select output folder", folder.str());
                     }),
                     ActionFunc("close", [](const Action&) {
                         SETTING(gui_show_annotation_export_options) = false;
@@ -299,6 +298,12 @@ struct DrawAnnotationExportOptions::Data {
 
     void draw(DrawStructure& graph) {
         init_gui();
+        if(_folder_dialog && _folder_dialog->ready(0)) {
+            auto folder = _folder_dialog->result();
+            if(!folder.empty())
+                _output_directory_text = std::move(folder);
+            _folder_dialog.reset();
+        }
         update_info();
 
         parent.set(ZIndex{10});

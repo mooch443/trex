@@ -1503,13 +1503,13 @@ void write_config(const pv::File* video, bool overwrite, const std::string& suff
     auto text = default_config::generate_delta_config(AccessLevelType::INIT, video).to_settings();
     
     auto print_message = [filename](){
-        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+        //if(not READ_SETTING_WITH_DEFAULT(quiet, false))
             FormatWarning("Saving current configuration to ",filename.absolute(), "...");
     };
     
     if(filename.exists() && !overwrite) {
-        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
-            Print("Settings file ",filename.str()," already exists. Will not overwrite.");
+        //if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            FormatWarning("Settings file ",filename.str()," already exists. Will not overwrite.");
         
     } else {
         if(!filename.remove_filename().exists())

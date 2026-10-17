@@ -148,41 +148,39 @@
                   [
                     {
                       "type": "stext",
-                      "text": "<gray><b>Background %</b>\n<small>extra images without annotations</small></gray>",
+                      "text": "<gray><b>Output folder</b>\n<small>dataset destination</small></gray>",
                       "font": {"size": 0.5},
                       "pad": [10, 3, 10, 4]
                     },
                     {
-                      "type": "textfield",
-                      "text": "{info.background_percent}",
-                      "action": "set-background-percent:{text}",
-                      "on_text_changed": "set-background-percent:{text}",
-                      "size": "[410,{label_height}]",
-                      "font": {"size": 0.48},
-                      "fill": [50, 50, 50, 200],
-                      "line": [100, 100, 100, 50],
-                      "color": [255, 255, 255],
-                      "placeholder": "0"
-                    }
-                  ],
-                  [
-                    {
-                      "type": "stext",
-                      "text": "<gray><b>Suffix</b>\n<small>appended to the output folder</small></gray>",
-                      "font": {"size": 0.5},
-                      "pad": [10, 3, 10, 4]
-                    },
-                    {
-                      "type": "textfield",
-                      "text": "{info.suffix}",
-                      "action": "set-suffix:{text}",
-                      "on_text_changed": "set-suffix:{text}",
-                      "size": "[410,{label_height}]",
-                      "font": {"size": 0.48},
-                      "fill": [50, 50, 50, 200],
-                      "line": [100, 100, 100, 50],
-                      "color": [255, 255, 255],
-                      "placeholder": "optional"
+                      "type": "hlayout",
+                      "outer_pad": [0, 0, -1, 0],
+                      "children": [
+                        {
+                          "type": "textfield",
+                          "text": "{info.output_directory}",
+                          "action": "set-output-directory:{text}",
+                          "on_text_changed": "set-output-directory:{text}",
+                          "corners": ["left"],
+                          "size": "[370,{label_height}]",
+                          "font": {"size": 0.48},
+                          "fill": [50, 50, 50, 200],
+                          "line": [100, 100, 100, 50],
+                          "color": [255, 255, 255],
+                          "placeholder": "{info.default_output_directory}"
+                        },
+                        {
+                          "type": "button",
+                          "text": "<sym>🗁</sym>",
+                          "action": "choose-output-directory",
+                          "corners": ["right"],
+                          "size": "[40, {label_height}]",
+                          "pad": [1, 0, 0, 0],
+                          "font": {"align": "center", "size": 0.8, "style": "bold"},
+                          "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                          "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
+                        }
+                      ]
                     }
                   ]
                 ]

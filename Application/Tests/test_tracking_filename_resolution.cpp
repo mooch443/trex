@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <core/GPURecognitionTypes.h>
 #include <core/SettingsInitializer.h>
 #include <core/SettingsPaths.h>
 #include <core/SizeFilters.h>
@@ -560,6 +561,10 @@ TEST_P(OutputSettingsDeltaTest, WritesOutputValuesToSettingsFile) {
     GlobalSettings::set_current_defaults(defaults.values);
     SETTING(output_dir) = directory;
     SETTING(output_prefix) = test.prefix;
+    SETTING(detect_type) = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::yolo
+    };
+    SETTING(detect_format) = track::detect::ObjectDetectionFormat::boxes;
 
     auto delta = default_config::generate_delta_config(AccessLevelType::INIT);
     {
@@ -592,6 +597,15 @@ TEST_P(OutputSettingsDeltaTest, WritesOutputValuesToSettingsFile) {
         EXPECT_EQ(saved.at("output_dir").value<file::Path>(), directory);
     if(saved.has("output_prefix"))
         EXPECT_EQ(saved.at("output_prefix").value<std::string>(), test.prefix);
+    for(const auto* key : {"detect_iou_threshold", "detect_skeleton", "detect_conf_threshold",
+                          "detect_keypoint_threshold", "detect_model", "detect_format",
+                          "detect_classes", "detect_keypoint_format", "detect_keypoint_names"})
+    {
+        SCOPED_TRACE(key);
+        ASSERT_TRUE(saved.has(key));
+        EXPECT_EQ(saved.at(key).get().valueString(),
+                  GlobalSettings::read_value<NoType>(key).get().valueString());
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -610,7 +624,32 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     const ScopedCurrentPath current_path(root);
     reset_global_settings();
     const auto source = copy_guppies_video_fixture(input_dir / "f.mp4");
-    sprite::Map overrides;
+    const sprite::Map detector_values{
+        "detect_classes", blob::MaybeObjectClass_t{blob::ObjectClass_t{{0, "fish"}, {1, "debris"}}},
+        "detect_format", track::detect::ObjectDetectionFormat::poses,
+        "detect_skeleton", std::optional<blob::Pose::Skeletons>{blob::Pose::Skeletons{
+            ._skeletons = {{"fish", blob::Pose::Skeleton{{{0, 1, ""}}}}}
+        }},
+        "detect_keypoint_format", track::detect::KeypointFormat{.n_points = 2, .n_dims = 2},
+        "detect_keypoint_names", track::detect::KeypointNames{
+            .names = std::vector<std::string>{"head", "tail"}
+        },
+        "detect_iou_threshold", std::optional<Float2_t>{0.75_F},
+        "detect_conf_threshold", Float2_t(0.25),
+        "detect_keypoint_threshold", Float2_t(0.5),
+        "detect_model", file::Path("custom-detector.pt"),
+        "region_model", file::Path("custom-regions.pt")
+    };
+    const auto expect_detector_values = [&](const sprite::Map& values) {
+        for(const auto& key : detector_values.keys()) {
+            SCOPED_TRACE(key);
+            ASSERT_TRUE(values.has(key));
+            EXPECT_EQ(values.at(key).get().valueString(), detector_values.at(key).get().valueString());
+        }
+    };
+    sprite::Map overrides = detector_values;
+    overrides.erase("detect_conf_threshold");
+    CommandLine::instance().add_setting("detect_conf_threshold", "0.25");
     overrides["output_prefix"] = std::string("run");
     overrides["output_csv_decimals"] = uint8_t(3);
     settings::load(settings::LoadContext{
@@ -624,6 +663,9 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         << "Initial settings::load(convert): infer the source parent when a prefix is supplied.";
     ASSERT_EQ(READ_SETTING(output_prefix, std::string), "run")
         << "Initial settings::load(convert): retain the supplied prefix.";
+    GlobalSettings::read([&](const Configuration& config) {
+        expect_detector_values(config.values);
+    });
 
     SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
         return settings::find_output_name(config.values);
@@ -631,6 +673,12 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     const auto video_base = READ_SETTING(filename, file::Path);
     ASSERT_EQ(video_base, input_dir / "run" / "f")
         << "find_output_name() after initialization: apply the prefix once.";
+    {
+        SCOPED_TRACE("generate_delta_config(LOAD), before PV metadata serialization");
+        sprite::Map generated;
+        default_config::generate_delta_config(AccessLevelType::LOAD).write_to(generated);
+        expect_detector_values(generated);
+    }
     sprite::Map metadata;
     metadata["detect_type"] = track::detect::ObjectDetectionType_t{
         track::detect::ObjectDetectionType::background_subtraction
@@ -642,9 +690,12 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         << "settings::write_config() must target the config beside the PV.";
     {
         SCOPED_TRACE("generate_delta_config(INIT), before settings::write_config()");
-        const auto delta = default_config::generate_delta_config(AccessLevelType::INIT);
+        auto delta = default_config::generate_delta_config(AccessLevelType::INIT);
         ASSERT_TRUE(delta.map.contains("output_dir"));
         ASSERT_TRUE(delta.map.contains("output_prefix"));
+        sprite::Map generated;
+        delta.write_to(generated);
+        expect_detector_values(generated);
     }
     settings::write_config(nullptr, true);
     ASSERT_TRUE(settings_file.is_regular())
@@ -669,6 +720,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         ASSERT_EQ(saved.at("output_prefix").value<std::string>(), "run");
         ASSERT_TRUE(saved.has("output_csv_decimals"));
         ASSERT_EQ(saved.at("output_csv_decimals").value<uint8_t>(), uint8_t(3));
+        expect_detector_values(saved);
     }
 
     reset_global_settings();
@@ -717,6 +769,9 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         << "The saved prefix and the PV's folder name must not supply an output_prefix.";
     EXPECT_EQ(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
         << "The marker reached the loaded baseline but was lost before final settings were applied.";
+    GlobalSettings::read([&](const Configuration& config) {
+        expect_detector_values(config.values);
+    });
     EXPECT_EQ(file::DataLocation::parse("settings"), settings_file)
         << "Settings-path resolution after reload.";
     EXPECT_EQ(file::DataLocation::parse("output", "data"), video_base.remove_filename() / "data")
@@ -743,6 +798,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         << "Saving must update the same adjacent config.";
     EXPECT_FALSE(resaved.has("output_dir"));
     EXPECT_FALSE(resaved.has("output_prefix"));
+    expect_detector_values(resaved);
     EXPECT_FALSE(fs::exists((video_base.remove_filename() / "run" / "f.settings").str()));
 }
 
@@ -2322,6 +2378,56 @@ TEST_F(SettingsPrecedenceTest, BackgroundSettingsPreserveUnusedModelValuesWithou
         EXPECT_EQ(READ_SETTING(detect_keypoint_names, track::detect::KeypointNames),
                   has_saved_values ? custom_names : track::detect::KeypointNames{});
         EXPECT_EQ(READ_SETTING(track_threshold, int), has_saved_values ? 37 : 15);
+    }
+
+    const sprite::Map actual_values{
+        "detect_classes", blob::MaybeObjectClass_t{blob::ObjectClass_t{{0, "fish"}}},
+        "detect_format", track::detect::ObjectDetectionFormat::poses,
+        "detect_keypoint_format", custom_format,
+        "detect_keypoint_names", custom_names,
+        "detect_mask_postprocess_containment", std::optional<Float2_t>{0.75_F},
+        "detect_sam3_prompt", std::optional<track::detect::Sam3Prompts>{
+            track::detect::Sam3Prompts::fromStr("fish")
+        },
+        "detect_skeleton", custom_skeleton
+    };
+    Configuration schema;
+    default_config::get(schema);
+    for(const bool use_actual_values : {false, true}) {
+        SCOPED_TRACE(use_actual_values ? "actual values" : "unnecessary nulls");
+        sprite::Map requested = actual_values;
+        if(not use_actual_values) {
+            for(const auto& key : actual_values.keys()) {
+                if(not is_in(key, "detect_classes", "detect_format"))
+                    schema.values.at(key).get().copy_to(requested);
+            }
+        }
+        write_settings(settings_path, requested);
+        reset_global_settings();
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{video_base.add_extension("pv")},
+            .task = default_config::TRexTask_t::track,
+            .quiet = true
+        });
+        resolve_tracking_filename();
+        auto video = pv::File::Read(video_base.add_extension("pv"));
+        settings::write_config(&video, true);
+        sprite::Map saved;
+        GlobalSettings::load_from_file(settings_path.str(), {
+            .deprecations = default_config::deprecations(),
+            .access = AccessLevelType::INIT,
+            .target = &saved,
+            .additional = &schema.values
+        });
+        for(const auto& key : actual_values.keys()) {
+            SCOPED_TRACE(key);
+            if(use_actual_values || is_in(key, "detect_classes", "detect_format")) {
+                ASSERT_TRUE(saved.has(key));
+                EXPECT_EQ(saved.at(key).get().valueString(), actual_values.at(key).get().valueString());
+            } else {
+                EXPECT_FALSE(saved.has(key));
+            }
+        }
     }
 }
 
