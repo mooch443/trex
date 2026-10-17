@@ -15,6 +15,7 @@
 #include <core/SettingsPaths.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
+#include <core/TerminalProgress.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -42,17 +43,23 @@ Output::ResultsFormat::ResultsFormat(
     _tracker(std::move(tracker)),
     _post_pool(cmn::hardware_concurrency(), [this](Individual* obj) {
     // post processing for individuals
-    Timer timer;
     auto name = get_thread_name();
     set_thread_name(obj->identity().name()+"_post");
     post_process(_settings, this, obj);
-    
-    if (timer.elapsed() >= 1) {
-        auto us = timer.elapsed() * 1000 * 1000;
-        if (!GlobalSettings::is_runtime_quiet())
-            Print(obj->identity()," post-processing took ", DurationUS{ (uint64_t)us });
-    }
     set_thread_name(name);
+
+    std::lock_guard guard(_progress_mutex);
+    const auto current = ++_N_post_processed, total = _expected_individuals.load();
+    if(total && (current == total || _progress_timer.elapsed() >= cmn::terminal::progress::interval_seconds())) {
+        _progress_timer.reset();
+        try {
+            if(!GlobalSettings::is_runtime_quiet())
+                cmn::terminal::progress::print_progress_bar_line(100.f * current / total, "Loading individuals "+Meta::toStr(current)+"/"+Meta::toStr(total), _progress_spinner);
+            _update_progress("", current / double(total), this->filename().str()+"\n<ref>loaded individual</ref> <number>"+Meta::toStr(current)+"</number> <ref>of</ref> <number>"+Meta::toStr(total)+"</number>");
+        } catch(const std::exception& e) {
+            FormatExcept("Exception reporting individual loading progress: ",e.what());
+        }
+    }
         
 }, "Output::post_pool"),
 _generic_pool(cmn::hardware_concurrency(), "Output::GenericPool", [this](std::exception_ptr e) {
@@ -61,7 +68,7 @@ _generic_pool(cmn::hardware_concurrency(), "Output::GenericPool", [this](std::ex
 _load_pool(cmn::hardware_concurrency(), "Output::loadPool", [this](std::exception_ptr e) {
     _exception_ptr = e; // send it to main thread
 }),
-_expected_individuals(0), _N_written(0)
+_expected_individuals(0), _N_written(0), _N_post_processed(0)
 {
     //if(!filename.exists())
     //    throw U_EXCEPTION("File ", filename," cannot be found.");
@@ -70,6 +77,8 @@ _expected_individuals(0), _N_written(0)
 Output::ResultsFormat::~ResultsFormat() {
     _generic_pool.wait();
     _post_pool.wait();
+    if(_N_post_processed && !GlobalSettings::is_runtime_quiet())
+        cmn::terminal::progress::finish_progress_bar_line();
 }
 
 void Output::ResultsFormat::read_prediction(Data& ref, blob::Prediction& pred) const {
@@ -718,9 +727,6 @@ Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& 
             variable.notify_one();
             
             ++index;
-            
-            if(i%100000 == 0 && i)
-                Print("Blob ", i,"/",N);
         }
         
     } catch(...) {
@@ -996,31 +1002,7 @@ Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& 
 }
 
 void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
-    struct Callback {
-        std::function<void()> _fn;
-        Callback(std::function<void()> fn) : _fn(fn) {}
-        ~Callback() {
-            try {
-                _fn();
-            } catch(const std::exception& e) {
-                FormatExcept("Caught an exception inside ~Callback(): ",e.what());
-            }
-        }
-    };
-    
     auto results = dynamic_cast<Output::ResultsFormat*>(this);
-    auto callback = std::make_unique<Callback>([results, quiet = GlobalSettings::is_runtime_quiet()](){
-        ++results->_N_written;
-        
-        if(!quiet) {
-            auto N = results->_expected_individuals.load();
-            double N_written = results->_N_written.load();
-            if(N <= 100 || results->_N_written % max(100u, uint64_t(N * 0.01)) == 0) {
-                Print("Read individual ", int64_t(N_written),"/", N," (",dec<2>(double(N_written) / double(N) * 100),"%)...");
-                results->_update_progress("", N_written / double(N), results->filename().str()+"\n<ref>loading individual</ref> <number>"+Meta::toStr(results->_N_written)+"</number> <ref>of</ref> <number>"+Meta::toStr(N)+"</number>");
-            }
-        }
-    });
     
     if(results && results->_header.version >= Output::ResultsFormat::V_18) {
         uint64_t size, uncompressed_size;
@@ -1032,7 +1014,7 @@ void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
         
         auto ptr = read_data_fast(size);
         
-        results->_generic_pool.enqueue([tracker = _tracker, ptr, uncompressed_size, out_ptr, results, size, callback = std::move(callback)]()
+        results->_generic_pool.enqueue([tracker = _tracker, ptr, uncompressed_size, out_ptr, results, size]()
         {
             std::vector<char> cache;
             DataPackage /*compressed_block, */uncompressed_block;
@@ -1614,7 +1596,6 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator> iterator_map;
     
     track::CachedSettings cached;
-    const auto N = _tracker->frames().size();
     
     auto copy = _tracker->frames().read([&](data::FrameRepository::SafeReadAccess access){
         std::vector<FrameProperties> result;
@@ -1627,6 +1608,9 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         return result;
     });
     
+    size_t processed = 0;
+    Timer progress_timer;
+    size_t spinner = 0;
     for(const auto& props : copy) {
         // number of individuals actually assigned in this frame
         /*n = 0;
@@ -1649,14 +1633,18 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         prev_props = &props;
         prev_frame = props.frame();
         
-        if(props.frame().get() % max(1u, uint64_t(N / 10u)) == 0) {
-            update_progress("FOIs...", props.frame().get() / float(_tracker->frames().end_frame().get()), Meta::toStr(props.frame())+" / "+Meta::toStr(_tracker->frames().end_frame()));
+        ++processed;
+        if(processed == copy.size() || progress_timer.elapsed() >= cmn::terminal::progress::interval_seconds()) {
+            progress_timer.reset();
             if(!GlobalSettings::is_runtime_quiet())
-                Print("\tupdate_fois ", props.frame()," / ",_tracker->frames().end_frame(),"\r");
+                cmn::terminal::progress::print_progress_bar_line(100.f * processed / copy.size(), "Updating FOIs "+Meta::toStr(processed)+"/"+Meta::toStr(copy.size()), spinner);
+            update_progress("FOIs...", processed / float(copy.size()), Meta::toStr(props.frame())+" / "+Meta::toStr(_tracker->frames().end_frame()));
         }
     }
     
     {
+        if(!GlobalSettings::is_runtime_quiet())
+            cmn::terminal::progress::finish_progress_bar_line();
         update_progress("Finding segments...", -1, "");
         DatasetQuality::update(*_tracker);
     }
@@ -1764,6 +1752,7 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         fishes.resize(narrow_cast<uint16_t>(L)); // prevent crashes caused by malformed files
         file._expected_individuals = L;
         file._N_written = 0;
+        file._N_post_processed = 0;
         
         for (uint64_t i=0; i<L; i++) {
             fishes[i] = nullptr;

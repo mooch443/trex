@@ -63,7 +63,8 @@ file::Path find_output_name(const sprite::Map& map,
 }
 
 file::Path find_existing_output_name(const sprite::Map& map,
-                                     file::PathArray source)
+                                     file::PathArray source,
+                                     bool required)
 {
     if(source.empty()) {
         if(auto source_ref = map.at("source"); source_ref.valid())
@@ -95,7 +96,41 @@ file::Path find_existing_output_name(const sprite::Map& map,
             return base;
     }
 
+    if(not required)
+        return {};
     throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", source, " seems to be a .pv file.");
+}
+
+bool conversion_source_exists(const sprite::Map& map) {
+    const auto exists = [](const file::PathArray& source) {
+        if(source == file::PathArray("webcam") || source == file::PathArray("basler"))
+            return true;
+        const auto& paths = source.get_paths();
+        return not paths.empty()
+            && std::all_of(paths.begin(), paths.end(), [](const file::Path& path) {
+                return not path.has_extension("pv") && path.is_regular();
+            });
+    };
+
+    if(auto source = map.at("source");
+       source.valid() && exists(source.value<file::PathArray>()))
+        return true;
+
+    // Conversion recovers the original video from metadata using these locations.
+    if(auto metadata = map.at("meta_source_path"); metadata.valid()) {
+        const auto path = metadata.value<std::string>();
+        if(not path.empty()) {
+            for(const auto& candidate : std::array{
+                path,
+                file::DataLocation::parse("input", path, &map).str(),
+                file::DataLocation::parse("output", path, &map).str()
+            }) {
+                if(exists(file::PathArray(candidate)))
+                    return true;
+            }
+        }
+    }
+    return false;
 }
 
 Float2_t infer_cm_per_pixel(const sprite::Map* map) {

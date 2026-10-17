@@ -19,7 +19,6 @@
         "label_padding":[0,20,10,5],
         "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
         "bg_scale":"[{ratio},{ratio}]",
-        "valid_pv_file":"{file_exists:{resulting_path}.pv}",
 
         "circles":"[○,◔,◑,◕,●]",
         "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>"
@@ -1199,7 +1198,7 @@
                     },
                     {
                         "type":"condition",
-                        "var":"{&&:{valid_detection_model}:{not:{checks_running}}}",
+                        "var":"{&&:{valid_detection_model}:{valid_conversion_source}:{not:{checks_running}}}",
                         "then":{
                             "type":"button",
                             "text":"Convert <sym>⮞</sym>",
@@ -1215,7 +1214,7 @@
                         "else":{
                             "type":"button",
                             "text":"{if:{checks_running}:{animation}:<orange><sym>⚠</sym></orange>}",
-                            "tooltip":"{if:{checks_running}:'':'The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.'}",
+                            "tooltip":"{if:{||:{checks_running}:{valid_conversion_source}}:'':'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.'}{if:{&&:{not:{checks_running}}:{machine_learning}:{not:{valid_detection_model}}}:' The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.':''}",
                             "fill":[40,40,40,120],
                             "line":[100,100,100,150],
                             "color":[100,100,100],

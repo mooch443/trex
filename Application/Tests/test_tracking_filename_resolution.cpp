@@ -35,6 +35,16 @@ void PrintTo(const blob::Pose::Skeletons& p, std::ostream* os) {
 
 namespace {
 
+TEST(SizeFiltersTest, EmptyCStringDisablesSizeFiltering) {
+    char value[] = "[]";
+    const auto filters = SizeFilters::fromStr(value);
+    EXPECT_TRUE(filters.empty());
+    EXPECT_TRUE(filters.in_range_of_one(1));
+    EXPECT_TRUE(SizeFilters::fromStr(static_cast<const char*>(value)).empty());
+    EXPECT_TRUE(SizeFilters::fromStr("[]").empty());
+    EXPECT_TRUE(SizeFilters::fromStr("").empty());
+}
+
 TEST(DefaultConfigDeprecationTest, GrabberKeysUseDetectionSettings) {
     Configuration config;
     default_config::get(config);
@@ -221,6 +231,59 @@ protected:
         return map;
     }
 };
+
+TEST_F(TrackingFilenameResolutionTest, MissingConversionSourceStillAllowsAdjacentPvTracking) {
+    const auto pv = create_regular_file(input_dir / "source.pv");
+    for(const auto& source : {pv, input_dir / "source.mp4"}) {
+        auto map = settings_map(file::PathArray(source), output_dir);
+        map["meta_source_path"] = (input_dir / "source.mp4").str();
+        EXPECT_FALSE(settings::conversion_source_exists(map));
+        EXPECT_EQ(settings::find_existing_output_name(map, {}, false), pv.remove_extension());
+    }
+    auto map = settings_map(file::PathArray(input_dir / "absent.mp4"), output_dir);
+    EXPECT_FALSE(settings::conversion_source_exists(map));
+    EXPECT_TRUE(settings::find_existing_output_name(map, {}, false).empty());
+}
+
+TEST_F(TrackingFilenameResolutionTest, ConversionSourceChecksOriginalVideoAndMetadataLocations) {
+    const auto pv = create_regular_file(input_dir / "source.pv");
+    auto map = settings_map(file::PathArray(pv), output_dir);
+    EXPECT_FALSE(settings::conversion_source_exists(map));
+    map["meta_source_path"] = pv.str();
+    EXPECT_FALSE(settings::conversion_source_exists(map));
+
+    const auto original = create_regular_file(input_dir / "original.mp4");
+    map["meta_source_path"] = original.str();
+    EXPECT_TRUE(settings::conversion_source_exists(map));
+    fs::remove(original.str());
+    EXPECT_FALSE(settings::conversion_source_exists(map));
+
+    map["wd"] = input_dir;
+    create_regular_file(input_dir / "input-only.mp4");
+    map["meta_source_path"] = std::string("input-only.mp4");
+    EXPECT_TRUE(settings::conversion_source_exists(map));
+
+    map["output_prefix"] = std::string("session");
+    create_regular_file(output_dir / "session" / "output-only.mp4");
+    map["meta_source_path"] = std::string("output-only.mp4");
+    EXPECT_TRUE(settings::conversion_source_exists(map));
+    map["meta_source_path"] = std::string("missing.mp4");
+    EXPECT_FALSE(settings::conversion_source_exists(map));
+}
+
+TEST_F(TrackingFilenameResolutionTest, ConversionSourceRequiresFilesButAllowsCameras) {
+    auto map = settings_map(file::PathArray{}, output_dir);
+    EXPECT_FALSE(settings::conversion_source_exists(map));
+    const auto source = create_regular_file(input_dir / "source.mp4");
+    map["source"] = file::PathArray(source);
+    EXPECT_TRUE(settings::conversion_source_exists(map));
+    fs::remove(source.str());
+    EXPECT_FALSE(settings::conversion_source_exists(map));
+    for(const auto* camera : {"webcam", "basler"}) {
+        map["source"] = file::PathArray(camera);
+        EXPECT_TRUE(settings::conversion_source_exists(map));
+    }
+}
 
 class SettingsPrecedenceTest : public TrackingFilenameResolutionTest {
 protected:

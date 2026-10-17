@@ -26,6 +26,30 @@ jobs:
         ref: ${{ github.ref }}
         submodules: recursive
 
+    - name: Free unused runner disk space
+      shell: pwsh
+      run: |
+        $cleanupPaths = @('C:\Android\android-sdk')
+        if ($env:RUNNER_TOOL_CACHE) {
+          $cleanupPaths += Join-Path $env:RUNNER_TOOL_CACHE 'CodeQL'
+        }
+        foreach ($path in $cleanupPaths) {
+          if (-not (Test-Path -LiteralPath $path)) {
+            Write-Host "Skipping absent runner component: $path"
+            continue
+          }
+          $drive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($path))
+          $freeBefore = $drive.AvailableFreeSpace
+          Write-Host ("Before removing {0}: {1:N2} GiB free on {2}" -f $path, ($freeBefore / 1GB), $drive.Name)
+          try {
+            Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+          } catch {
+            throw "Failed to remove unused runner component '${path}': $_"
+          }
+          $freeAfter = $drive.AvailableFreeSpace
+          Write-Host ("After removing {0}: {1:N2} GiB free; recovered {2:N2} GiB" -f $path, ($freeAfter / 1GB), (($freeAfter - $freeBefore) / 1GB))
+        }
+
     - name: Cache conda
       if: env.WINDOWS_CONDA_PACKAGE_CACHE_ENABLED == 'true'
       uses: actions/cache@v4
@@ -95,6 +119,18 @@ jobs:
           typing_extensions
         conda --no-plugins info
         conda --no-plugins list
+
+    - name: Remove cached Conda package archives
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}
+      run: |
+        $drive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($env:CONDA_PKGS_DIRS))
+        $freeBefore = $drive.AvailableFreeSpace
+        Write-Host ("Before Conda archive cleanup: {0:N2} GiB free on {1}" -f ($freeBefore / 1GB), $drive.Name)
+        conda clean --tarballs --yes
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        $freeAfter = $drive.AvailableFreeSpace
+        Write-Host ("After Conda archive cleanup: {0:N2} GiB free; recovered {1:N2} GiB" -f ($freeAfter / 1GB), (($freeAfter - $freeBefore) / 1GB))
 
     - name: Fix Meta
       shell: pwsh

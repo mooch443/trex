@@ -946,6 +946,71 @@ template <typename T>
 class ParseAndResolveTest : public ::testing::Test {};
 TYPED_TEST_SUITE(ParseAndResolveTest, ParserImpls);
 
+TYPED_TEST(ParseAndResolveTest, SettingsConversionWarningsLeavePvTrackingAvailable) {
+    for(const auto* filename : {"settings_layout.json", "choose_settings_layout.json", "tracking_settings_layout.json"}) {
+        SCOPED_TRACE(filename);
+        glz::json_t layout;
+        const auto json = (file::Path(TREX_TEST_FOLDER).remove_filename()
+                           / "src" / "tracker" / filename).read_file();
+        ASSERT_EQ(glz::read_json(layout, json), glz::error_code::none);
+
+        std::string convert, track, tooltip;
+        std::function<void(const glz::json_t&)> visit = [&](const glz::json_t& node) {
+            if(node.is_object()) {
+                const auto& fields = node.get_object();
+                if(auto then = fields.find("then"); then != fields.end() && then->second.is_object()) {
+                    const auto& branch = then->second.get_object();
+                    if(auto action = branch.find("action"); action != branch.end()) {
+                        if(action->second.get_string() == "convert") {
+                            convert = fields.at("var").get_string();
+                            tooltip = fields.at("else").get_object().at("tooltip").get_string();
+                        } else if(action->second.get_string() == "track") {
+                            track = fields.at("var").get_string();
+                        }
+                    }
+                }
+                for(const auto& [key, value] : fields)
+                    visit(value);
+            } else if(node.is_array()) {
+                for(const auto& value : node.get_array())
+                    visit(value);
+            }
+        };
+        visit(layout);
+        ASSERT_FALSE(convert.empty());
+        ASSERT_FALSE(track.empty());
+        ASSERT_FALSE(tooltip.empty());
+
+        for(bool yolo : {false, true}) {
+            for(bool model : {false, true}) {
+                for(bool source : {false, true}) {
+                    for(bool checking : {false, true}) {
+                        State state;
+                        sprite::Map global;
+                        global["detect_model"] = file::Path("missing.pt");
+                        Context context{
+                            VarFunc("global", [&](const VarProps&) -> sprite::Map& { return global; }),
+                            VarFunc("machine_learning", [&](const VarProps&) { return yolo; }),
+                            VarFunc("valid_detection_model", [&](const VarProps&) { return not yolo || model; }),
+                            VarFunc("valid_conversion_source", [&](const VarProps&) { return source; }),
+                            VarFunc("valid_pv_file", [](const VarProps&) { return true; }),
+                            VarFunc("checks_running", [&](const VarProps&) { return checking; })
+                        };
+                        EXPECT_EQ(run_parser<TypeParam>(convert, context, state),
+                                  Meta::toStr(source && (not yolo || model) && not checking));
+                        EXPECT_EQ(run_parser<TypeParam>(track, context, state), Meta::toStr(not checking));
+                        const auto warning = run_parser<TypeParam>(tooltip, context, state);
+                        EXPECT_EQ(warning.find("original input video") != std::string::npos,
+                                  not source && not checking);
+                        EXPECT_EQ(warning.find("detection model") != std::string::npos,
+                                  yolo && not model && not checking);
+                    }
+                }
+            }
+        }
+    }
+}
+
 TEST(TestDerivedPtr, Construct) {
     derived_ptr<Drawable> ptr;
     ASSERT_EQ(ptr, nullptr);

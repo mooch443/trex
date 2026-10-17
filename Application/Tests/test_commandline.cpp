@@ -1,6 +1,6 @@
-#include "gtest/gtest.h"
-
 #include <commons.pc.h>
+
+#include "gtest/gtest.h"
 #include <misc/CommandLine.h>
 
 using namespace cmn;
@@ -59,6 +59,22 @@ void seed_global_settings_keys(std::initializer_list<std::string> keys) {
 }
 
 } // namespace
+
+#if WIN32
+TEST(CommandLineTest, UsesWindowsExecutableDirectoryInsteadOfArgv0) {
+    reset_command_line_state();
+    wchar_t path[MAX_PATH];
+    const auto length = GetModuleFileNameW(nullptr, path, MAX_PATH);
+    ASSERT_GT(length, 0u);
+    ASSERT_LT(length, DWORD(MAX_PATH));
+    const auto expected = file::Path(WStringToString(std::wstring(path, length))).remove_filename();
+
+    init_command_line({R"(C:\not-the-executable\test_commandline.exe)"});
+
+    EXPECT_EQ(CommandLine::instance().wd(), expected);
+    EXPECT_EQ(GlobalSettings::read_value<file::Path>("wd").value(), expected);
+}
+#endif
 
 TEST(CommandLineTest, ParsesSpacedPathAndFlags) {
     GlobalSettings::write([](Configuration& config) {

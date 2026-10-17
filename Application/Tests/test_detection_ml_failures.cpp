@@ -8,6 +8,8 @@
 #include <python/PipelineRegistry.h>
 #include <python/PythonWrapper.h>
 #include <python/YOLO.h>
+#include <tracking/Tracker.h>
+#include <ui/Categorize.h>
 #include <ui/Segmenter.h>
 
 #include <atomic>
@@ -24,6 +26,10 @@ using namespace cmn;
 using namespace cmn::file;
 using namespace track;
 using namespace track::detect;
+
+namespace track::Categorize::Work {
+void start_learning(std::weak_ptr<track::Tracker>, std::weak_ptr<pv::File>);
+}
 
 namespace {
 
@@ -339,6 +345,36 @@ protected:
     }
 };
 
+TEST_F(MLFailures, CategoryLearningCanRetryAfterInitializationFailure) {
+    write_text_file(python_environment->root / "trex_learn_category.py", R"PY(import builtins
+def start():
+    builtins._trex_category_start_attempts = getattr(builtins, '_trex_category_start_attempts', 0) + 1
+    raise RuntimeError('category initialization failure')
+)PY");
+    SETTING(categories_ordered) = std::vector<std::string>{"test"};
+    auto tracker = Tracker::Make(Image::Make(8, 8, 1), meta_encoding_t::gray, Float2_t(8));
+
+    for(int attempt = 1; attempt <= 2; ++attempt) {
+        Categorize::Work::start_learning(tracker, {});
+        const auto deadline = std::chrono::steady_clock::now() + kWaitDeadline;
+        while(Categorize::Work::learning()
+              && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        const bool still_learning = Categorize::Work::learning();
+        Categorize::Work::learning() = false;
+        ASSERT_FALSE(still_learning);
+        EXPECT_FALSE(Categorize::Work::initialized());
+        auto checked = Python::schedule([attempt]() {
+            Python::execute("import builtins\nassert builtins._trex_category_start_attempts == "
+                            + std::to_string(attempt));
+        });
+        ASSERT_EQ(checked.wait_for(kWaitDeadline), std::future_status::ready);
+        ASSERT_NO_THROW(checked.get());
+    }
+}
+
 TEST_F(MLFailures, UnsupportedModelTaskPreservesConfiguredFormat) {
     SETTING(detect_format) = ObjectDetectionFormat::poses;
     python_environment->write_bbx(
@@ -499,6 +535,7 @@ TEST_F(MLFailures, ConversionAppliesModelMetadataAndPreservesConfiguredAnnotatio
             poses ?
                 "for config in configs:\n"
                 "    config.classes = {0: 'pose-animal'}\n"
+                "    assert config.classes == {0: 'pose-animal'}\n"
                 "    config.output_format = TRex.ObjectDetectionFormat.poses\n"
                 "    config.trained_resolution = TRex.DetectResolution(64, 64)\n"
                 "    config.keypoint_format = TRex.KeypointFormat(2, 3)\n"
@@ -506,6 +543,7 @@ TEST_F(MLFailures, ConversionAppliesModelMetadataAndPreservesConfiguredAnnotatio
                 "return configs" :
                 "for config in configs:\n"
                 "    config.classes = {0: 'box-animal'}\n"
+                "    assert config.classes == {0: 'box-animal'}\n"
                 "    config.output_format = TRex.ObjectDetectionFormat.boxes\n"
                 "    config.trained_resolution = TRex.DetectResolution(96, 96)\n"
                 "return configs",

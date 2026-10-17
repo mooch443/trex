@@ -501,7 +501,7 @@ file::Path output_location() {
     return file::DataLocation::parse("output", file::Path((std::string)filename.filename() + "_categories.npz"));
 }
 
-void Work::start_learning(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video_source) {
+void Work::start_learning(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video_source) try {
     if(Work::learning()) {
         return;
     }
@@ -513,7 +513,7 @@ void Work::start_learning(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<p
     start_frame = lock->frames().start_frame();
     end_frame = lock->frames().end_frame();
     
-    py::schedule(py::PackagedTask{._task = py::PromisedTask([video_source, tracker = std::move(lock)]() -> void {
+    auto future = py::schedule(py::PackagedTask{._task = py::PromisedTask([video_source, tracker = std::move(lock)]() -> void {
         Print("[Categorize] APPLY Initializing...");
         Work::status() = "Initializing...";
         Work::initialized() = false;
@@ -854,6 +854,22 @@ void Work::start_learning(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<p
         });
         
     }), ._can_run_before_init = false});
+    std::thread([future = std::move(future)]() mutable {
+        try {
+            future.get();
+        } catch(...) {
+            Work::initialized() = false;
+            Work::set_status("Category learning failed.");
+            FormatExcept("Category learning failed.");
+            Work::learning() = false;
+            Work::learning_variable().notify_all();
+            Work::variable().notify_all();
+        }
+    }).detach();
+} catch(...) {
+    Work::initialized() = false;
+    Work::learning() = false;
+    throw;
 }
 
 template<typename T>

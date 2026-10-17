@@ -239,6 +239,9 @@ private:
 
 namespace pybind11 {
     namespace detail {
+        template<> struct type_caster<cmn::blob::ObjectClass_t>
+            : map_caster<cmn::blob::ObjectClass_t, uint16_t, std::string> {};
+
         /*template<> struct type_caster<cmn::Image::Ptr>
         {
         public:

@@ -66,6 +66,10 @@ struct SettingsScene::Data {
     
     Timer output_name_check;
     std::optional<file::Path> last_output_name;
+    Timer pv_file_check;
+    std::optional<bool> valid_pv_file;
+    Timer conversion_source_check;
+    std::optional<bool> valid_conversion_source;
 
     GuardedProperty<file::PathArray> current_path;
     
@@ -169,7 +173,7 @@ struct SettingsScene::Data {
         
         if(_running_tasks.empty()) {
             _are_python_tasks_running = 0;
-            Print("// Setting python tasks = 0");
+            //Print("// Setting python tasks = 0");
         }
     }
 
@@ -199,6 +203,16 @@ struct SettingsScene::Data {
                 READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
     }
 
+    bool conversion_source_exists() const {
+        try {
+            return GlobalSettings::read([](const Configuration& config) {
+                return settings::conversion_source_exists(config.values);
+            });
+        } catch(const std::exception&) {
+            return false;
+        }
+    }
+
     void detection_models_updated() {
         update_running_tasks();
 
@@ -222,7 +236,7 @@ struct SettingsScene::Data {
         
         std::unique_lock guard(_task_lock);
         ++_are_python_tasks_running;
-        Print("// Python tasks running = ", _are_python_tasks_running.load());
+        //Print("// Python tasks running = ", _are_python_tasks_running.load());
         
         _running_tasks.emplace_back(Python::schedule(Python::PackagedTask{
             ._network = nullptr,
@@ -401,10 +415,10 @@ struct SettingsScene::Data {
         //const auto &_defaults = GlobalSettings::current_defaults_with_config();
         
 #ifndef NDEBUG
-        Print("current video_conversion_range = ", _defaults.at("video_conversion_range"));
+        /*Print("current video_conversion_range = ", _defaults.at("video_conversion_range"));
         Print("current video_conversion_range = ", copy.at("video_conversion_range"));
         Print("keys = ", copy.keys());
-        Print("_defaults keys = ", _defaults.keys());
+        Print("_defaults keys = ", _defaults.keys());*/
 #endif
         
         for(auto &key : copy.keys()) {
@@ -418,10 +432,10 @@ struct SettingsScene::Data {
                    || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range", "detect_type", "detect_format")))
             {
 #ifndef NDEBUG
-                if(_defaults.has(key))
+                /*if(_defaults.has(key))
                     Print("Keeping ", key, "::",GlobalSettings::access_level(key),": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
                 else
-                    Print("Keeping ", key, "::",GlobalSettings::access_level(key),": ", copy.at(key).get());
+                    Print("Keeping ", key, "::",GlobalSettings::access_level(key),": ", copy.at(key).get());*/
 #endif
                 
                 continue;
@@ -506,6 +520,11 @@ struct SettingsScene::Data {
                            || not detection_model_ready())
                         {
                             FormatWarning("Ignoring conversion request while the selected detection model is not ready.");
+                            return;
+                        }
+
+                        if(not conversion_source_exists()) {
+                            FormatWarning("Cannot convert because the original input video could not be found.");
                             return;
                         }
 
@@ -658,7 +677,7 @@ struct SettingsScene::Data {
                                 return with_config;
                             });
                             
-                            copy.register_callbacks({
+                            /*copy.register_callbacks({
                                 "detect_format",
                                 "detect_skeleton"
                             }, [](auto key){
@@ -666,7 +685,7 @@ struct SettingsScene::Data {
                                     Print("Changed detect_format");
                                 else if(key == "detect_skeleton")
                                     Print("Changed detect_skeleton");
-                            });
+                            });*/
                             
                             if(copy.has("detect_type")) {
                                 /// we do not allow changing the detect type when tracking
@@ -675,7 +694,7 @@ struct SettingsScene::Data {
                                 copy.erase("detect_type");
                             }
                             
-                            Print("changed props = ", copy.keys());
+                            //Print("changed props = ", copy.keys());
                             auto array = READ_SETTING(source, file::PathArray);
                             auto output_file = settings::find_output_name(before, array);
                             
@@ -927,6 +946,26 @@ struct SettingsScene::Data {
                     }),
                     VarFunc("valid_detection_model", [this](const VarProps&) -> bool {
                         return detection_model_ready();
+                    }),
+                    VarFunc("valid_conversion_source", [this](const VarProps&) -> bool {
+                        if(not valid_conversion_source || conversion_source_check.elapsed() > 1) {
+                            valid_conversion_source = conversion_source_exists();
+                            conversion_source_check.reset();
+                        }
+                        return *valid_conversion_source;
+                    }),
+                    VarFunc("valid_pv_file", [this](const VarProps&) -> bool {
+                        if(not valid_pv_file || pv_file_check.elapsed() > 1) {
+                            try {
+                                valid_pv_file = GlobalSettings::read([](const Configuration& config) {
+                                    return not settings::find_existing_output_name(config.values, {}, false).empty();
+                                });
+                            } catch(const std::exception&) {
+                                valid_pv_file = false;
+                            }
+                            pv_file_check.reset();
+                        }
+                        return *valid_pv_file;
                     }),
                     VarFunc("model_detect_format", [this](const VarProps&) {
                         const auto config = model_config(track::detect::ModelTaskType::detect);

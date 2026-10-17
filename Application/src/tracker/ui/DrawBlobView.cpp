@@ -1526,7 +1526,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 f.align = Align::Left;
                 for(auto &pt : boundary) {
                     base.circle(Loc(pt), Radius{5}, LineClr{Cyan.alpha(125)}, sca);
-                    base.text(Str{Meta::toStr(pt)}, Loc{pt + Vec2(7 * f.size, 0)}, TextClr{White.alpha(200)}, f, sca);
+                    //base.text(Str{Meta::toStr(pt)}, Loc{pt + Vec2(7 * f.size, 0)}, TextClr{White.alpha(200)}, f, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;
                     if(pt.y < top_left.y) top_left.y = pt.y;

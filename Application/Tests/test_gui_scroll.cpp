@@ -659,6 +659,56 @@ TEST(PointerEventsTest, RightButtonUsesClickTargetWithoutDragArbitration) {
     EXPECT_EQ(right_events, 2);
 }
 
+TEST(ButtonTest, DisabledButtonsSuppressActionsAndCancelPendingClicks) {
+    DrawStructure graph(200, 200);
+    Button button(Str("Disabled"), Box(10, 10, 90, 30), Disabled_t{true});
+    button.set_toggleable(true);
+    size_t clicks = 0;
+    Drawable& drawable = button;
+    drawable.on_click([&](Event) { ++clicks; });
+
+    graph.wrap_object(button);
+    ASSERT_EQ(graph.mouse_move(20, 20), &button);
+    EXPECT_TRUE(button.hovered());
+
+    for(bool left_button : {true, false}) {
+        graph.mouse_down(left_button);
+        EXPECT_FALSE(button.pressed());
+        graph.mouse_up(left_button);
+        EXPECT_EQ(clicks, 0u);
+        EXPECT_FALSE(button.toggled());
+    }
+
+    button.set(Disabled_t{false});
+    graph.mouse_down(true);
+    EXPECT_TRUE(button.pressed());
+    graph.mouse_up(true);
+    EXPECT_EQ(clicks, 1u);
+    EXPECT_TRUE(button.toggled());
+    button.set_toggle(false);
+
+    graph.mouse_down(true);
+    button.set(Disabled_t{true});
+    EXPECT_FALSE(button.pressed());
+    button.set(Disabled_t{false});
+    graph.mouse_up(true);
+    EXPECT_EQ(clicks, 1u);
+    EXPECT_FALSE(button.toggled());
+
+    button.set(Disabled_t{true});
+    graph.mouse_down(true);
+    button.set(Disabled_t{false});
+    graph.mouse_up(true);
+    EXPECT_EQ(clicks, 1u);
+    EXPECT_FALSE(button.toggled());
+
+    graph.mouse_down(true);
+    graph.mouse_up(true);
+    EXPECT_EQ(clicks, 2u);
+    EXPECT_TRUE(button.toggled());
+    EXPECT_FALSE(button.pressed());
+}
+
 TEST(TestGuiScroll, ScrollEnabledButtonConsumesScroll) {
     DrawStructure graph(200, 200);
     Button button(Str("Owns scroll"), Box(10, 10, 90, 30));

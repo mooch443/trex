@@ -110,6 +110,20 @@ if errorlevel 1 exit 1
 cmake --build . --target runAllTests --config Release
 if errorlevel 1 exit 1
 
+if /I "%GITHUB_WORKFLOW%"=="CondaBuildWindows" (
+    rem Only completed test targets own these intermediates and output files.
+    powershell -NoProfile -NonInteractive -Command ^
+        "$ErrorActionPreference = 'Stop'; $drive = [System.IO.DriveInfo]::new((Get-Location).Drive.Root);" ^
+        "$freeBefore = $drive.AvailableFreeSpace; Write-Host ('Before test cleanup: {0:N2} GiB free on {1}' -f ($freeBefore / 1GB), $drive.Name);" ^
+        "Get-ChildItem -LiteralPath 'Tests' -Filter 'test_*.vcxproj' -File | ForEach-Object {" ^
+        "    $target = $_.BaseName; $paths = @('Tests\' + $target + '.dir');" ^
+        "    foreach ($extension in @('exe', 'pdb', 'ilk', 'exp', 'lib')) { $paths += 'Release\' + $target + '.' + $extension; }" ^
+        "    foreach ($path in $paths) { if (Test-Path -LiteralPath $path) { Write-Host ('Removing ' + $path); Remove-Item -LiteralPath $path -Recurse -Force; } }" ^
+        "};" ^
+        "$freeAfter = $drive.AvailableFreeSpace; Write-Host ('After test cleanup: {0:N2} GiB free; recovered {1:N2} GiB before INSTALL' -f ($freeAfter / 1GB), (($freeAfter - $freeBefore) / 1GB));"
+    if errorlevel 1 exit 1
+)
+
 cmake .. -DTREX_WITH_TESTS:BOOL=OFF
 if errorlevel 1 exit 1
 

@@ -253,9 +253,11 @@ void LoadContext::init() {
     /// as well as other defaults
     
     exclude = exclude_parameters + default_excludes + system_variables;
+#ifndef NDEBUG
     if(not quiet)
         Print("Excluding from command-line and default.settings: ", exclude);
-    else
+#endif
+    if(quiet)
         combined.values["quiet"] = true;
     
     /// -----------------------------------------
@@ -267,7 +269,9 @@ void LoadContext::init() {
         try {
             auto str = default_path.read_file();
             if(not str.empty()) {
+#ifndef NDEBUG
                 G g(default_path.str(), quiet);
+#endif
                 auto rejected = GlobalSettings::load_from_string(str, {
                     .source = default_path.str(),
                     .deprecations = deprecations(),
@@ -442,8 +446,10 @@ void LoadContext::init_filename() {
     combined.values["filename"] = resolved_filename;
     set_config_if_different("filename", combined.values);
     
+#ifndef NDEBUG
     if(not quiet)
         combined.values.set_print_by_default(true);
+#endif
 }
 
 void LoadContext::reset_default_filenames() {
@@ -533,7 +539,9 @@ void LoadContext::load_settings_from_source() {
             if(not settings_file.exists()
                && source_map.empty())
             {
+#ifndef NDEBUG
                 G g(path.str(), quiet);
+#endif
                 try {
                     sprite::Map tmp;
                     auto f = pv::File::Read(path);
@@ -589,7 +597,9 @@ void LoadContext::load_settings_from_source() {
                 }
                 
             } else {
+#ifndef NDEBUG
                 G g(path.str(), quiet);
+#endif
                 try {
                     sprite::Map tmp;
                     if(not file::request_access(path.str())) {
@@ -633,8 +643,10 @@ void LoadContext::load_settings_from_source() {
                         "detect_keypoint_format"
                     };
                     
+#ifndef NDEBUG
                     if(not quiet)
                         Print("// Not loading all settings from ", path, " because the settings file ", settings_file, " exists. Checking only ", fields_to_check);
+#endif
 
                     // Functions to compute default values when not available in tmp
                     const std::unordered_map<std::string, std::function<const sprite::PropertyType*(sprite::Map&)>> compute_defaults = {
@@ -759,7 +771,9 @@ void LoadContext::load_task_defaults() {
     }
     
     {
+#ifndef NDEBUG
         G g(Meta::toStr(type) + "-defaults", quiet);
+#endif
         const sprite::Map values {
             [this](){
                 sprite::Map values;
@@ -777,8 +791,10 @@ void LoadContext::load_task_defaults() {
                 GlobalSettings::current_defaults(key, values);
             
             if(contains(exclude_from_default.toVector(), key)) {
+#ifndef NDEBUG
                 if(not quiet)
                     Print("// Not setting default value ", key);
+#endif
                 continue;
             }
             set_config_if_different(key, values);
@@ -794,7 +810,9 @@ void LoadContext::load_settings_file() {
     auto settings_file = file::DataLocation::parse("settings", {},  &combined.values);
     if(settings_file.exists())
     {
+#ifndef NDEBUG
         G g(settings_file.str(), quiet);
+#endif
         try {
             sprite::Map map;
             map.set_print_by_default(false);
@@ -803,8 +821,10 @@ void LoadContext::load_settings_file() {
                                     + (changed_model_manually
                                         ? ExtendableVector{exclude_automatic_for_models}
                                         : ExtendableVector{});
+#ifndef NDEBUG
             if(not quiet)
                 Print("// Excluding ", manual_exclude, " from settings file.");
+#endif
 
             auto rejected = GlobalSettings::load_from_file(settings_file.str(), {
                 .deprecations = deprecations(),
@@ -823,7 +843,9 @@ void LoadContext::load_settings_file() {
                 if(not set_config_if_different("meta_source_path", tmp)
                    && not quiet)
                 {
+#ifndef NDEBUG
                     Print("// meta_source_path = ",no_quotes(tmp.at("meta_source_path").value<std::string>())," not set");
+#endif
                 }
                 
                 GlobalSettings::write([&](sprite::Map&, sprite::Map& with_config) {
@@ -842,6 +864,7 @@ void LoadContext::load_settings_file() {
                 .additional = &combined.values
             });
             
+#ifndef NDEBUG
             if(output_settings.has("output_dir")
                && output_settings.has("output_prefix")
                && not output_settings.at("output_prefix").value<std::string>().empty()
@@ -854,6 +877,7 @@ void LoadContext::load_settings_file() {
                 if(not quiet)
                     Print("* we dont have a proper output_dir set, but output_prefix seems to be in the export (",output_settings.at("output_prefix").value<std::string>(),").");
             }
+#endif
             
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);
@@ -896,7 +920,9 @@ void LoadContext::load_gui_settings() {
     /// 13. optionally load the map parameter
     /// -------------------------------------
     if(not source_map.empty()) {
+#ifndef NDEBUG
         G g("GUI settings", quiet);
+#endif
         //Print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
@@ -911,8 +937,10 @@ void LoadContext::load_gui_settings() {
                     //Print("// Can ignore ", key, " from source map.");
                     continue;
                 }
+#ifndef NDEBUG
                 if(not quiet)
                     Print("// Not allowed to copy ", key, " from source map.");
+#endif
                 continue;
             }
             
@@ -994,10 +1022,13 @@ void LoadContext::estimate_meta_variables() {
     {
         const auto source = combined.at("source").value<file::PathArray>();
         if((info = retrieve_video_info(source))) {
+#ifndef NDEBUG
             if(not quiet)
                 Print("Retrieved video info for ", *info);
+#endif
         } else if(not quiet) {
-            FormatWarning("Cannot retrieve video info for source ", source);
+            if(not source.empty())
+                FormatWarning("Cannot retrieve video info for source ", source);
         }
     }
     
@@ -1016,7 +1047,8 @@ void LoadContext::estimate_meta_variables() {
                 file::PathArray input(test);
                 auto video_test = VideoSource::TestVideoSource(input);
                 if(not video_test) {
-                    FormatWarning("meta_source_path(", test,") cannot be opened (failed test): ", no_quotes(video_test.error()));
+                    if(not test.empty())
+                        FormatWarning("meta_source_path(", test,") cannot be opened (failed test): ", no_quotes(video_test.error()));
                     continue;
                 }
                 
@@ -1042,10 +1074,20 @@ void LoadContext::estimate_meta_variables() {
         }();
         
         if(success) {
+#ifndef NDEBUG
             if(not quiet)
                 Print("// Successfully found meta_source_path at ", combined.values["meta_source_path"].value<std::string>());
+#endif
         } else if(not quiet) {
-            FormatWarning("Was unable to find meta_source_path video, tried ", tests);
+            bool all_empty = true;
+            for(auto test : tests) {
+                if(not test.empty()) {
+                    all_empty = false;
+                    break;
+                }
+            }
+            if(not all_empty)
+                FormatWarning("Was unable to find meta_source_path video, tried ", tests);
         }
     }
     
@@ -1053,15 +1095,19 @@ void LoadContext::estimate_meta_variables() {
        && (not combined.values.has("meta_video_size")
            || combined.values.at("meta_video_size").value<Size2>().empty()))
     {
+#ifndef NDEBUG
         if(not quiet)
             Print("// Defaulting to meta_video_size of 1920x1080 for empty source.");
+#endif
         combined.values["meta_video_size"] = Size2(1920_F, 1080_F);
         
     } else if(auto meta_video_size = combined.at("meta_video_size");
               not meta_video_size.valid()
               || meta_video_size.value<Size2>().empty())
     {
+#ifndef NDEBUG
         G g{source.source(), quiet};
+#endif
         if(info) {
             combined.values["meta_video_size"] = info->resolution;
         } else {
@@ -1096,8 +1142,10 @@ void LoadContext::estimate_meta_variables() {
     
     const Float2_t tmp_cm_per_pixel = combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
     current_defaults["track_max_speed"] = 0.25_F * combined.at("meta_video_size").value<Size2>().width * (tmp_cm_per_pixel == 0 ? 1_F : tmp_cm_per_pixel);
+#ifndef NDEBUG
     if(not quiet)
         Print(" * default max speed for a video of resolution ", combined.at("meta_video_size").value<Size2>().width, " would be ", no_quotes(current_defaults["track_max_speed"].get().valueString()));
+#endif
     
     if(auto track_max_speed = combined.at("track_max_speed");
        not track_max_speed.valid()
@@ -1106,12 +1154,14 @@ void LoadContext::estimate_meta_variables() {
         combined.values["track_max_speed"] = current_defaults["track_max_speed"].value<Settings::track_max_speed_t>();
     }
     
+#ifndef NDEBUG
     if(not quiet) {
         Print("track_max_speed = ", combined.at("track_max_speed").value<Settings::track_max_speed_t>());
         Print("cm_per_pixel = ", combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
         Print("meta_real_width = ", no_quotes(combined.at("meta_real_width").get().valueString()));
         Print("meta_video_size = ", no_quotes(combined.at("meta_video_size").get().valueString()));
     }
+#endif
 }
 
 void LoadContext::check_output_dir() {
@@ -1136,9 +1186,11 @@ void LoadContext::check_output_dir() {
             }
             
         } else {
+#ifndef NDEBUG
             if(not quiet) {
                 Print("* we already had output_dir ", output_dir, " and are not replacing it with ", default_path);
             }
+#endif
         }
         
     }
@@ -1319,8 +1371,10 @@ void load(LoadContext ctx) {
     // Entry point to reload and apply all settings in LoadContext 'ctx'.
     // This function resets defaults, loads from embedded and external sources,
     // applies command-line and GUI overrides, computes metadata, and finalizes GlobalSettings.
+#ifndef NDEBUG
     if(not ctx.quiet)
         DebugHeader("Reloading settings");
+#endif
 
     ctx.init();
     // Step 1: Reset to defaults, apply default and startup settings, and set up tracing.

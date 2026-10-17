@@ -8,6 +8,7 @@
 #include <tracking/Stuffs.h>
 #include <data/MotionRecord.h>
 #include <misc/ThreadPool.h>
+#include <misc/Timer.h>
 #include <misc/Path.h>
 #include <data/FrameRepository.h>
 #include <tracking/TrackingHelper.h>
@@ -167,12 +168,15 @@ namespace Output {
         
         CachedSettings _settings;
         std::shared_ptr<Tracker> _tracker;
+        std::mutex _progress_mutex;
+        Timer _progress_timer;
+        size_t _progress_spinner = 0;
         
         //static QueueThreadPool<Individual*> _blob_pool;
         QueueThreadPool<Individual*> _post_pool;
         GenericThreadPool _generic_pool, _load_pool;
         
-        cmn::atomic<uint64_t> _expected_individuals, _N_written;
+        cmn::atomic<uint64_t> _expected_individuals, _N_written, _N_post_processed;
         
         
     public:

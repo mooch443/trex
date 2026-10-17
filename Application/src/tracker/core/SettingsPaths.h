@@ -36,9 +36,13 @@ file::Path find_output_name(const sprite::Map& map,
 /// absolute selected names remain absolute. If that candidate does not exist, a
 /// sole explicit `.pv` source—or an extensionless source with an existing `.pv`
 /// sibling—is used as the tracking input. The returned path never has a `.pv`
-/// extension. Throws when no usable PV exists.
+/// extension. Throws when no usable PV exists, unless `required` is false.
+/// In that case, returns an empty path.
 file::Path find_existing_output_name(const sprite::Map& map,
-                                     file::PathArray source = {});
+                                     file::PathArray source = {},
+                                     bool required = true);
+/// Checks source files or conversion metadata fallback locations; cameras need no file.
+bool conversion_source_exists(const sprite::Map& map);
 Float2_t infer_cm_per_pixel(const sprite::Map* map = nullptr);
 Float2_t infer_meta_real_width_from(const pv::File& file, const sprite::Map* map = nullptr);
 
