@@ -595,6 +595,13 @@ add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-detect-annotation-io COMMAND test_detect_annotation_io)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    if(APPLE)
+        add_test(NAME test-trex-launcher
+            COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_trex_launcher.py"
+                $<TARGET_FILE:trex_starter>
+        )
+        set_tests_properties(test-trex-launcher PROPERTIES TIMEOUT 60)
+    endif()
     add_test(NAME test-detection-ml-failures COMMAND test_detection_ml_failures)
     trex_prepend_test_path(test-detection-ml-failures trex_check_python)
     set_tests_properties(test-detection-ml-failures PROPERTIES TIMEOUT 300)
@@ -616,6 +623,9 @@ endif()
 set(TEST_RUNTIME_TARGETS
     pvinfo
 )
+if(APPLE AND NOT TREX_CONDA_PACKAGE_INSTALL)
+    list(APPEND TEST_RUNTIME_TARGETS trex_starter)
+endif()
 
 foreach(probe_target test_torch_checkpoint test_torch_checkpoint_shared)
     if(TARGET ${probe_target})
