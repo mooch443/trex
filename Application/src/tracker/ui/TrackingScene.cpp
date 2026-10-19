@@ -1009,9 +1009,34 @@ void TrackingScene::activate() {
         "gui_wait_for_background",
         "track_detect_annotations",
         
-        //"gui_frame"
+        "gui_frame"
         
     }, [this](std::string_view key){
+        if(key == "gui_frame"
+           || key == "gui_mode")
+        {
+            if(_data) {
+                auto& gui = _data->dynGUI;
+                if(gui.context.has_local_setting("local.rightclicked_point")
+                   && gui.context.has_local_setting("local.clicked_pose_object"))
+                {
+                    gui.context.update_local_setting(
+                         gui.current_object_handler.get(),
+                         "local.rightclicked_point",
+                         [](sprite::Reference& ref) {
+                             ref.get().set_value_from_string("[]");
+                         });
+                    gui.context.update_local_setting(
+                         gui.current_object_handler.get(),
+                         "local.clicked_pose_object",
+                         [](sprite::Reference& ref) {
+                             ref.get().set_value_from_string("null");
+                         });
+                }
+            }
+            if(key == "gui_frame")
+                return;
+        }
         SceneManager::enqueue([this, key](){
             settings_callback(key);
         });
@@ -2308,7 +2333,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 });
             }),
 
-            ActionFunc("remove_detect_annotation", [](const Action& action) {
+            ActionFunc("remove_detect_annotation", [this](const Action& action) {
                 REQUIRE_EXACTLY(1, action);
                 auto object_id = Meta::fromStr<uint64_t>(action.parameters.front());
 
@@ -2318,6 +2343,22 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
                 if(it == detect_annotations.end()) {
                     throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                }
+                
+                if(_data) {
+                    auto& gui = _data->dynGUI;
+                    gui.context.update_local_setting(
+                         gui.current_object_handler.get(),
+                         "local.rightclicked_point",
+                         [](sprite::Reference& ref) {
+                             ref.get().set_value_from_string("[]");
+                         });
+                    gui.context.update_local_setting(
+                         gui.current_object_handler.get(),
+                         "local.clicked_pose_object",
+                         [](sprite::Reference& ref) {
+                             ref.get().set_value_from_string("null");
+                         });
                 }
 
                 auto &field = it->second;
@@ -2919,7 +2960,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     READ_SETTING(detect_tile_overlap, float));
                 return std::vector<Bounds>(source_tiles.begin(), source_tiles.end());
             }),
-            VarFunc("detect_annotations", [this](const VarProps& props) -> std::vector<glz::json_t> {
+            VarFunc("detect_annotations", [this](const VarProps& props) -> glz::json_t {
                 if(not _data)
                     throw InvalidArgumentException("_data not set.");
 
@@ -2928,10 +2969,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     filter_for_type = Meta::fromStr<uint8_t>(props.parameters.front());
                 }
                 
-                std::vector<glz::json_t> result;
+                glz::json_t json = glz::json_t::array_t{};
+                auto& result = json.get_array();
                 auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
                 if(not detect_annotations)
-                    return result;
+                    return json;
 
                 auto frame = READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t());
                 if(auto it = detect_annotations.find(frame);
@@ -2963,6 +3005,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                             continue;
 
                         result.push_back(glz::json_t::object_t{
+                            {"idx", result.size()},
                             {"id", object.uid},
                             {"clid", object.clid},
                             {"seed_frame", frame.to_json() },
@@ -2976,7 +3019,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     }
                 }
 
-                return result;
+                return json;
             }),
         }
     };

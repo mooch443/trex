@@ -1136,6 +1136,7 @@ void BlobView::draw(const DisplayParameters& parm)
                 list,
                 tag_list
             });
+            popup->set(ZIndex{100});
 
             parm.graph.wrap_object(*popup);
 

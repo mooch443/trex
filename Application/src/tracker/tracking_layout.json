@@ -1,6 +1,7 @@
 {
   "locals":{
-    "rightclicked_point": {"type":"int_array","value":[]}
+    "rightclicked_point": {"type":"int_array","value":[]},
+    "clicked_pose_object": {"type":"json","value":null}
   },
 "defaults": {
 "vars":{
@@ -86,12 +87,17 @@
     "var": "{detect_annotations}",
     "do": {
       "type":"collection",
-      "pos":"{2hud:[{i.x},{i.y}]}",
-      "size":"{size2hud:[{i.w},{i.h}]}",
-      "line": [255,0,0,150],
       "children":[
         {
+          "type":"rect",
+          "pos":"{2hud:[{i.x},{i.y}]}",
+          "size":"{size2hud:[{i.w},{i.h}]}",
+          "corners":["topright","bottom", 8],
+          "line": [255,0,0,150]
+        },
+        {
           "type":"stext",
+          "pos":"{subVector:{2hud:[{i.x},{i.y}]}:[0,29]}",
           "text":"<sym>🖰</sym> <cyan>{if:{contains:{i.clid}:{global.detect_classes}}:{at:{i.clid}:{global.detect_classes}}:class{i.clid}}</cyan> <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:{i.type}}}}}}</c>",
           "color":[255,255,255],
           "shadow":0.5,
@@ -99,7 +105,7 @@
           "line":[255,0,0,100],
           "pad":[10,5,5,5],
           "fill":[0,0,0,50],
-          "corners":["topleft", 8],
+          "corners":["top", 8],
           "max_size":"{maxVector:[200,15]:{size2hud:[{i.w},{i.h}]}}"
         }
       ]
@@ -123,7 +129,7 @@
         "fill":[255,0,0, 20],
         "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
         "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
-        "corners":["all", 8]
+        "corners":["topright","bottom", 8]
       },
 
       /* draggable area over the whole annotation for easy dragging */
@@ -133,7 +139,7 @@
         "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
         "line": [255,0,0,100],
         "fill":[255,0,0, 10],
-        "corners":["all", 8],
+        "corners":["topright","bottom", 8],
         "modules":["draggable"],
         "drag":"move_whole_detect_annotation:{i.id}",
         "children":[
@@ -253,13 +259,19 @@
       },
 
       {
-        "type":"label",
-        "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:UNKNOWN}}}}}</c> <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}",
-        "length":120,
-        "color":[255,0,0],
-        "font":{"size":0.6},
+        "type":"stext",
+        "pos":"{addVector:[-25,-53]:{2hud:[{i.x},{i.y}]}}",
+        "text":"<sym>⯈</sym> <cyan>{if:{contains:{i.clid}:{global.detect_classes}}:{at:{i.clid}:{global.detect_classes}}:class{i.clid}}</cyan> <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:{i.type}}}}}}</c>",
+        "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
+        "shadow":0.5,
+        "font":{"size":0.555},
         "line":[255,0,0,100],
-        "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.0:{i.h}}}]}"
+        "pad":[10,5,5,5],
+        "fill":[0,0,0,50],
+        "corners":["top", 8],
+        "max_size":"{maxVector:[200,15]:{size2hud:[{i.w},{i.h}]}}",
+        "click":"set-local:clicked_pose_object:{i}",
+        "clickable":true
       },
 
       {
@@ -278,6 +290,73 @@
     ]
   }
 }
+},
+
+
+{
+  "type":"condition",
+  "var":"{local.rightclicked_point}",
+  "then":{
+    "type":"list",
+    "z-index": 5,
+    "list":{
+      "size":[200,110],
+      "fill":[30,30,30,220],
+      "line":[255,255,255,150]
+    },
+     "item":{
+      "font":{"size":0.555},
+      "pad":[0,0]
+    },
+    "pos":"{addVector:[5,5]:{2hud:{at:{at:1:{local.rightclicked_point}}:{at:pts:{at:{at:0:{local.rightclicked_point}}:{detect_annotations}}}}}}",
+    "items": [
+      {
+        "text":"<c> </c><sym>🖯</sym> <gray>Deselect</gray>",
+        "action": "set-local:rightclicked_point:[]"
+      },
+      {
+        "text": "<c> </c><sym>🖈</sym> New point here",
+        "action": "add_detection_point_nextto_existing:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
+      },
+      {
+        "text": "<c> </c><sym>✀</sym> <orange>Remove point</orange>",
+        "action": "remove_detection_point:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
+      }
+    ]
+  }
+},
+
+{
+  "type":"condition",
+  "var":"{local.clicked_pose_object}",
+  "then":{
+    "type":"list",
+    "z-index": 5,
+    "list":{
+      "size":[200,110],
+      "fill":[30,30,30,220],
+      "line":[255,255,255,150]
+    },
+    "item":{
+      "font":{"size":0.555},
+      "pad":[0,0]
+    },
+    "pos":"{addVector:[-25,-55]:{2hud:{at:{local.clicked_pose_object.idx}:{detect_annotations}}}}",
+    "items": [
+      {
+        "text":"<c> </c><sym>⯆</sym> <cyan>{if:{contains:{local.clicked_pose_object.clid}:{global.detect_classes}}:{at:{local.clicked_pose_object.clid}:{global.detect_classes}}:class{local.clicked_pose_object.clid}}</cyan> <c>{if:{equal:{local.clicked_pose_object.type}:1}:POSE:{if:{equal:{local.clicked_pose_object.type}:0}:BOX:{if:{equal:{local.clicked_pose_object.type}:2}:MASK:{if:{equal:{local.clicked_pose_object.type}:3}:OBB:{if:{equal:{local.clicked_pose_object.type}:4}:POINT:{local.clicked_pose_object.type}}}}}}</c>",
+        "action": "set-local:clicked_pose_object:null"
+      },
+      {
+        "text": "<c> </c><sym>🖉</sym> Change class",
+        "action": ""
+      },
+      {
+        "text": "<c> </c><sym>✀</sym> <orange>Remove annotation</orange>",
+        "action": "remove_detect_annotation:{local.clicked_pose_object.id}"
+      }
+    ]
+  }
 },
 
 {
@@ -302,7 +381,7 @@
       "as":"a",
       "do": {
         "type":"condition",
-        "var":"{&&:{equal:{a.type}:1}:{global.detect_skeleton}:{contains:{a.clid}:{global.detect_classes}}:{contains:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}}",
+        "var":"{&&:{global.detect_skeleton}:{contains:{a.clid}:{global.detect_classes}}:{contains:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}}",
         "then":{
           "type":"each",
           "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
@@ -350,35 +429,6 @@
         "line":[255,0,0,255],
         "fill":[1,1,1,0],
         "corners":["all", 8]
-      }
-    },
-
-    {
-      "type":"condition",
-      "var":"{local.rightclicked_point}",
-      "then":{
-        "type":"list",
-        "z-index": 5,
-        "list":{
-          "size":[200,180],
-          "fill":[30,30,30,220],
-          "line":[255,255,255,150]
-        },
-        "pos":"{addVector:[5,5]:{2hud:{at:{at:1:{local.rightclicked_point}}:{at:pts:{at:{at:0:{local.rightclicked_point}}:{detect_annotations}}}}}}",
-        "items": [
-          {
-            "text":"<c> </c><sym>🖯</sym> <gray>Deselect</gray>",
-            "action": "set-local:rightclicked_point:[]"
-          },
-          {
-            "text": "<c> </c><sym>🖈</sym> New point here",
-            "action": "add_detection_point_nextto_existing:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
-          },
-          {
-            "text": "<c> </c><sym>✀</sym> <orange>Remove point</orange>",
-            "action": "remove_detection_point:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
-          }
-        ]
       }
     },
 

@@ -10,6 +10,7 @@
 #include <gui/Passthrough.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/ResolveVariable.h>
+#include <gui/dyn/binders.h>
 #include <gui/types/ListItemTypes.h>
 #include <gui/types/ScrollableList.h>
 #include <gui/types/ErrorElement.h>
@@ -2978,6 +2979,76 @@ TEST(EachElementTest, VectorOfJsonObjectsExpandsObjectFields) {
     ));
 }
 
+TEST(EachElementTest, JsonCallbacksRetainItemsAcrossSourceUpdates) {
+    for(int return_kind = 0; return_kind < 3; ++return_kind) {
+        SCOPED_TRACE(return_kind);
+        glz::json_t source;
+        ASSERT_EQ(glz::read_json(source, R"json({"rows":[{"name":"first"}]})json"), glz::error_code::none);
+
+        Context context;
+        if(return_kind == 0) {
+            context.variables["items"] = VarFunc("items", [&](const VarProps& props) -> glz::json_t {
+                EXPECT_THAT(props.parameters, ::testing::ElementsAre("1"));
+                return std::move(source);
+            }).second;
+        } else if(return_kind == 1) {
+            context.variables["items"] = VarFunc("items", [&](const VarProps&) -> glz::json_t& {
+                return source;
+            }).second;
+        } else {
+            context.variables["items"] = VarFunc("items", [&](const VarProps&) -> const glz::json_t& {
+                return source;
+            }).second;
+        }
+
+        std::vector<std::function<std::string()>> callbacks;
+        context.custom_elements["capture_item"] = std::make_shared<CustomElement>(
+            "capture_item",
+            [](LayoutContext&) -> Layout::Ptr {
+                return Layout::Make<StaticText>{Str{"item"}};
+            },
+            [&](Layout::Ptr&, const Context& context, State& state, PatternMapType&) -> bool {
+                callbacks.emplace_back(bind_with_state<>(state._current_object_handler, context,
+                    [](const Context& context, State& state) {
+                        return parse_text("{i.name}:{index}", context, state);
+                    }));
+                return false;
+            });
+
+        State state;
+        auto handler = std::make_shared<CurrentObjectHandler>();
+        state._current_object_handler = handler;
+        DrawStructure graph(640, 480);
+        glz::json_t obj;
+        ASSERT_EQ(glz::read_json(obj, R"json({
+            "type":"each", "var":"{items.rows:1}", "do":{"type":"capture_item"}
+        })json"), glz::error_code::none);
+        auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+        ASSERT_TRUE(root);
+        ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+        ASSERT_FALSE(callbacks.empty());
+        auto first_callback = callbacks.back();
+        EXPECT_TRUE(handler->capture_scoped_variable_values().empty());
+
+        if(return_kind != 0) {
+            ASSERT_TRUE(source["rows"].is_array());
+            ASSERT_EQ(source["rows"].get_array().size(), 1u);
+            EXPECT_EQ(source["rows"][0]["name"].get_string(), "first");
+        }
+        source = glz::json_t{};
+        ASSERT_EQ(glz::read_json(source, R"json({"rows":[{"name":"second"}]})json"), glz::error_code::none);
+        EXPECT_EQ(first_callback(), "first:0");
+
+        const auto previous_count = callbacks.size();
+        ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+        ASSERT_GT(callbacks.size(), previous_count);
+        source = glz::json_t{};
+        EXPECT_EQ(callbacks.back()(), "second:0");
+        EXPECT_EQ(first_callback(), "first:0");
+        EXPECT_TRUE(handler->capture_scoped_variable_values().empty());
+    }
+}
+
 TEST(EachElementTest, CustomLoopVariableNameWorksForJsonObjectLoops) {
     constexpr std::string_view json = R"json(
 {
@@ -3072,6 +3143,30 @@ TEST(EachElementTest, CustomLoopVariableNameWorksForStringArrayLoops) {
         "item:alpha-0",
         "item:beta-1"
     ));
+}
+
+TEST(EachElementTest, NestedStringArraysUseReferenceItems) {
+    glz::json_t obj;
+    ASSERT_EQ(glz::read_json(obj, R"json({
+        "type":"each", "var":"[[1,2]]",
+        "do":{
+            "type":"each", "var":"{i}",
+            "do":{"type":"stext", "text":"{i}"}
+        }
+    })json"), glz::error_code::none);
+
+    Context context;
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    EXPECT_THAT(texts, ::testing::ElementsAre("1", "2"));
 }
 
 TEST(EachElementTest, ConditionBranchNewlyParsedKeepsOuterScopedVariables) {
