@@ -1922,6 +1922,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 combine->set_pos(next_pos);
                 combine->set_scale(sca);
                 combine->set(LineClr{Red});
+                combine->set(ZIndex{100});
             }
         }
     });

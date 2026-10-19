@@ -80,7 +80,7 @@
 
 {
 "type":"condition",
-"var":"{equal:{global.gui_mode}:tracking}",
+"var":"{in:{global.gui_mode}:[tracking,raw]}",
 "then": {
     "type": "each",
     "var": "{detect_annotations}",
@@ -1623,6 +1623,7 @@
           "size":"[{min:{-:{window_size.x}:20}:700},40]",
           "color":[225,225,225],
           "desc":"",
+          "z-index": 1,
           "placeholder":"<sym>🔍</sym> Parameters",
           "cleartext":"<sym>⮾</sym>",
           "highlight_clr":[75,75,75,255]
