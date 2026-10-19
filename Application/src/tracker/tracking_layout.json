@@ -80,6 +80,35 @@
 
 {
 "type":"condition",
+"var":"{equal:{global.gui_mode}:tracking}",
+"then": {
+    "type": "each",
+    "var": "{detect_annotations}",
+    "do": {
+      "type":"collection",
+      "pos":"{2hud:[{i.x},{i.y}]}",
+      "size":"{size2hud:[{i.w},{i.h}]}",
+      "line": [255,0,0,150],
+      "children":[
+        {
+          "type":"stext",
+          "text":"<sym>🖰</sym> <cyan>{if:{contains:{i.clid}:{global.detect_classes}}:{at:{i.clid}:{global.detect_classes}}:class{i.clid}}</cyan> <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:{i.type}}}}}}</c>",
+          "color":[255,255,255],
+          "shadow":0.5,
+          "font":{"size":0.6},
+          "line":[255,0,0,100],
+          "pad":[10,5,5,5],
+          "fill":[0,0,0,50],
+          "corners":["topleft", 8],
+          "max_size":"{maxVector:[200,15]:{size2hud:[{i.w},{i.h}]}}"
+        }
+      ]
+    }
+  }
+},
+
+{
+"type":"condition",
 "var":"{equal:{global.gui_mode}:annotate}",
 "then":
 {
