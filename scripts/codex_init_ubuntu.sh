@@ -108,6 +108,7 @@ install_system_deps() {
     ${sudo_cmd} apt-get install -y \
         build-essential \
         cmake \
+        ninja-build \
         pkg-config \
         git \
         make \
@@ -251,6 +252,7 @@ configure_cmake() {
     local cmake_args=(
         -S "${APP_DIR}"
         -B "${BUILD_DIR}"
+        -G Ninja
         -DPYTHON_INCLUDE_DIR:FILEPATH="${PY_INCLUDE}"
         -DPYTHON_EXECUTABLE:FILEPATH="${PYTHON_BIN}"
         -DCMAKE_BUILD_TYPE=Debug
@@ -273,6 +275,7 @@ configure_cmake() {
 cd "${ROOT_DIR}"
 
 install_system_deps
+require_cmd ninja
 
 echo "[step] sync git submodules"
 git submodule update --init --recursive

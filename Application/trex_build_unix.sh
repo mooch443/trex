@@ -51,6 +51,11 @@ fi
 if [ "$(uname)" == "Linux" ]; then
     echo "Setting up for Linux."
     echo ""
+
+    if ! command -v ninja >/dev/null 2>&1; then
+        echo "Ninja is required for Linux builds. Install ninja in your build environment." >&2
+        exit 1
+    fi
     
     if [ $(printenv CC) ]; then
         CC=$(printenv CC)
@@ -84,7 +89,7 @@ if [ "$(uname)" == "Linux" ]; then
         echo "If you dont want this, please deactivate the conda environment first."
         echo "**************************************"
         
-        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake -S "${TREX_SOURCE_DIR}" -B . \
+        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake -S "${TREX_SOURCE_DIR}" -B . -G Ninja \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
@@ -104,7 +109,7 @@ if [ "$(uname)" == "Linux" ]; then
         echo "If you want to specify an FFMPEG path, please set the PKG_CONFIG_PATH environment variable accordingly."
         echo ""
         
-        CC=${CC} CXX=${CXX} cmake -S "${TREX_SOURCE_DIR}" -B . \
+        CC=${CC} CXX=${CXX} cmake -S "${TREX_SOURCE_DIR}" -B . -G Ninja \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \

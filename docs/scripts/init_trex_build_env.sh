@@ -94,7 +94,7 @@ common_packages=(
     pip
     conda-build
     git
-    cmake
+    "cmake>=3.26,<5"
     make
     pkg-config
     nasm
@@ -117,6 +117,7 @@ minimal_packages=(
 )
 
 linux_packages=(
+    ninja
     sysroot_linux-64=2.17
     pthread-stubs
     libgl-devel
