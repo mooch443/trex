@@ -696,7 +696,8 @@ bool TrackingScene::on_global_event(Event event) {
             }
             case Keyboard::D: {
                 auto current_mode = GUI_SETTINGS(gui_mode);
-                SETTING(gui_mode) = current_mode == mode_t::tracking ? mode_t::raw : mode_t::tracking;
+                auto next_value = current_mode + 1u; /// wraps
+                SETTING(gui_mode) = gui::mode_t::Class(next_value);
 
                 _data->_cache->set_tracking_dirty();
                 _data->_cache->set_blobs_dirty();

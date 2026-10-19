@@ -124,7 +124,7 @@
                   "origin":[0.5,0.5],
                   "fill": [255,255,255,50],
                   "color":[255,255,255,50],
-                  "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}"
+                  "pos":"{addVector:{subVector:{2hud:{j}}:{2hud:[{i.x},{i.y}]}}:[25,25]}"
                 }
               }
             }
@@ -173,7 +173,7 @@
                 "radius":8,
                 "modules":["draggable"],
                 "z-index": 1,
-                "pos":"{2hud:[{j.x},{j.y}]}",
+                "pos":"{2hud:{j}}",
                 "origin":[0.5,0.5],
                 "fill": [255,255,255,150],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
@@ -186,7 +186,7 @@
                 "type":"stext",
                 "text":"{index}",
                 "z-index": 1,
-                "pos":"{2hud:[{j.x},{j.y}]}",
+                "pos":"{2hud:{j}}",
                 "origin":[0.5,0.5],
                 "color":[50,50,50,255],
                 "font":{"size":0.5,"align":"center"}
@@ -212,7 +212,7 @@
                 "radius":8,
                 "modules":["draggable"],
                 "z-index": 1,
-                "pos":"{2hud:[{j.x},{j.y}]}",
+                "pos":"{2hud:{j}}",
                 "origin":[0.5,0.5],
                 "fill": [255,255,255,50],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",

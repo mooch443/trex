@@ -21,6 +21,8 @@ function(trex_harden_internal_library target)
             CXX_VISIBILITY_PRESET default
             C_VISIBILITY_PRESET default
             VISIBILITY_INLINES_HIDDEN OFF
+            # Post-build dylib aliases do not produce compilation inputs for consumers.
+            XCODE_ATTRIBUTE_EAGER_COMPILATION_ALLOW_SCRIPTS YES
         )
         target_compile_options(${target} PRIVATE -fvisibility=default)
         # Apple ld defaults to treating undefined symbols as link errors.
@@ -55,6 +57,57 @@ endfunction()
 
 function(trex_prepare_resource_dir target)
     if(APPLE AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            # Outputs must use Xcode's configuration placeholder, not target-dependent expressions.
+            get_target_property(resource_output_dir ${target} RUNTIME_OUTPUT_DIRECTORY)
+            if(NOT resource_output_dir)
+                set(resource_output_dir "${EXECUTABLE_OUTPUT_PATH}")
+            endif()
+            if(NOT resource_output_dir MATCHES "\\$<")
+                string(APPEND resource_output_dir "/${CMAKE_CFG_INTDIR}")
+            endif()
+            get_target_property(resource_bundle ${target} MACOSX_BUNDLE)
+            get_target_property(resource_output_name ${target} OUTPUT_NAME)
+            if(NOT resource_output_name)
+                set(resource_output_name "${target}")
+            endif()
+            if(resource_bundle)
+                set(resource_dir "${resource_output_dir}/${resource_output_name}.app/Contents/Resources")
+            else()
+                get_filename_component(resource_dir "${resource_output_dir}/../Resources" ABSOLUTE)
+            endif()
+
+            set(resource_outputs)
+            foreach(comp IN LISTS RESOURCE_COPY_SINGLE_FILES)
+                get_filename_component(comp_s "${comp}" NAME)
+                add_custom_command(OUTPUT "${resource_dir}/${comp_s}"
+                    COMMAND ${CMAKE_COMMAND} -E make_directory "${resource_dir}"
+                    COMMAND ${CMAKE_COMMAND} -E create_symlink "${comp}" "${resource_dir}/${comp_s}"
+                    DEPENDS "${comp}"
+                    VERBATIM)
+                list(APPEND resource_outputs "${resource_dir}/${comp_s}")
+            endforeach()
+
+            foreach(comp IN LISTS RESOURCE_COPY_FILES)
+                get_filename_component(comp_s "${comp}" NAME)
+                file(GLOB_RECURSE resource_files FOLLOW_SYMLINKS LIST_DIRECTORIES false CONFIGURE_DEPENDS
+                    RELATIVE "${comp}" "${comp}/*")
+                foreach(resource_file IN LISTS resource_files)
+                    set(resource_output "${resource_dir}/${comp_s}/${resource_file}")
+                    get_filename_component(resource_parent "${resource_output}" DIRECTORY)
+                    add_custom_command(OUTPUT "${resource_output}"
+                        COMMAND ${CMAKE_COMMAND} -E make_directory "${resource_parent}"
+                        COMMAND ${CMAKE_COMMAND} -E copy "${comp}/${resource_file}" "${resource_output}"
+                        DEPENDS "${comp}/${resource_file}"
+                        VERBATIM)
+                    list(APPEND resource_outputs "${resource_output}")
+                endforeach()
+            endforeach()
+
+            add_custom_target(${target}_resources DEPENDS ${resource_outputs})
+            add_dependencies(${target} ${target}_resources)
+            return()
+        endif()
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/../Resources"
             VERBATIM
@@ -680,6 +733,9 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
     elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
         foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
+            if(CMAKE_GENERATOR STREQUAL "Xcode")
+                continue()
+            endif()
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -709,6 +765,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         endforeach()
     endif()
 else()
+    set(RESOURCE_COPY_SINGLE_FILES)
     set(RESOURCE_COPY_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/gfx
     )
@@ -717,6 +774,10 @@ else()
         message(STATUS "Copying files ${RESOURCE_COPY_FILES}")
 
         foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
+            if(CMAKE_GENERATOR STREQUAL "Xcode")
+                trex_prepare_resource_dir(${app_target})
+                continue()
+            endif()
             foreach(comp ${RESOURCE_COPY_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 

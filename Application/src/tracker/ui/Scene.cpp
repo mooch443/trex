@@ -7,6 +7,7 @@
 #include <ui/Coordinates.h>
 #include <gui/IMGUIBase.h>
 #include <ui/WorkProgress.h>
+#include <gui/dyn/CTimer.h>
 
 namespace cmn::gui {
 
@@ -232,8 +233,10 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     }
     
     try {
-        if (active_scene)
+        if (active_scene) {
+            [[maybe_unused]] CTimer timer{active_scene->name()};
             active_scene->draw(graph);
+        }
     }
     catch (const std::exception& e) {
         static const char* msg = nullptr;

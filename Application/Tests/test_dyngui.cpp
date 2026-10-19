@@ -1236,6 +1236,22 @@ TEST(LayoutOuterPadding, GridIgnoresZeroWidthCellsForEdgePaddingAndMargins) {
     EXPECT_FLOAT_EQ(grid.width(), 20 + 2 + 4 + 7 + 13);
 }
 
+TEST(ConvertToBoolTest, CStringPointerComparesContents) {
+    const std::string value = "false";
+    const char* pointer = value.c_str();
+
+    EXPECT_FALSE(convert_to_bool(pointer));
+}
+
+TEST(ConvertToBoolTest, NullTerminatedArrayIgnoresUnusedCapacity) {
+    char buffer[32] = "false";
+    const char* pointer = buffer;
+
+    EXPECT_FALSE(convert_to_bool(pointer));
+    EXPECT_EQ(utils::string_like_view(buffer).size(), 5u);
+    EXPECT_FALSE(convert_to_bool(buffer));
+}
+
 // Unit Tests
 // ---------------------------------------------------------------------------
 // The following typed tests are compiled twice: once with TypeParam::value
@@ -2010,7 +2026,9 @@ TYPED_TEST(ParseAndResolveTest, CustomStructJsonSubfieldReplacement)
     };
 
     Context ctx{
-        VarFunc("custom", [sample](const VarProps&) -> glz::json_t { return cvt2json(sample); })
+        VarFunc("custom", [sample](const VarProps&) -> glz::json_t {
+            return cvt2json(sample);
+        })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{custom.x}", ctx, state), "7");
