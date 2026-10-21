@@ -1,3 +1,23 @@
+add_executable(benchmark_find_splitting_point EXCLUDE_FROM_ALL
+    ../../tools/benchmark_find_splitting_point.cpp
+    ../../tools/benchmark_find_splitting_point_local.cpp
+)
+target_link_libraries(benchmark_find_splitting_point PRIVATE commons)
+target_compile_definitions(benchmark_find_splitting_point PRIVATE
+    TREX_BENCHMARK_FONT="${CMAKE_CURRENT_SOURCE_DIR}/../src/fonts/Quicksand.ttf"
+)
+set_target_properties(benchmark_find_splitting_point PROPERTIES
+    INTERPROCEDURAL_OPTIMIZATION FALSE
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/benchmarks"
+    XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+)
+if(MSVC)
+    target_compile_options(benchmark_find_splitting_point PRIVATE /GL-)
+else()
+    target_compile_options(benchmark_find_splitting_point PRIVATE -fno-lto)
+endif()
+
 option(TREX_TEST_TORCH_CHECKPOINT "Build and install embedded PyTorch checkpoint probes" OFF)
 if(TREX_TEST_TORCH_CHECKPOINT)
     if(NOT UNIX OR NOT TARGET pybind11::embed)

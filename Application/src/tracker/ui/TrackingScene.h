@@ -45,6 +45,7 @@ public:
     
 private:
     void init_gui(dyn::DynamicGUI&, DrawStructure& graph);
+    void record_gui_update_time(std::chrono::steady_clock::time_point started);
     void set_frame(Frame_t, bool);
     bool on_global_event(Event) override;
     void update_run_loop();

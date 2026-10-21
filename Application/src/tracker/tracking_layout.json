@@ -252,7 +252,9 @@
                 "fill": [255,255,255,50],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
                 "color":[255,255,255,255],
-                "drag":"move_detect_annotation:{i.id}:{index}"
+                "drag":"move_detect_annotation:{i.id}:{index}",
+                "click":"set-local:rightclicked_point:[{i.id},{index}]",
+                "clickable":true
               }
           }
         }
@@ -299,6 +301,8 @@
   "then":{
     "type":"list",
     "z-index": 5,
+    "select_on_show": true,
+    "deselect": "set-local:rightclicked_point:[]",
     "list":{
       "size":[200,110],
       "fill":[30,30,30,220],
@@ -332,6 +336,8 @@
   "then":{
     "type":"list",
     "z-index": 5,
+    "select_on_show": true,
+    "deselect": "set-local:clicked_pose_object:null",
     "list":{
       "size":[200,110],
       "fill":[30,30,30,220],
@@ -1681,6 +1687,7 @@
       ]
     },
 
+    /*. THE STATUS BAR */
     {
       "type":"hlayout",
       "pos":"{addVector:[{-:{window_size.x}:10},{-:{window_size.y}:10}]:0}",
@@ -1710,6 +1717,7 @@
       ]
     },
 
+    /* hovering the timeline opens up a way to reanalyse from the highlighted frame */
     {
       "type":"condition",
       "var":"{||:{hovered:timeline}:{hovered:button_thing}}",

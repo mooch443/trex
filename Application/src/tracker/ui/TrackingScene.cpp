@@ -139,6 +139,10 @@ struct TrackingScene::Data {
     
     // The dynamic part of the gui that is live-loaded from file
     dyn::DynamicGUI dynGUI;
+    double _average_gui_update_time_ms{0.0};
+    double _gui_update_time_sum_ms{0.0};
+    uint64_t _gui_update_time_samples{0};
+    std::chrono::steady_clock::time_point _gui_update_time_window_start{};
     std::vector<std::shared_ptr<dyn::VarBase_t>> _individuals;
     std::vector<sprite::Map> _fish_data;
     
@@ -1396,6 +1400,24 @@ void TrackingScene::update_run_loop() {
     }
 }
 
+void TrackingScene::record_gui_update_time(std::chrono::steady_clock::time_point started) {
+    const auto finished = std::chrono::steady_clock::now();
+
+    if(_data->_gui_update_time_samples == 0)
+        _data->_gui_update_time_window_start = started;
+
+    _data->_gui_update_time_sum_ms += std::chrono::duration<double, std::milli>(
+        finished - started).count();
+    ++_data->_gui_update_time_samples;
+
+    if(finished - _data->_gui_update_time_window_start >= std::chrono::seconds(1)) {
+        _data->_average_gui_update_time_ms =
+            _data->_gui_update_time_sum_ms / double(_data->_gui_update_time_samples);
+        _data->_gui_update_time_sum_ms = 0.0;
+        _data->_gui_update_time_samples = 0;
+    }
+}
+
 void TrackingScene::_draw(DrawStructure& graph) {
     using namespace dyn;
     if(not _data->dynGUI) {
@@ -1432,7 +1454,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
             auto coords = FindCoord::get();
             auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
             auto absolute = coords.convert(HUDCoord(selected->absolute_drag_start())).map(roundf);
-            Print("Pos = ", pos, " absolute=",absolute, " diff=", pos - absolute);
+            //Print("Pos = ", pos, " absolute=",absolute, " diff=", pos - absolute);
             
             Vec2 xy(FLT_MAX, FLT_MAX);
             for(auto& pt : annotation->points) {
@@ -1444,7 +1466,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
                && xy.y != FLT_MAX)
             {
                 for(auto& pt : annotation->points) {
-                    Print("pt=",pt," adding ", pos - absolute, " => ", Vec2(pt) + pos - absolute);
+                    //Print("pt=",pt," adding ", pos - absolute, " => ", Vec2(pt) + pos - absolute);
                     pt = Vec2(pt) + pos - absolute;
                     //if(pt.y < xy.y) xy.y = pt.y;
                 }
@@ -1717,7 +1739,10 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     cmn::gui::tracker::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
     
-    _data->dynGUI.update(graph, nullptr);
+    const auto gui_update_started = std::chrono::steady_clock::now();
+    if(_data->dynGUI.update(graph, nullptr)) {
+        record_gui_update_time(gui_update_started);
+    }
     
     Categorize::draw(_state->tracker, _state->video, (IMGUIBase*)window(), graph);
     
@@ -2660,6 +2685,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             VarFunc("fps", [this](const VarProps&) -> double {
                 return _state->_stats.frames_per_second.load();
             }),
+            VarFunc("gui_update_ms", [this](const VarProps&) -> double {
+                return _data->_average_gui_update_time_ms;
+            }),
             
             VarFunc("fishes", [this](const VarProps&)
                 -> const std::vector<std::shared_ptr<VarBase_t>>&
@@ -3026,8 +3054,32 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     
     dyn::Modules::add(Modules::Module{
         ._name = "draggable",
-        ._apply = [](size_t, State&, const Layout::Ptr& o) {
+        ._apply = [](size_t hash, const glz::json_t& obj, const Context&, State& state, const Layout::Ptr& o) {
+            if(obj.contains("initial_pos")) {
+                auto initial_pos = dyn::get(state, obj.get_object(), Vec2(), "initial_pos", hash, "draggable_");
+                if(initial_pos == Vec2()) {
+                    o->add_custom_data("initial_pos_set", nullptr);
+                } else {
+                    o->set(Loc{initial_pos});
+                    o->remove_custom_data("initial_pos_set");
+                }
+            } else if(o->custom_data("initial_pos_set")) {
+                o->remove_custom_data("initial_pos_set");
+            }
             o->set_draggable();
+        },
+        ._update = [](HashedObject& obj, const Context& context, State& state, const Layout::Ptr& o) {
+            if(o->custom_data("initial_pos_set") == nullptr) {
+                auto it = obj.patterns.find("draggable_initial_pos");
+                if(it != obj.patterns.end()) {
+                    auto str = it->second.realize(context, state);
+                    auto initial_pos = Meta::fromStr<Vec2>(str);
+                    if(initial_pos != Vec2()) {
+                        o->set(Loc{initial_pos});
+                        o->add_custom_data("initial_pos_set", (void*)0x1);
+                    }
+                }
+            }
         }
     });
 

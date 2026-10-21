@@ -3972,8 +3972,33 @@ TEST_F(StaticTextTest, SkipsWhitespaceOnlyRemainder) {
     StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
 
     ASSERT_EQ(strings.size(), 1u);
-    EXPECT_EQ(strings.front().str, "word ");
+    EXPECT_EQ(strings.front().str, "word");
     EXPECT_EQ(strings.front().pos.y, 0);
+    checkLineBreaks(strings, width, nullptr);
+}
+
+TEST_F(StaticTextTest, TrimsUnicodeWhitespaceAcrossCachedBreaks) {
+    StaticText::Settings settings;
+    const Font font;
+    const auto remaining_width = utils::calculate_width(utils::calculate_bounds("b c", nullptr, font));
+    const auto width = remaining_width * 1.1_F;
+    settings.max_size.x = width + settings.margins.x + settings.margins.x;
+
+    // The leading space, non-breaking space, and next space span two cache entries.
+    const std::string input = "a \xC2\xA0 b c";
+    std::vector<StaticText::RichString> strings;
+    Vec2 offset(0, 0);
+    StaticText::RichString richString(input, font, Vec2(), Red);
+
+    StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
+
+    ASSERT_EQ(strings.size(), 2u);
+    EXPECT_EQ(strings[0].str, "a");
+    EXPECT_EQ(strings[1].str, "b c");
+    EXPECT_EQ(strings[0].pos.y, 0);
+    EXPECT_EQ(strings[1].pos.y, 1);
+    EXPECT_EQ(offset.y, 1);
+    EXPECT_FLOAT_EQ(offset.x, remaining_width);
     checkLineBreaks(strings, width, nullptr);
 }
 
