@@ -2,6 +2,10 @@ name: CondaBuildMacOSIntel
 
 on: [push]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -228,7 +232,7 @@ jobs:
         name: trex-conda-osx-64
         path: ${{ github.workspace }}/conda-artifacts/*.conda
         if-no-files-found: error
-        retention-days: 14
+        retention-days: 7
         compression-level: 0
     - name: Attach conda packages to GitHub release
       if: startsWith(github.ref, 'refs/tags/')

@@ -35,6 +35,10 @@ on:
       - "conda/.meta.buildall.yaml"
       - ".github/workflows/post-link-simulation.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

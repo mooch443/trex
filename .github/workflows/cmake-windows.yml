@@ -2,6 +2,10 @@ name: CondaBuildWindows
 
 on: [push]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -316,7 +320,7 @@ jobs:
         name: trex-conda-win-64
         path: ${{ github.workspace }}/conda-artifacts/*.conda
         if-no-files-found: ignore
-        retention-days: 14
+        retention-days: 7
         compression-level: 0
 
     - name: Attach conda packages to GitHub release
