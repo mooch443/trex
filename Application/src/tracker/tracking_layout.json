@@ -145,7 +145,7 @@
         "children":[
           {
             "type":"condition",
-            "var":"{in:{i.type}:[0,1,3,4]}",
+            "var":"{&&:{in:{i.type}:[0,1,2,3,4]}:{<:{array_length:{i.pts}}:1000}}",
             "then": {
               "type":"each",
               "var":"{i.pts}",
@@ -266,6 +266,7 @@
         "text":"<sym>⯈</sym> <cyan>{if:{contains:{i.clid}:{global.detect_classes}}:{at:{i.clid}:{global.detect_classes}}:class{i.clid}}</cyan> <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:{i.type}}}}}}</c>",
         "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
         "shadow":0.5,
+        "z-index": 1,
         "font":{"size":0.555},
         "line":[255,0,0,100],
         "pad":[10,5,5,5],
@@ -280,6 +281,7 @@
         "type":"button",
         "action":"remove_detect_annotation:{i.id}",
         "text":"<sym>⮿</sym>",
+        "z-index": 1,
         "size":[25,30],
         "corners":["all", 18],
         "origin":[0.5,0.5],

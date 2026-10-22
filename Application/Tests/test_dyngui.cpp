@@ -4,6 +4,7 @@
 #include <misc/Timer.h>
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
+#include <gui/DrawBase.h>
 #include <gui/DynamicGUI.h>
 #include <gui/DynamicVariable.h>
 #include <gui/LabeledField.h>
@@ -3867,6 +3868,54 @@ protected:
         }
         EXPECT_EQ(index, input.size());
     }
+
+    void checkRenderedLayout(StaticText& label) {
+        label.update();
+        std::map<Float2_t, Font> line_fonts;
+        for(const auto& span : label.rich_strings()) {
+            auto [it, inserted] = line_fonts.try_emplace(span.pos.y, span.font);
+            if(not inserted && span.font.size > it->second.size)
+                it->second = span.font;
+        }
+
+        std::map<Float2_t, Float2_t> line_centers, line_widths;
+        Float2_t top = label.margins().y;
+        size_t row = 0;
+        for(const auto& [line, font] : line_fonts) {
+            EXPECT_EQ(line, row++);
+            const auto height = Base::default_line_spacing(font);
+            line_centers[line] = top + height * 0.5_F;
+            top += height;
+        }
+
+        size_t child_index = 0;
+        Vec2 extent;
+        for(const auto& span : label.rich_strings()) {
+            if(span.str.empty())
+                continue;
+            SCOPED_TRACE(std::string(span.str));
+            ASSERT_LT(child_index, label.children().size());
+            auto* text = dynamic_cast<Text*>(label.children()[child_index++]);
+            ASSERT_NE(text, nullptr);
+            const auto bounds = utils::calculate_bounds(span.str, text, span.font);
+            EXPECT_EQ(text->txt(), span.str);
+            EXPECT_EQ(text->font(), span.font);
+            EXPECT_EQ(text->color(), span.clr.alpha(255 * label.alpha()));
+            EXPECT_EQ(text->text_bounds(), bounds);
+            EXPECT_EQ(text->size(), bounds.size());
+            EXPECT_FLOAT_EQ(text->pos().x, label.margins().x + line_widths[span.pos.y]);
+            EXPECT_FLOAT_EQ(text->pos().y, line_centers.at(span.pos.y));
+            EXPECT_EQ(text->origin(), Vec2(0, 0.5));
+            line_widths[span.pos.y] += utils::calculate_width(bounds);
+            extent.x = max(extent.x, text->pos().x + bounds.width);
+            extent.y = max(extent.y, text->pos().y + bounds.height * 0.5_F);
+        }
+        EXPECT_EQ(child_index, label.children().size());
+        for(const auto& [line, width] : line_widths)
+            EXPECT_LE(width, label.max_size().x - 2 * label.margins().x + 0.001_F) << "Line " << line;
+        EXPECT_FLOAT_EQ(label.size().width, extent.x + label.margins().width);
+        EXPECT_FLOAT_EQ(label.size().height, extent.y + label.margins().height);
+    }
 };
 
 TEST_F(StaticTextTest, NoMaxWidth) {
@@ -3957,6 +4006,268 @@ TEST_F(StaticTextTest, LargeMaxWidth) {
     // Verify that all characters are in the correct order
     checkCharactersInOrder(input, strings);
 }
+
+TEST_F(StaticTextTest, EmptyAnnotationLabelKeepsParenthesizedWordTogether) {
+    const Font font(0.5), mono(0.5, Style::Monospace);
+    const auto width = [](std::string_view str, const Font& font) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+
+    // Resolved label from tracking_layout.json, with room only for " (emp" after the symbol.
+    StaticText label(Str{"<c>Annotate this frame as </c>∅<c> (empty):</c>"}, font);
+    label.set(SizeLimit{Size2{
+        width("Annotate this frame as ", mono) + width("∅", font) + width(" (emp", mono)
+            + 2 * label.margins().x, 0}});
+    label.update();
+
+    std::map<Float2_t, std::string> lines;
+    /*for(auto* child : label.children()) {
+        auto* text = dynamic_cast<Text*>(child);
+        ASSERT_NE(text, nullptr);
+        lines[text->pos().y] += text->txt();
+    }*/
+    for(auto& rstr : label.rich_strings()) {
+        lines[rstr.pos.y] += std::string(rstr.str);
+    }
+
+    ASSERT_EQ(lines.size(), 2u);
+    ASSERT_EQ(lines.begin()->first, 0);
+    ASSERT_EQ(lines.rbegin()->first, 1);
+    EXPECT_EQ(lines.begin()->second, "Annotate this frame as ∅");
+    EXPECT_EQ(lines.rbegin()->second, "(empty):");
+    for(const auto& span : label.rich_strings()) {
+        if(span.str.empty())
+            continue;
+        EXPECT_EQ(span.font, span.str == "∅" ? font : mono);
+        EXPECT_EQ(span.clr, label.text_color());
+        if(span.pos.y == 1)
+            EXPECT_FLOAT_EQ(width(span.str, span.font), width("(empty):", mono));
+    }
+    checkRenderedLayout(label);
+}
+
+TEST_F(StaticTextTest, TrimmedSpanMeasuresRemainingSpaceForFollowingText) {
+    StaticText::Settings settings;
+    const Font font(0.5, Style::Monospace);
+    const Color color{45, 130, 210, 180};
+    const auto width = [&](std::string_view str) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    const std::string_view suffix = " suffix";
+    const auto content_width = width("(empty):") + width(suffix);
+    settings.max_size.x = content_width + 2 * settings.margins.x;
+
+    for(const std::string_view leading : {" ", "   ", "\xC2\xA0 "}) {
+        const std::string input = std::string(leading) + "(empty):";
+        SCOPED_TRACE(input);
+        Vec2 offset(content_width - width(" (emp"), 0);
+        std::vector<StaticText::RichString> strings;
+        StaticText::add_string(nullptr, settings, {input, font, offset, color}, strings, offset);
+
+        ASSERT_EQ(strings.size(), 1u);
+        EXPECT_EQ(strings.front().str, "(empty):");
+        EXPECT_EQ(strings.front().font, font);
+        EXPECT_EQ(strings.front().clr, color);
+        EXPECT_EQ(strings.front().pos.y, 1);
+        EXPECT_EQ(offset.y, 1);
+        EXPECT_FLOAT_EQ(offset.x, width("(empty):"));
+
+        StaticText::add_string(nullptr, settings, {suffix, font, offset, color}, strings, offset);
+        ASSERT_EQ(strings.size(), 2u);
+        EXPECT_EQ(strings.back().str, suffix);
+        EXPECT_EQ(strings.back().pos.y, 1);
+        EXPECT_FLOAT_EQ(strings.back().pos.x, width("(empty):"));
+        EXPECT_EQ(strings.back().font, font);
+        EXPECT_EQ(strings.back().clr, color);
+        EXPECT_EQ(offset.y, 1);
+        EXPECT_FLOAT_EQ(offset.x, content_width);
+    }
+}
+
+TEST_F(StaticTextTest, TwoWordsUseHalfEmptyLine) {
+    const Font font(0.5, Style::Monospace);
+    StaticText::Settings settings;
+    settings.margins = Margins{0};
+    settings.max_size.x = utils::calculate_width(utils::calculate_bounds("a b", nullptr, font));
+
+    // A line holds "a b"; half is occupied, so "a" still fits on that line.
+    Vec2 offset(settings.max_size.x * 0.5_F, 0);
+    std::vector<StaticText::RichString> strings;
+    StaticText::add_string(nullptr, settings, {"a b", font, offset, White}, strings, offset);
+
+    ASSERT_EQ(strings.size(), 2u);
+    EXPECT_EQ(strings[0].str, "a");
+    EXPECT_EQ(strings[0].pos.y, 0);
+    EXPECT_EQ(strings[1].str, "b");
+    EXPECT_EQ(strings[1].pos.y, 1);
+}
+
+TEST_F(StaticTextTest, MultiwordSpanUsesRemainingLineBeforeWrapping) {
+    StaticText::Settings settings;
+    const Font font(0.5, Style::Monospace);
+    const std::string_view input = " alpha beta gamma";
+    const auto width = [&](std::string_view str) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    const auto content_width = width(input) + width(" extra");
+    settings.max_size.x = content_width + 2 * settings.margins.x;
+    Vec2 offset(content_width - width(" alpha") - width(" ") * 0.5_F, 0);
+    std::vector<StaticText::RichString> strings;
+    StaticText::add_string(nullptr, settings, {input, font, offset, Cyan}, strings, offset);
+
+    ASSERT_EQ(strings.size(), 2u);
+    EXPECT_EQ(strings[0].str, " alpha");
+    EXPECT_EQ(strings[0].pos.y, 0);
+    EXPECT_EQ(strings[1].str, "beta gamma");
+    EXPECT_EQ(strings[1].pos.y, 1);
+    EXPECT_FLOAT_EQ(offset.x, width("beta gamma"));
+    EXPECT_EQ(offset.y, 1);
+}
+
+TEST_F(StaticTextTest, FirstWordMovesIntactToNextLine) {
+    const Font font(0.5, Style::Monospace);
+    const auto width = [&](std::string_view str) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    StaticText::Settings settings;
+    settings.margins = Margins{0};
+    settings.max_size.x = width("empty");
+
+    // Only "emp" fits in the remaining space; "empty" fits on a fresh line.
+    Vec2 offset(settings.max_size.x - width("emp"), 0);
+    std::vector<StaticText::RichString> strings;
+    StaticText::add_string(nullptr, settings, {"empty a", font, offset, White}, strings, offset);
+
+    ASSERT_EQ(strings.size(), 2u);
+    EXPECT_EQ(strings[0].str, "empty");
+    EXPECT_EQ(strings[0].pos.y, 1);
+    EXPECT_EQ(strings[1].str, "a");
+    EXPECT_EQ(strings[1].pos.y, 2);
+}
+
+TEST_F(StaticTextTest, TrimmedLeadingSpacesRebaseWordBreaks) {
+    const Font font(0.5, Style::Monospace);
+    const auto width = [&](std::string_view str) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    StaticText::Settings settings;
+    settings.margins = Margins{0};
+    settings.max_size.x = width("aa bb") + width(" ") * 0.5_F;
+    Vec2 offset(width("aaaa"), 0);
+    std::vector<StaticText::RichString> strings;
+    StaticText::add_string(nullptr, settings, {"  aa bb cc", font, offset, White}, strings, offset);
+
+    ASSERT_EQ(strings.size(), 2u);
+    EXPECT_EQ(strings[0].str, "aa bb");
+    EXPECT_EQ(strings[0].pos.y, 1);
+    EXPECT_EQ(strings[1].str, "cc");
+    EXPECT_EQ(strings[1].pos.y, 2);
+    EXPECT_FLOAT_EQ(offset.x, width("cc"));
+}
+
+TEST_F(StaticTextTest, LeadingSpaceDoesNotPreventWholeWordFromFittingNextLine) {
+    const Font font(0.5, Style::Monospace);
+    const auto width = [&](std::string_view str) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    StaticText::Settings settings;
+    settings.margins = Margins{0};
+    settings.max_size.x = width("empty") + width(" ") * 0.5_F;
+    Vec2 offset(width("em"), 0);
+    std::vector<StaticText::RichString> strings;
+    StaticText::add_string(nullptr, settings, {" empty", font, offset, White}, strings, offset);
+
+    ASSERT_EQ(strings.size(), 1u);
+    EXPECT_EQ(strings[0].str, "empty");
+    EXPECT_EQ(strings[0].pos.y, 1);
+    EXPECT_EQ(offset.y, 1);
+    EXPECT_FLOAT_EQ(offset.x, width("empty"));
+}
+
+/* These tests require keeping words and punctuation together across style boundaries.
+TEST_F(StaticTextTest, TrailingPeriodStaysWithStyledWord) {
+    const Font font(0.5), italic(0.5, Style::Italic);
+    const auto width = [](std::string_view str, const Font& font) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    StaticText label(Str{"a <i>word</i>."}, font, Margins{0});
+    // The word fits after "a "; keeping its period attached requires a new line.
+    label.set(SizeLimit{Size2{width("a ", font) + width("word", italic) + width(".", font) * 0.5_F, 0}});
+
+    const auto& strings = label.rich_strings();
+    ASSERT_EQ(strings.size(), 3u);
+    EXPECT_EQ(strings[0].pos.y, 0);
+    EXPECT_EQ(strings[1].str, "word");
+    EXPECT_EQ(strings[1].pos.y, 1);
+    EXPECT_EQ(strings[2].str, ".");
+    EXPECT_EQ(strings[2].pos.y, 1);
+}
+
+TEST_F(StaticTextTest, LongAnnotationLabelPreservesWordsStylesAndGeometryOnReflow) {
+    const Font font(0.5), mono(0.5, Style::Monospace);
+    const std::string input =
+        "<c>Annotate this frame as </c>∅<c> (empty): review every visible object before confirming "
+        "that this frame contains no detections.</c> "
+        "<cyan><b>Keep uncertain objects</b> <i>for manual review</i></cyan>, "
+        "and <orange><c>do not discard partially visible animals</c></orange>.\n"
+        "<gray>Check <b>the image boundaries</b>, <i>overlapping animals</i>, and "
+        "<cyan><b>small objects near the background</b></cyan>.</gray> "
+        "<small>Use &lt;preview&gt; before saving.</small> "
+        "<c>Only then add the </c>∅<c> (empty) annotation and continue to the next frame.</c>";
+    const Color color{130, 170, 210, 180};
+    StaticText reference(Str{input}, font, TextClr{color});
+    StaticText label(Str{input}, font, TextClr{color}, Alpha{0.6_F}, Margins{7, 9, 7, 11});
+    const auto width = [](std::string_view str, const Font& font) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    const auto content_width = width("Annotate this frame as ", mono) + width("∅", font) + width(" (emp", mono);
+
+    // Compare words and styled characters with the unwrapped markup; whitespace at a wrap may be trimmed.
+    const auto content = [](const StaticText& text) {
+        std::string plain;
+        std::vector<std::tuple<char, Font, Color>> characters;
+        Float2_t line = 0;
+        for(const auto& span : text.rich_strings()) {
+            if(span.pos.y != line)
+                plain += ' ';
+            line = span.pos.y;
+            plain += span.str;
+            for(const unsigned char c : span.str) {
+                if(not std::isspace(c))
+                    characters.emplace_back(c, span.font, span.clr);
+            }
+        }
+        std::vector<std::string> words;
+        std::istringstream stream(plain);
+        for(std::string word; stream >> word; )
+            words.push_back(std::move(word));
+        return std::pair{words, characters};
+    };
+    const auto expected = content(reference);
+    for(const auto scale : {1_F, 1.5_F, 2_F, 1_F}) {
+        SCOPED_TRACE(scale);
+        label.set(SizeLimit{Size2{content_width * scale + 2 * label.margins().x, 0}});
+        const auto actual = content(label);
+        for(size_t i = 0; i < max(actual.first.size(), expected.first.size()); ++i) {
+            const auto actual_word = i < actual.first.size() ? actual.first[i] : "<missing>";
+            const auto expected_word = i < expected.first.size() ? expected.first[i] : "<missing>";
+            EXPECT_EQ(actual_word, expected_word) << "Word " << i;
+        }
+        ASSERT_EQ(actual.second.size(), expected.second.size());
+        for(size_t i = 0; i < expected.second.size(); ++i)
+            EXPECT_EQ(actual.second[i], expected.second[i]) << "Character " << i;
+        checkRenderedLayout(label);
+        if(scale == 1_F) {
+            std::map<Float2_t, std::string> lines;
+            for(const auto& span : label.rich_strings())
+                lines[span.pos.y] += span.str;
+            EXPECT_EQ(lines.at(0), "Annotate this frame as ∅");
+            EXPECT_TRUE(lines.at(1).starts_with("(empty):"));
+        }
+    }
+}
+
+*/
 
 TEST_F(StaticTextTest, SkipsWhitespaceOnlyRemainder) {
     StaticText::Settings settings;
