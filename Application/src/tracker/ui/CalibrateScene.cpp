@@ -168,7 +168,7 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                             Print("calibrating ", action.first(), " with a distance of ", D);
                             
                             SceneManager::enqueue([D, e=std::move(e), text=_data->_cm_text](auto, DrawStructure& graph) mutable {
-                                graph.dialog([D, text = std::move(text)](Dialog::Result r) {
+                                auto dialog = graph.dialog([D, text = std::move(text)](Dialog::Result r) {
                                     if(r != Dialog::OKAY)
                                         return;
                                     
@@ -179,7 +179,10 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                                         }, "Do you want to automatically set <ref>track_max_speed</ref>, <ref>detect_size_filter</ref>, and <ref>track_size_filter</ref> based on the given conversion factor?", "Calibrate with known length", "Yes", "No");
                                     });
                                     
-                                }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, and <ref>track_size_filter</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort")->set_custom_element(std::move(e));
+                                }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, and <ref>track_size_filter</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort");
+                                
+                                if(dialog)
+                                    dialog.value()->set_custom_element(std::move(e));
                             });
                         }
                     })
@@ -219,13 +222,13 @@ void CalibrateScene::_draw(DrawStructure &graph) {
             new GUIVideoAdapterElement((IMGUIBase*)_window, []() -> Size2 {
                 return FindCoord::get().screen_size();
             }, [this](VideoInfo info) {
-                _data->_next_video_size = info.size;
+                _data->_next_video_size = info.resolution;
             }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) -> Layout::Ptr {
                 if(_data->_adapter) {
                     _data->_adapter.to<GUIVideoAdapter>()->set(path);
                     return _data->_adapter;
                 } else {
-                    Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);
+                    Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>{path, window, callback};
                     _data->_adapter = ptr;
                     return ptr;
                 }

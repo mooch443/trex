@@ -2,7 +2,7 @@
 
 WebcamVideoSource::WebcamVideoSource(fg::Webcam&& source)
     : AbstractBaseVideoSource({.base = "Webcam",
-                                .size = source.size(),
+                                .resolution = source.size(),
                                 .framerate = short(source.frame_rate()),
                                 .finite = false,
                                 .length = Frame_t{}}),

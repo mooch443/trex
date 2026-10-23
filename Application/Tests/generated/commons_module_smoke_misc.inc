@@ -67,21 +67,24 @@ using ::cmn::FormatColor_t;
 using ::cmn::FormatterType;
 }
 
+// misc/FrameTag.h
+namespace commons_module_smoke::commons_misc::cmn {
+using ::cmn::FrameTag;
+using ::cmn::IdentifiedTag;
+using ::cmn::SimpleTag;
+using ::cmn::SpatialTag;
+}
+
 // misc/GlobalSettings.h
 namespace commons_module_smoke::commons_misc::cmn {
 using ::cmn::Configuration;
 using ::cmn::GlobalSettings;
 using ::cmn::NoType;
-using ::cmn::bool_setting;
 using ::cmn::bool_setting_config;
 using ::cmn::docs_map_t;
-using ::cmn::optional_setting;
 using ::cmn::optional_setting_config;
-using ::cmn::read_setting;
 using ::cmn::read_setting_config;
-using ::cmn::read_setting_with_default;
 using ::cmn::read_setting_with_default_config;
-using ::cmn::setting;
 using ::cmn::setting_config;
 using ::cmn::user_access_map_t;
 }

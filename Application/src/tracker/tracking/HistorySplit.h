@@ -5,6 +5,11 @@
 #include <tracking/PPFrame.h>
 #include <tracking/PrefilterBlobs.h>
 #include <misc/ThreadPool.h>
+#include <data/FrameRepository.h>
+
+namespace cmn {
+class Background;
+}
 
 namespace track {
 
@@ -14,7 +19,7 @@ class HistorySplit {
     robin_hood::unordered_map<pv::bid, split_expectation> expect;
     
 public:
-    HistorySplit(PPFrame& frame, PPFrame::NeedGrid, GenericThreadPool* pool = nullptr);
+    HistorySplit(const data::FrameRepository&, const Background&, PPFrame& frame, NeedGrid, GenericThreadPool* pool = nullptr);
     
 private:
     Settings::manual_splits_t::mapped_type apply_manual_matches(PPFrame& frame);

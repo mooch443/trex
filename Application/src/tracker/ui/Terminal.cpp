@@ -4,7 +4,8 @@
 #include <core/default_config.h>
 #include <ui/Scene.h>
 
-namespace cmn::gui::terminal {
+namespace cmn::terminal {
+using namespace gui;
 
 void open_terminal() {
     std::string cmd;

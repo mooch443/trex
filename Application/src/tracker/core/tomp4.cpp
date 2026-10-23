@@ -349,7 +349,7 @@ void FFMPEGQueue::prints(bool force){
                 compressed_size = 0;
         }
         
-        Print("[FFMPEG] so far we have written ",pts," images to ",_output_path," with ", _queue.size(), " still in queue (", ms * 1000, "ms and ", FileSize{uint64_t(compressed_size)}," / frame)");
+        prefixed_print("FFMPEG", "so far we have written ",pts," images to ",_output_path," with ", _queue.size(), " still in queue (", ms * 1000, "ms and ", FileSize{uint64_t(compressed_size)}," / frame)");
         last_printout.reset();
     }
 }

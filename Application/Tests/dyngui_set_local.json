@@ -1,0 +1,27 @@
+{
+  "locals": {
+    "tab": { "type": "int", "value": 0 }
+  },
+  "objects": [
+    {
+      "type": "button",
+      "name": "set-local-button",
+      "text": "Set local",
+      "pos": [10, 10],
+      "size": [120, 40],
+      "action": "set-local:tab:1"
+    },
+    {
+      "type": "rect",
+      "name": "mouse-relative-target",
+      "size": [120, 40],
+      "clickable": true,
+      "click": "set-local:tab:{mouse_relative.x}"
+    },
+    {
+      "type": "rect",
+      "name": "after-mouse-relative-target",
+      "size": [120, 40]
+    }
+  ]
+}

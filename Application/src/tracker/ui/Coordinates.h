@@ -1,5 +1,6 @@
 #pragma once
 #include <commons.pc.h>
+#include <core/TileCoordinates.h>
 #include <gui/Transform.h>
 #include <gui/ControlsAttributes.h>
 
@@ -31,6 +32,14 @@ struct BowlRect : Bounds {
 
     explicit BowlRect(const Bounds& b) : Bounds(b) { }
 };
+
+inline BowlCoord to_bowl(const track::SourceCoord& source) {
+    return BowlCoord(source);
+}
+
+inline BowlRect to_bowl(const track::SourceRect& source) {
+    return BowlRect(source);
+}
 
 class FindCoord {
     static auto& mutex() {

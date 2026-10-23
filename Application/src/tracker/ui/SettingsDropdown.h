@@ -24,7 +24,9 @@ struct SettingsDropdown {
             try {
                 auto key = _settings_dropdown.selected_item().name();
                 if(GlobalSettings::access_level(key) == AccessLevelType::PUBLIC) {
-                    GlobalSettings::get(key).get().set_value_from_string(_value_input.text());
+                    GlobalSettings::write([&](Configuration& config) {
+                        config.values[key].get().set_value_from_string(_value_input.text());
+                    });
                     if(GlobalSettings::get(key).is_type<Color>())
                         this->selected_setting(_settings_dropdown.selected_item().ID(), key, _value_input);
                     if((std::string)key == "auto_apply" || (std::string)key == "auto_train")

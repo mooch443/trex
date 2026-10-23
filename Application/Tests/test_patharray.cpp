@@ -928,7 +928,7 @@ TEST(PathConcatenation, EmptyLhs) {
 //#if defined(WIN32)
 //    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
 //#else
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()) + "relative");  // Empty lhs should result in only rhs
+    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
 //#endif
 }
 
@@ -946,7 +946,7 @@ TEST(PathConcatenation, BothEmpty) {
 //#if defined(WIN32)
 //    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
 //#else
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()));
+    EXPECT_EQ((lhs / rhs).str(), "");
 //#endif
 }
 
@@ -1089,7 +1089,7 @@ TEST(PathConcatenation, AbsoluteRhsError) {
 TEST(PathConcatenation, BothEmpty2) {
     Path lhs("");
     Path rhs("");
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()));  // Both paths empty should result in empty
+    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
 }
 
 // Test concatenation with empty rhs and lhs having a trailing separator

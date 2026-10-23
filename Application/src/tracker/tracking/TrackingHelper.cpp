@@ -1,4 +1,7 @@
 #include "TrackingHelper.h"
+#include <data/MotionRecord.h>
+#include <misc/Image.h>
+#include <tracking/BlobReceiver.h>
 #include <tracking/Tracker.h>
 #include <core/default_config.h>
 #include <misc/pretty.h>
@@ -11,10 +14,10 @@ namespace track {
 
 #define CACHE_SETTING(NAME) _cache.NAME
 
-inline auto& blob_grid() {
+/*inline auto& blob_grid() {
     static grid::ProximityGrid grid{Tracker::average().bounds().size()};
     return grid;
-}
+}*/
 
 bool TrackingHelper::save_tags() const {
     return CACHE_SETTING(save_tags);
@@ -24,24 +27,25 @@ TrackingHelper::~TrackingHelper() {
 }
 
 TrackingHelper::TrackingHelper(
+   Tracker& tracker,
    PPFrame& f,
-   const std::vector<FrameProperties::Ptr>& added_frames,
    Frame_t approximative_enabled_in_frame)
     : _approximative_enabled_in_frame(approximative_enabled_in_frame),
       frame(f),
-      _manager(frame)
+      repo(tracker.frames()),
+      _manager(tracker, frame)
 {
     double time(double(frame.timestamp) / double(1000*1000));
-    props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
+    props = tracker.frames().add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
     
-    {
-        auto it = --added_frames.end();
-        if(it != added_frames.begin()) {
+    tracker.frames().read([&](data::FrameRepository::SafeReadAccess data){
+        auto it = --data.raw.end();
+        if(it != data.raw.begin()) {
             --it;
             if((*it)->frame() == frame.index() - 1_f)
                 prev_props = (*it).get();
         }
-    }
+    });
     
     if(save_tags() && CACHE_SETTING(track_size_filter)) {
         frame.transform_noise([this, max_range = CACHE_SETTING(track_size_filter).max_range()](const pv::Blob& blob){
@@ -53,10 +57,10 @@ TrackingHelper::TrackingHelper(
     _manager.clear_blob_assigned();
     
     //! TODO: Can probably reuse frame.blob_grid here, but need to add noise() as well
-    blob_grid().clear();
+    tracker._blob_grid.clear();
     
-    frame.transform_all([](const pv::Blob& blob){
-        blob_grid().insert(blob.bounds().x + blob.bounds().width  * 0.5f,
+    frame.transform_all([&tracker](const pv::Blob& blob){
+        tracker._blob_grid.insert(blob.bounds().x + blob.bounds().width  * 0.5f,
                            blob.bounds().y + blob.bounds().height * 0.5f,
                            blob.blob_id());
     });
@@ -70,11 +74,11 @@ TrackingHelper::TrackingHelper(
                     : CACHE_SETTING(match_mode);
     
     // see if there are manually fixed matches for this frame
-    apply_manual_matches();
+    apply_manual_matches(tracker);
     apply_automatic_matches();
 }
 
-void TrackingHelper::apply_manual_matches()
+void TrackingHelper::apply_manual_matches(Tracker& tracker)
 {
     const auto frameIndex = frame.index();
     
@@ -116,7 +120,7 @@ void TrackingHelper::apply_manual_matches()
             
         }, [&](Idx_t fdx, pv::bid bdx) {
 #ifndef NDEBUG
-           if(frameIndex != Tracker::start_frame())
+           if(frameIndex != tracker.frames().start_frame())
                FormatWarning("Individual number ", fdx," out of range in frame ",frameIndex,". Creating new one.");
 #endif
            
@@ -144,6 +148,7 @@ void TrackingHelper::apply_manual_matches()
         
         _manager.assign<true, true>(AssignInfo{
             .frame = &frame,
+            .repo = &repo,
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = match_mode,
@@ -180,7 +185,7 @@ void TrackingHelper::apply_manual_matches()
         for(auto && [bdx, fdxs] : cannot_find) {
             assert(bdx.valid());
             auto pos = bdx.calc_position();
-            auto list = blob_grid().query(pos, max_speed_px);
+            auto list = tracker._blob_grid.query(pos, max_speed_px);
             //auto str = Meta::toStr(list);
             
             if(!list.empty()) {
@@ -192,6 +197,8 @@ void TrackingHelper::apply_manual_matches()
         }
         
         std::unordered_map<pv::bid, Idx_t> actual_assignments;
+        if(not tracker.background())
+            throw InvalidArgumentException("No background set when applying manual matches.");
         
         for(const auto & [bdx, clique] : assign_blobs) {
             // have to split blob...
@@ -203,6 +210,7 @@ void TrackingHelper::apply_manual_matches()
             single.emplace_back(frame.extract(bdx));
             
             PrefilterBlobs::split_big(
+                      *tracker.background(),
                       frameIndex,
                       std::move(single),
                       BlobReceiver(noise, BlobReceiver::noise, FilterReason::SplitFailed),
@@ -288,6 +296,7 @@ void TrackingHelper::apply_manual_matches()
         std::set<FOI::fdx_t> identities;
         _manager.assign(AssignInfo{
             .frame = &frame,
+            .repo = &repo,
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = match_mode,
@@ -342,6 +351,7 @@ void TrackingHelper::apply_automatic_matches() {
 
     _manager.assign(AssignInfo{
         .frame = &frame,
+        .repo = &repo,
         .f_prop = props,
         .f_prev_prop = prev_props,
         .match_mode = default_config::matching_mode_t::none,
@@ -442,6 +452,7 @@ void TrackingHelper::apply_matching() {
         
         _manager.assign<false>(AssignInfo{
             .frame = &frame,
+            .repo = &repo,
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = match_mode,
@@ -492,6 +503,7 @@ void TrackingHelper::apply_matching() {
         
         _manager.assign<false>(AssignInfo{
             .frame = &frame,
+            .repo = &repo,
             .f_prop = props,
             .f_prev_prop = prev_props,
             .match_mode = default_config::matching_mode_t::hungarian,
@@ -510,7 +522,7 @@ void TrackingHelper::apply_matching() {
 }
 
 
-double TrackingHelper::process_postures() {
+double TrackingHelper::process_postures(Tracker& tracker) {
     const auto frameIndex = frame.index();
     
     static Timing timing("Tracker::need_postures", 100);
@@ -529,9 +541,12 @@ double TrackingHelper::process_postures() {
             _manager.need_postures.pop();
         }
         
+        if(not tracker.background())
+            throw InvalidArgumentException("Need a background to calculate postures.");
+        
         IndividualManager::Protect{};
         
-        distribute_indexes([frameIndex, &combined_posture_seconds, &pose_midline_indexes, this](auto, auto start, auto end, auto) {
+        distribute_indexes([&frames = tracker.frames(), background = tracker.background(), frameIndex, &combined_posture_seconds, &pose_midline_indexes, this](auto, auto start, auto end, auto) {
             Timer t;
             double collected = 0;
             
@@ -539,14 +554,14 @@ double TrackingHelper::process_postures() {
                 t.reset();
                 
                 auto &&[fish, basic, pixels] = *it;
-                fish->save_posture(*basic, pose_midline_indexes, frameIndex, std::move(pixels), _cache);
+                fish->save_posture(frames, *background, *basic, pose_midline_indexes, frameIndex, std::move(pixels), _cache);
                 collected += t.elapsed();
             }
             
             auto guard = LOGGED_LOCK(_statistics_mutex);
             combined_posture_seconds += collected;
             
-        }, Tracker::thread_pool(), posture_store.begin(), posture_store.end());
+        }, tracker.thread_pool(), posture_store.begin(), posture_store.end());
         
         assert(_manager.need_postures.empty());
     }
