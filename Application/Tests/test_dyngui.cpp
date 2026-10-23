@@ -4007,6 +4007,50 @@ TEST_F(StaticTextTest, LargeMaxWidth) {
     checkCharactersInOrder(input, strings);
 }
 
+TEST_F(StaticTextTest, BoundedMeasurementPreservesExactFitsAndUtf8Boundaries) {
+    const Font font(0.5, Style::Monospace);
+    const std::string_view input = "∅ab";
+    const auto width = [&](std::string_view str) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    const char* remaining = nullptr;
+    for(const std::string_view prefix : {"", "∅", "∅a", "∅ab"}) {
+        SCOPED_TRACE(prefix);
+        const auto limit = width(prefix);
+        const auto bounds = utils::calculate_bounds(input, nullptr, font, std::nextafter(limit, std::numeric_limits<Float2_t>::infinity()), &remaining);
+        EXPECT_EQ(remaining, input.data() + prefix.size());
+        EXPECT_FLOAT_EQ(utils::calculate_width(bounds), limit);
+        if(not prefix.empty())
+            EXPECT_EQ(utils::find_splitting_point(input, width(input), limit, nullptr, font), prefix.size());
+    }
+    EXPECT_EQ(utils::find_splitting_point(input, width(input), 0, nullptr, font), std::string_view("∅").size());
+
+    const std::string_view empty;
+    EXPECT_EQ(utils::calculate_width(utils::calculate_bounds(empty, nullptr, font, 1, &remaining)), 0);
+    EXPECT_EQ(remaining, empty.data());
+}
+
+TEST_F(StaticTextTest, SplittingInsideWordPreservesRemainingWidth) {
+    const Font font(0.5, Style::Monospace);
+    const auto width = [&](std::string_view str) {
+        return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
+    };
+    StaticText::Settings settings;
+    settings.margins = Margins{0};
+    settings.max_size.x = width("abc") + width(" ") * 0.5_F;
+    Vec2 offset(0, 0);
+    std::vector<StaticText::RichString> strings;
+    StaticText::add_string(nullptr, settings, {"abcdef", font, offset, White}, strings, offset);
+
+    ASSERT_EQ(strings.size(), 2u);
+    EXPECT_EQ(strings[0].str, "abc");
+    EXPECT_EQ(strings[0].pos.y, 0);
+    EXPECT_EQ(strings[1].str, "def");
+    EXPECT_EQ(strings[1].pos.y, 1);
+    EXPECT_FLOAT_EQ(offset.x, width("def"));
+    EXPECT_EQ(offset.y, 1);
+}
+
 TEST_F(StaticTextTest, EmptyAnnotationLabelKeepsParenthesizedWordTogether) {
     const Font font(0.5), mono(0.5, Style::Monospace);
     const auto width = [](std::string_view str, const Font& font) {

@@ -157,11 +157,12 @@ int run(size_t calls, size_t samples, const char* output, bool whole_pipeline) {
     auto* imfont = atlas.AddFontFromFileTTF(TREX_BENCHMARK_FONT, 24.f, &config);
     if(!imfont || !atlas.Build())
         throw std::runtime_error("Cannot initialize the benchmark font");
-    Base::set_default_text_bounds([imfont](std::string_view text, Drawable*, const Font& current) {
+    Base::set_default_text_bounds([imfont](std::string_view text, Drawable*, const Font& current, Float2_t max_width, const char** remaining) {
+        if(remaining)
+            *remaining = text.data();
         if(text.empty())
             return Bounds();
-        const auto size = imfont->CalcTextSizeA(32.f * current.size, FLT_MAX, -1.f,
-                                               text.data(), text.data() + text.size(), nullptr);
+        const auto size = imfont->CalcTextSizeA(32.f * current.size, max_width, -1.f, text.data(), text.data() + text.size(), remaining);
         return Bounds(0, 0, size.x, size.y);
     });
     // Clear the callback before the captured font is destroyed, including on errors.
