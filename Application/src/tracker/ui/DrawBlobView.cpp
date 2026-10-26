@@ -1059,10 +1059,12 @@ void BlobView::draw(const DisplayParameters& parm)
         }
         
         if(blob_pos.has_value()) {
+            auto bdx = _clicked_blob_id.load();
+            
             std::set<std::tuple<float, Dropdown::TextItem>> items;
             for(auto &id : parm.cache.all_ids) {
                 if(not parm.cache.fish_selected_blobs.contains(id)
-                    || parm.cache.fish_selected_blobs.at(id).bdx != _clicked_blob_id)
+                    || parm.cache.fish_selected_blobs.at(id).bdx != bdx)
                 {
                     float d = FLT_MAX;
                     auto c = parm.cache.processed_frame().cached(id);
@@ -1072,7 +1074,7 @@ void BlobView::draw(const DisplayParameters& parm)
                     {
                         d = (c->estimated_px - *blob_pos).length();
                     }
-                    uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 16) & 0xFFFFFFFF) << 32);
+                    uint64_t encoded_ids = ((uint64_t)bdx & 0xFFFFFFFF) | ((uint64_t(id.get() + 16) & 0xFFFFFFFF) << 32);
 
                     auto identity = Identity::Temporary(id);
                     items.insert({d, Dropdown::TextItem(identity.name() + (d != FLT_MAX ? (" ("+Meta::toStr(d * FAST_SETTING(cm_per_pixel))+"cm)") : ""), (id + Idx_t(16)).get(), identity.name(), (void*)encoded_ids)});
@@ -1080,22 +1082,24 @@ void BlobView::draw(const DisplayParameters& parm)
             }
             
             std::vector<Dropdown::TextItem> sorted_items;
-            sorted_items.push_back(Dropdown::TextItem("<b>Split</b>", 0, "", (void*)uint64_t(_clicked_blob_id.load())));
+            sorted_items.push_back(Dropdown::TextItem("<b>Split</b>", 0, "", (void*)uint64_t(bdx)));
             
             {
                 auto copy = FAST_SETTING(track_ignore_bdx);
                 auto frame = GUI_SETTINGS(gui_frame);
-                if(copy.is_ignored(frame, _clicked_blob_id.load()))
+                
+                if(copy.is_ignored(frame, bdx))
                 {
-                    sorted_items.push_back(Dropdown::TextItem("<b>Un-Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
-                    sorted_items.push_back(Dropdown::TextItem("<b>Un-Ignore tracklet</b>", 3, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x3 << 32u) )));
+                    sorted_items.push_back(Dropdown::TextItem("<b>Un-Ignore</b>", 1, "", (void*)uint64_t((uint64_t)bdx | ((uint64_t)0x1 << 32u) )));
+                    if(copy.has_tracklet(frame, bdx) > 0u)
+                        sorted_items.push_back(Dropdown::TextItem("<b>Un-Ignore tracklet</b>", 3, "", (void*)uint64_t((uint64_t)bdx | ((uint64_t)0x3 << 32u) )));
                 } else {
                     
-                    sorted_items.push_back(Dropdown::TextItem("<b>Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
+                    sorted_items.push_back(Dropdown::TextItem("<b>Ignore</b>", 1, "", (void*)uint64_t((uint64_t)bdx | ((uint64_t)0x1 << 32u) )));
                 }
             }
             
-            sorted_items.push_back(Dropdown::TextItem("<b>Convert to annotation</b>", 2, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x2 << 32u) )));
+            sorted_items.push_back(Dropdown::TextItem("<b>Convert to annotation</b>", 2, "", (void*)uint64_t((uint64_t)bdx | ((uint64_t)0x2 << 32u) )));
             
             for(auto && [d, item] : items)
                 sorted_items.push_back(item);
@@ -1114,7 +1118,7 @@ void BlobView::draw(const DisplayParameters& parm)
                    it != track_frame_tags.end()
                    && blob_pos.has_value())
                 {
-                    auto _bdx = _clicked_blob_id.load();
+                    auto _bdx = bdx;
                     
                     for(auto &tag : it->second) {
                         if(tag.has_identity()
@@ -1149,7 +1153,7 @@ void BlobView::draw(const DisplayParameters& parm)
 
             parm.graph.wrap_object(*popup);
 
-            if(_clicked_blob_id.load() != last_blob_id) {
+            if(bdx != last_blob_id) {
                 /// opened for a new blob: focus the filter textfield; this has
                 /// to happen after wrap_object, since selecting requires the
                 /// popup to be attached to the stage

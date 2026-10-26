@@ -197,6 +197,30 @@ bool BdxIgnoreList::unignore_tracklet_of(Frame_t frame, pv::bid bdx) {
     return true;
 }
 
+size_t BdxIgnoreList::has_tracklet(Frame_t frame, pv::bid bdx) const {
+    if(not is_ignored(frame, bdx))
+        return 0;
+    
+    for(auto& entry : _entries) {
+        const auto N = entry.blobs.size();
+        if(N <= 1u)
+        {
+            /// we only count something as a tracklet if it has more entries than 1.
+            continue;
+        }
+        
+        if(auto it = entry.blobs.find(frame);
+              it != entry.blobs.end()
+           && it->second.contains(bdx))
+        {
+            return N;
+            /// could still be in another entry
+        }
+    }
+    
+    return 0;
+}
+
 bool BdxIgnoreList::ignore(std::map<Frame_t, pv::bid>&& map) {
     bool changed = false;
     

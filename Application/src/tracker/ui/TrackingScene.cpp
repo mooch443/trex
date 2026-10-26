@@ -392,7 +392,7 @@ void TrackingScene::Data::handle_zooming(Event e) {
         }
     };
 
-    if(not is_in(READ_SETTING_WITH_DEFAULT(gui_mode, mode_t::tracking), mode_t::tracking)
+    if(not is_in(READ_SETTING_WITH_DEFAULT(gui_mode, mode_t::tracking), mode_t::tracking, mode_t::raw)
        || READ_SETTING_WITH_DEFAULT(gui_focus_group, (std::vector<track::Idx_t>{})).empty())
     {
         auto gui_zoom_polygon = READ_SETTING(gui_zoom_polygon, std::vector<Vec2>);
@@ -701,6 +701,10 @@ bool TrackingScene::on_global_event(Event event) {
             case Keyboard::D: {
                 auto current_mode = GUI_SETTINGS(gui_mode);
                 auto next_value = current_mode + 1u; /// wraps
+                if(gui::mode_t::Class(next_value) == gui::mode_t::annotate)
+                {
+                    next_value = gui::mode_t::Class(next_value) + 1u;
+                }
                 SETTING(gui_mode) = gui::mode_t::Class(next_value);
 
                 _data->_cache->set_tracking_dirty();
@@ -1658,7 +1662,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         
         _data->_bowl->fit_to_screen(coords.screen_size());
         if(GUI_SETTINGS(gui_auto_scale_focus_one)
-            && is_in(GUI_SETTINGS(gui_mode), mode_t::tracking))
+            && is_in(GUI_SETTINGS(gui_mode), mode_t::tracking, mode_t::raw))
         {
             _data->_bowl->set_target_focus(targets);
         } else

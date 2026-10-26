@@ -405,7 +405,7 @@ void Bowl::update_goals() {
     
     if(_data
        && not _data->_gui_zoom_polygon.empty()
-       && (READ_SETTING_WITH_DEFAULT(gui_mode, mode_t::tracking) != mode_t::tracking
+       && ((not is_in(READ_SETTING_WITH_DEFAULT(gui_mode, mode_t::tracking), mode_t::tracking, mode_t::raw))
            || gui_focus_group.empty()
            || _target_points.empty())
        )

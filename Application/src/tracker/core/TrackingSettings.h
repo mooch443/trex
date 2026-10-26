@@ -188,6 +188,7 @@ public:
     std::optional<const std::set<pv::bid>*> merged_entries_for(Frame_t) const;
     Frame_t first_differing_frame(const BdxIgnoreList&) const;
     bool frame_has_entries(Frame_t) const;
+    size_t has_tracklet(Frame_t, pv::bid) const;
     bool is_ignored(Frame_t, pv::bid) const;
     
     std::string toStr() const { return Meta::toStr(_entries); }
