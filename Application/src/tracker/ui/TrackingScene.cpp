@@ -834,31 +834,7 @@ void TrackingScene::settings_callback(std::string_view key) {
             if(auto value = SETTING(track_ignore_bdx).value<Settings::track_ignore_bdx_t>();
                _data->_track_ignore_bdx != value)
             {
-                for(auto &[frame, bdxes] : value) {
-                    auto it = _data->_track_ignore_bdx.find(frame);
-                    if(it == _data->_track_ignore_bdx.end()
-                       || it->second != bdxes)
-                    {
-                        changed_frame = frame;
-                        break;
-                    }
-                }
-                
-                for(auto &[frame, bdxes] : _data->_track_ignore_bdx) {
-                    if(changed_frame.valid()
-                       && changed_frame < frame)
-                    {
-                        /// dont overwrite later frames
-                        break;
-                    }
-                    
-                    if(auto it = value.find(frame);
-                       it == value.end())
-                    {
-                        changed_frame = frame;
-                        break;
-                    }
-                }
+                changed_frame = value.first_differing_frame(_data->_track_ignore_bdx);
                 
                 /// couldnt find it here if `changed_frame` is not valid.
                 /// in which case nothing happens.
@@ -2429,7 +2405,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 const Individual* fish = fishes.individuals.at(fdx);
                 auto range = FrameRange(Range<Frame_t>(start, end));
                 
-                std::map<Frame_t, std::set<pv::bid>> local;
+                std::map<Frame_t, pv::bid> local;
                 auto track_ignore_bdx = FAST_SETTING(track_ignore_bdx);
                 
                 {
@@ -2440,7 +2416,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
 #ifndef NDEBUG
                             range,
 #endif
-                            &track_ignore_bdx, &local]
+                            &local]
                             (Frame_t frame,
                              const std::shared_ptr<TrackletInformation>&,
                              const BasicStuff* basic,
@@ -2449,8 +2425,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         assert(range.contains(frame));
                         if(basic) {
                             auto bdx = basic->blob.blob_id();
-                            track_ignore_bdx[frame].insert(bdx);
-                            local[frame].insert(bdx);
+                            local[frame] = bdx;
                         }
                      });
                 }
@@ -2458,6 +2433,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 if(local.empty()) {
                     FormatWarning("Collected an empty list for individual ", fdx, " frames ", start, "-", end);
                 } else {
+                    track_ignore_bdx.ignore(std::move(local));
                     auto apply_fn = [track_ignore_bdx](){
                         /// setting the global variable with our collected bdxes
                         SETTING(track_ignore_bdx) = track_ignore_bdx;

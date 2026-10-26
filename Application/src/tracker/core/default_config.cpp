@@ -936,7 +936,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
         CONFIG("manual_matches", std::map<Frame_t, std::map<track::Idx_t, pv::bid>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
         CONFIG("manual_splits", std::map<Frame_t, std::set<pv::bid>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
-        CONFIG("track_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
+        track::BdxIgnoreList ignore_bdx_example = track::BdxIgnoreList::fromStr("[{10:[2],11:[3]},{10:[5],12:[7]}]");
+        CONFIG("track_ignore_bdx", track::BdxIgnoreList{}, "This is a list of maps of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.", PUBLIC, {std::move(ignore_bdx_example)});
         
         using namespace track;
         detect::AnnotationMap annotation_example = detect::AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]],101:[[0,5,[]]]}");

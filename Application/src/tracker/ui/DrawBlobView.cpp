@@ -909,22 +909,31 @@ void BlobView::draw(const DisplayParameters& parm)
                     auto copy = FAST_SETTING(track_ignore_bdx);
                     auto frame = GUI_SETTINGS(gui_frame);
                     
-                    if(copy.contains(frame)
-                       && copy.at(frame).contains(clicked_blob_id))
-                    {
+                    if(copy.is_ignored(frame, clicked_blob_id)) {
                         /// toggle off again
-                        copy[frame].erase(clicked_blob_id);
-                        WorkProgress::add_queue("", [copy](){
-                            SETTING(track_ignore_bdx) = copy;
-                        });
-                    } else if(auto [_, added] =
-                              copy[frame].insert(clicked_blob_id);
-                              added)
-                    {
-                        WorkProgress::add_queue("", [copy](){
-                            SETTING(track_ignore_bdx) = copy;
+                        if(copy.unignore(frame, clicked_blob_id)) {
+                            WorkProgress::add_queue("", [copy = std::move(copy)]() mutable {
+                                SETTING(track_ignore_bdx) = std::move(copy);
+                            });
+                        }
+                    } else if(copy.ignore(frame, clicked_blob_id)) {
+                        WorkProgress::add_queue("", [copy = std::move(copy)]() mutable{
+                            SETTING(track_ignore_bdx) = std::move(copy);
                         });
                     }
+                    
+                } else if(item_id == 3) /* Un-Ignore entire tracklet */ {
+                    auto copy = FAST_SETTING(track_ignore_bdx);
+                    auto frame = GUI_SETTINGS(gui_frame);
+                    if(copy.is_ignored(frame, clicked_blob_id)) {
+                        /// toggle off again, but do the entire tracklet
+                        if(copy.unignore_tracklet_of(frame, clicked_blob_id)) {
+                            WorkProgress::add_queue("", [copy = std::move(copy)]() mutable {
+                                SETTING(track_ignore_bdx) = std::move(copy);
+                            });
+                        }
+                    }
+                    
                 } else if(item_id == 2) /* CONVERT TO ANNOTATION */ {
                     auto frame = GUI_SETTINGS(gui_frame);
                     Print("Converting to annotation ", blob_id);
@@ -1076,10 +1085,10 @@ void BlobView::draw(const DisplayParameters& parm)
             {
                 auto copy = FAST_SETTING(track_ignore_bdx);
                 auto frame = GUI_SETTINGS(gui_frame);
-                if(copy.contains(frame)
-                   && copy.at(frame).contains(_clicked_blob_id.load()))
+                if(copy.is_ignored(frame, _clicked_blob_id.load()))
                 {
                     sorted_items.push_back(Dropdown::TextItem("<b>Un-Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
+                    sorted_items.push_back(Dropdown::TextItem("<b>Un-Ignore tracklet</b>", 3, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x3 << 32u) )));
                 } else {
                     
                     sorted_items.push_back(Dropdown::TextItem("<b>Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));

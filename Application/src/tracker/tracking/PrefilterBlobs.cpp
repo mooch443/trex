@@ -131,7 +131,7 @@ void PrefilterBlobs::to(PrefilterBlobs &other) && {
 bool PrefilterBlobs::is_blob_ignored(
     [[maybe_unused]] Frame_t frame_index,
     const pv::Blob& b,
-    const std::optional<const msplits_t::mapped_type*>& track_ignore_bdx_c)
+    const std::optional<const std::set<pv::bid>*>& track_ignore_bdx_c)
 {
     if(track_ignore_bdx_c.has_value()) {
         if(track_ignore_bdx_c.value()->contains(b.blob_id())
@@ -173,12 +173,7 @@ void PrefilterBlobs::split_big(
     const auto track_include = FAST_SETTING(track_include);
     const auto track_ignore_bdx = FAST_SETTING(track_ignore_bdx);
     
-    std::optional<const msplits_t::mapped_type*> track_ignore_bdx_c;
-    if(auto it = track_ignore_bdx.find(frame_index);
-       it != track_ignore_bdx.end())
-    {
-        track_ignore_bdx_c = &it->second;
-    }
+    auto track_ignore_bdx_c = track_ignore_bdx.merged_entries_for(frame_index);
     
     std::mutex thread_mutex;
     

@@ -673,12 +673,7 @@ void Tracker::prefilter(
     const auto tags_dont_track = BOOL_SETTING(tags_dont_track);
     const auto track_only_segmentations = BOOL_SETTING(track_only_segmentations);
     
-    std::optional<const decltype(track_ignore_bdx)::mapped_type*> track_ignore_bdx_c;
-    if(auto it = track_ignore_bdx.find(result.frame_index);
-       it != track_ignore_bdx.end())
-    {
-        track_ignore_bdx_c = &it->second;
-    }
+    auto track_ignore_bdx_c = track_ignore_bdx.merged_entries_for(result.frame_index);
     
     auto check_precise_not_ignored = [&track_ignore, &track_include, &result, &track_ignore_bdx_c](pv::BlobPtr&& b) {
         if (not track_ignore.empty()) {

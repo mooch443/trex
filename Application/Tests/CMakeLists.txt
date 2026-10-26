@@ -92,6 +92,8 @@ target_compile_definitions(test_animated_background PRIVATE -DTREX_TEST_FOLDER="
 add_executable(test_frame_tags test_frame_tags.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_frame_tags PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_bdx_ignore_list test_bdx_ignore_list.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+
 add_executable(bench_dyngui_parser bench_dyngui_parser.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(bench_dyngui_parser PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -200,6 +202,7 @@ set(TARGETS
     test_gui_scroll
     test_animated_background
     test_frame_tags
+    test_bdx_ignore_list
     test_outlines 
     test_threadpool 
     test_tiling 
@@ -263,6 +266,7 @@ target_link_libraries(test_dyngui PUBLIC gtest gmock)
 target_link_libraries(test_gui_scroll PUBLIC gtest)
 target_link_libraries(test_animated_background PUBLIC gtest)
 target_link_libraries(test_frame_tags PUBLIC gtest)
+target_link_libraries(test_bdx_ignore_list PUBLIC gtest)
 target_link_libraries(test_outlines PUBLIC gtest gmock)
 target_link_libraries(test_threadpool PUBLIC gtest)
 target_link_libraries(test_tiling PUBLIC gtest gmock)
@@ -354,6 +358,7 @@ target_link_libraries(test_animated_background PUBLIC
         commons)
 
 target_link_libraries(test_frame_tags PUBLIC trex_core)
+target_link_libraries(test_bdx_ignore_list PUBLIC trex_core)
 
 target_link_libraries(bench_dyngui_parser PUBLIC
         commons
@@ -564,6 +569,7 @@ add_test(NAME test-dyngui COMMAND test_dyngui)
 add_test(NAME test-gui-scroll COMMAND test_gui_scroll)
 add_test(NAME test-animated-background COMMAND test_animated_background)
 add_test(NAME test-frame-tags COMMAND test_frame_tags)
+add_test(NAME test-bdx-ignore-list COMMAND test_bdx_ignore_list)
 add_test(NAME test-outlines COMMAND test_outlines)
 add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)

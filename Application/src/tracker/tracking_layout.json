@@ -803,7 +803,7 @@
                         "type":"button",
                         "text":"<sym>⇰</sym> ignore from here",
                         "tooltip":"All objects from this tracklet starting from the current frame will be added to <c>track_ignore_bdx</c>, preventing them from being tracked.",
-                        "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame},{at:1:{primary_selection.tracklet}}",
+                        "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame}:{at:1:{primary_selection.tracklet}}",
                         "font":{"size":0.5},
                         "size":[205,25],
                         "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
@@ -1713,7 +1713,7 @@
           "type":"stext",
           "font":{"size":0.52},
           "shadow": 0.5,
-          "text":"{if:{is_checking_tracklet_identities}:'{animation} <i>Checking identities...</i>':''}{if:{vi_busy}:'{animation} <i>Applying VI</i> {int:{min:99:{*:{vi_apply_percent}:100}}}<i>% ...</i> ':''}<i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i> <h5><sym>🖰</sym></h5>{if:{status_text}:{status_text}:''}",
+          "text":"{if:{key.system}:{round:{gui_update_ms}:3} ms/update }{if:{is_checking_tracklet_identities}:'{animation} <i>Checking identities...</i>':''}{if:{vi_busy}:'{animation} <i>Applying VI</i> {int:{min:99:{*:{vi_apply_percent}:100}}}<i>% ...</i> ':''}<i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i> <h5><sym>🖰</sym></h5>{if:{status_text}:{status_text}:''}",
           "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
         }
       ]
