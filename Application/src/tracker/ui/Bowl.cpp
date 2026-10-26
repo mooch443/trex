@@ -471,7 +471,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
         //s->set_pos(_data->_bowl->pos());
         
         const auto mode = GUI_SETTINGS(gui_mode);
-        const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || mode != gui::mode_t::tracking;
+        const auto draw_blobs = GUI_SETTINGS(gui_show_blobs) || is_in(mode, gui::mode_t::raw);
         
         bool draw_blobs_separately = true;
         if(draw_blobs_separately)

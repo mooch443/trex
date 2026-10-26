@@ -93,21 +93,22 @@
           "pos":"{2hud:[{i.x},{i.y}]}",
           "size":"{size2hud:[{i.w},{i.h}]}",
           "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{at:0:{dimensions:glabel{i.id}}}}:5}}:[\"topright\",\"bottom\",8]:[\"bottom\",8]}",
-          "line": [255,0,0,150]
+          "line": [255,200,200,150]
         },
         {
           "type":"stext",
-          "pos":"{subVector:{2hud:[{i.x},{i.y}]}:[0,29]}",
-          "text":"<sym>🖰</sym> <cyan>{if:{contains:{i.clid}:{global.detect_classes}}:{at:{i.clid}:{global.detect_classes}}:class{i.clid}}</cyan> <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:{i.type}}}}}}</c>",
-          "color":[255,255,255],
+          "pos":"{subVector:{2hud:[{i.x},{i.y}]}:[0,27]}",
+          "text":"<sym>🖰</sym> <cyan>{if:{contains:{i.clid}:{global.detect_classes}}:{at:{i.clid}:{global.detect_classes}}:class{i.clid}}</cyan> <c>annotation</c>",
+          "color":[255,255,255,200],
+          "alpha":0.75,
           "shadow":0.5,
-          "font":{"size":0.6},
+          "font":{"size":0.55},
           "line":[255,0,0,100],
           "pad":[10,5,5,5],
           "fill":[0,0,0,50],
           "name":"glabel{i.id}",
           "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{+:{int:{at:0:{dimensions:glabel{i.id}}}}:5}}:[\"top\",8]:[\"top\",\"bottomright\",8]}",
-          "max_size":"{maxVector:[200,50]:{size2hud:[{i.w},{i.h}]}}"
+          "max_size":[300,50]
         }
       ]
     }
