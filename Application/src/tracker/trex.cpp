@@ -1,8 +1,4 @@
-#include <cstdlib>
-#include <cstdio>
-#include <string>
-#include <locale>
-#include <sstream>
+#include <commons.pc.h>
 #include <misc/GlobalSettings.h>
 #include <misc/create_struct.h>
 #include <misc/Path.h>
@@ -93,13 +89,16 @@ int main(int argc, char** argv) {
     throw U_EXCEPTION("Only apple supported.");
 #endif
 
+    auto executable = ss.str();
     for(auto i=1; i<argc; ++i)
         ss << " " << argv[i];
     
     auto str = ss.str();
     printf("Calling '%s'...\n", str.c_str());
     fflush(stdout);
-    system(str.c_str());
+    argv[0] = executable.data();
+    execv(executable.c_str(), argv);
+    perror(executable.c_str());
     
-    return 0;
+    return EXIT_FAILURE;
 }

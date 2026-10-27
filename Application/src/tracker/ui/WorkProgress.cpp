@@ -1,4 +1,5 @@
 #include "WorkProgress.h"
+#include <misc/GlobalSettings.h>
 #include <core/BackgroundTask.h>
 #include <gui/GuiTypes.h>
 #include <gui/types/StaticText.h>
@@ -99,7 +100,7 @@ struct WorkProgress::WorkGUIObjects {
         Box(0, 0, 0, 0),
         FillClr{Black.alpha(150)},
         CornerFlags_t(false, false, true, true),
-        ZIndex{1}
+        ZIndex{100}
     };
     StaticText static_desc{
         Str("description"), 
@@ -110,7 +111,7 @@ struct WorkProgress::WorkGUIObjects {
     Button static_button{Str{"abort"}, Box(0, 0, 100, 35)};
     Button custom_static_button{Str{"custom"}, Box(0, 0, 100, 35)};
     Entangled _additional;
-    Entangled work_progress{ZIndex{2}};
+    Entangled work_progress{ZIndex{101}};
     VerticalLayout layout;
     
     WorkGUIObjects& operator=(const WorkGUIObjects&) = delete;
@@ -205,6 +206,14 @@ void WorkProgress::start() {
                     item.fn();
                 } catch(const std::exception& ex) {
                     FormatWarning("Caught an exception in the work queue: ", ex.what());
+
+                    if(BOOL_SETTING(nowindow) || BOOL_SETTING(auto_train_on_startup)) {
+                        /// Startup automation has no interactive recovery path;
+                        /// all wait conditions must observe the failed state.
+                        SETTING(error_terminate) = true;
+                        SETTING(terminate) = true;
+                        SETTING(auto_quit) = false;
+                    }
                 }
                 //std::this_thread::sleep_for(std::chrono::seconds(10));
                 lock.lock();

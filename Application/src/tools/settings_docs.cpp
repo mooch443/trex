@@ -1,7 +1,6 @@
 #include <commons.pc.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <misc/GlobalSettings.h>
-#include <misc/default_config.h>
 
 #include <algorithm>
 #include <cctype>

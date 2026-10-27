@@ -7,10 +7,20 @@ using ::Python::VINetwork;
 }
 
 export namespace cmn {
-// ui/AnnotationScene.h
+// ui/ConvertScene.h
+using ::cmn::SegmentationData;
+// ui/DetectAnnotationScene.h
 using ::cmn::VideoSource;
+// ui/GUICache.h
+using ::cmn::Background;
+using ::cmn::GenericThreadPool;
 // ui/VisualIdentDialog.h
 using ::cmn::ConnectedTasks;
+}
+
+export namespace cmn::grid {
+// ui/GUICache.h
+using ::cmn::grid::ProximityGrid;
 }
 
 export namespace cmn::gui {
@@ -22,24 +32,17 @@ using ::cmn::gui::IMGUIBase;
 using ::cmn::gui::StaticText;
 // ui/AnimatedBackground.h
 using ::cmn::gui::AnimatedBackground;
-// ui/AnnotationScene.h
-using ::cmn::gui::Annotation;
-using ::cmn::gui::AnnotationScene;
-using ::cmn::gui::AnnotationType;
-using ::cmn::gui::AnnotationView;
-using ::cmn::gui::Bowl;
-using ::cmn::gui::Circle;
-using ::cmn::gui::DrawStructure;
-using ::cmn::gui::Pose;
-using ::cmn::gui::Rect;
+using ::cmn::gui::BackgroundVideoConfig;
 // ui/Bowl.h
+using ::cmn::gui::Bowl;
 using ::cmn::gui::GUICache;
 // ui/CalibrateScene.h
 using ::cmn::gui::CalibrateScene;
+// ui/Categorize.h
+using ::cmn::gui::DrawStructure;
 // ui/ConvertScene.h
 using ::cmn::gui::ConvertScene;
-using ::cmn::gui::Data;
-using ::cmn::gui::VideoInfo;
+using ::cmn::gui::Label;
 // ui/Coordinates.h
 using ::cmn::gui::Base;
 using ::cmn::gui::BowlCoord;
@@ -47,6 +50,15 @@ using ::cmn::gui::BowlRect;
 using ::cmn::gui::FindCoord;
 using ::cmn::gui::HUDCoord;
 using ::cmn::gui::HUDRect;
+using ::cmn::gui::to_bowl;
+// ui/DetectAnnotationScene.h
+using ::cmn::gui::Circle;
+using ::cmn::gui::DetectAnnotationScene;
+using ::cmn::gui::DetectAnnotationView;
+using ::cmn::gui::Pose;
+using ::cmn::gui::Rect;
+// ui/DrawAnnotationExportOptions.h
+using ::cmn::gui::DrawAnnotationExportOptions;
 // ui/DrawBlobView.h
 using ::cmn::gui::Dropdown;
 using ::cmn::gui::SectionInterface;
@@ -56,12 +68,13 @@ using ::cmn::gui::DrawBorder;
 using ::cmn::gui::Drawable;
 // ui/DrawDataset.h
 using ::cmn::gui::DrawDataset;
+// ui/DrawDetectAnnotationImportOptions.h
+using ::cmn::gui::DrawDetectAnnotationImportOptions;
 // ui/DrawExportOptions.h
 using ::cmn::gui::DrawExportOptions;
 using ::cmn::gui::TrackingState;
 // ui/DrawFish.h
 using ::cmn::gui::Fish;
-using ::cmn::gui::Label;
 using ::cmn::gui::Skelett;
 using ::cmn::gui::UpdateSettings;
 // ui/DrawGraph.h
@@ -90,14 +103,11 @@ using ::cmn::gui::GUIVideoAdapter;
 using ::cmn::gui::GUIVideoAdapterElement;
 // ui/GraphElement.h
 using ::cmn::gui::GraphElement;
-// ui/GuiSettings.h
-using ::cmn::gui::window_title;
 // ui/ImageDisplayElement.h
 using ::cmn::gui::ImageDisplayElement;
 // ui/ImageGeneratorRegistry.h
 using ::cmn::gui::ImageGeneratorRegistry;
 // ui/InfoCard.h
-using ::cmn::gui::InfoCard;
 using ::cmn::gui::Text;
 using ::cmn::gui::Tooltip;
 // ui/LabelElement.h
@@ -150,6 +160,7 @@ export namespace cmn::gui::DrawPreviewImage {
 // ui/DrawPreviewImage.h
 using ::cmn::gui::DrawPreviewImage::draw;
 using ::cmn::gui::DrawPreviewImage::make_image;
+using ::cmn::gui::DrawPreviewImage::make_image_cached;
 }
 
 export namespace cmn::gui::attr {
@@ -157,8 +168,13 @@ export namespace cmn::gui::attr {
 using ::cmn::gui::attr::Dispatcher;
 }
 
+export namespace cmn::gui::detail {
+// ui/GUIVideoAdapter.h
+using ::cmn::gui::detail::AllowDirectMakeArgs;
+}
+
 export namespace cmn::gui::dyn {
-// ui/AnnotationScene.h
+// ui/DetectAnnotationScene.h
 using ::cmn::gui::dyn::DynamicGUI;
 // ui/ImageGeneratorRegistry.h
 using ::cmn::gui::dyn::VarProps;
@@ -173,11 +189,6 @@ using ::cmn::gui::globals::CachedGUIOptions;
 export namespace cmn::gui::heatmap {
 // ui/IdentityHeatmap.h
 using ::cmn::gui::heatmap::grid_t;
-}
-
-export namespace cmn::gui::terminal {
-// ui/Terminal.h
-using ::cmn::gui::terminal::open_terminal;
 }
 
 export namespace cmn::gui::tracker {
@@ -204,13 +215,20 @@ using ::cmn::pattern::UnresolvedStringPattern;
 }
 
 export namespace cmn::settings {
-// ui/SettingsInitializer.h
+// ui/GuiSettings.h
+using ::cmn::settings::window_title;
 using ::cmn::settings::write_config;
+}
+
+export namespace cmn::terminal {
+// ui/Terminal.h
+using ::cmn::terminal::open_terminal;
 }
 
 export namespace track {
 // ui/Accumulation.h
 using ::track::AccumulationLock;
+using ::track::Tracker;
 // ui/ConfirmedCrossings.h
 using ::track::ConfirmedCrossings;
 using ::track::DecisionStatus;
@@ -219,14 +237,15 @@ using ::track::FOIStatus;
 using ::track::Segmenter;
 // ui/DrawFish.h
 using ::track::Individual;
-// ui/DrawGraph.h
-using ::track::Tracker;
 // ui/Export.h
 using ::track::export_data;
 using ::track::temporary_save;
 // ui/GUICache.h
+using ::track::Border;
 using ::track::PPFrame;
 using ::track::TrackletInformation;
+// ui/TrackingScene.h
+using ::track::Idx_t;
 // ui/VisualFieldWidget.h
 using ::track::VisualField;
 }

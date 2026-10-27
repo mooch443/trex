@@ -25,6 +25,8 @@ FetchContent_Declare(
   indicators
   GIT_REPOSITORY https://github.com/p-ranav/indicators.git
   GIT_TAG        v2.3
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE
 )
 
 FetchContent_MakeAvailable(indicators)

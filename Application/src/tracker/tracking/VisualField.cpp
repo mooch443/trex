@@ -1,9 +1,12 @@
 #include "VisualField.h"
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <gui/DrawCVBase.h>
 #include <misc/Timer.h>
 #include <tracking/Individual.h>
 #include <tracking/IndividualManager.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
 #include <misc/create_struct.h>
 
 namespace track {
@@ -13,7 +16,7 @@ using Scalar64 = VisualField::Scalar64;
 static constexpr Scalar64 right_angle = RADIANS(90);
 
 CREATE_STRUCT(VFCache,
-    (std::vector<std::vector<Vec2>>, visual_field_shapes),
+    (ShapeList, visual_field_shapes),
     (Frame_t, gui_pose_smoothing),
     (track::PoseMidlineIndexes, pose_midline_indexes)
 );
@@ -57,8 +60,8 @@ struct RelativeHeadPosition {
 inline static std::mutex history_mutex;
 inline static std::unordered_map<Idx_t, std::vector<RelativeHeadPosition>> history;
 
-VisualField::VisualField(Idx_t fish_id, Frame_t frame, const BasicStuff& basic, const PostureStuff* posture, bool blocking)
-    : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
+VisualField::VisualField(Size2 video_size, Idx_t fish_id, Frame_t frame, const BasicStuff& basic, const PostureStuff* posture, bool blocking)
+    : max_d(SQR(video_size.width) + SQR(video_size.height)), _fish_id(fish_id), _frame(frame)
 {
     VFCache::init();
     calculate(basic, posture, blocking);
@@ -457,7 +460,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
                 //   head_distance = 1 - abs(i - T_i) / L_l
                 // else:
                 //   head_distance = 1 - abs(i - T_i) / L_r
-                hd = 1 - cmn::abs(Scalar64(i) - Scalar64(midline->tail_index())) / (((long_t)i > midline->tail_index() ? left_side : right_side) + 1);
+                hd = saturate(1 - cmn::abs(Scalar64(i) - Scalar64(midline->tail_index())) / (((long_t)i > midline->tail_index() ? left_side : right_side) + 1), 0_F, 1_F);
                 assert(hd >= 0 && hd <= 1);
                 hd *= 255;
                 
@@ -501,6 +504,9 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
             continue;
         
         auto convex = poly_convex_hull(&points);
+        if(not convex) {
+            continue;
+        }
         //std::vector<Vec2> tmp;
        // reduce_vertex_line(*convex, tmp, 0.5);
         

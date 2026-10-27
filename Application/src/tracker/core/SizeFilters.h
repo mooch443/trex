@@ -32,7 +32,7 @@ public:
     }
     static consteval std::string_view class_name() { return "SizeFilters"; }
     static SizeFilters fromStr(cmn::StringLike auto&& str) {
-        if(str == "" || str == "[]")
+        if(std::string_view(str).empty() || std::string_view(str) == "[]")
             return SizeFilters();
         if (str[0] == '[' && str[1] != '[') {
             return SizeFilters({cmn::Meta::fromStr<Range<double>>(str)});

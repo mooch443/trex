@@ -8,6 +8,24 @@ using namespace cmn;
 
 namespace track::detect {
 
+namespace {
+thread_local TemporaryClassNames* _active = nullptr;
+}
+
+TemporaryClassNames::TemporaryClassNames(std::function<yolo::names::owner_map_t()> lookup)
+    : _lookup(std::move(lookup)), _previous(std::exchange(_active, this))
+{
+}
+
+TemporaryClassNames::~TemporaryClassNames() {
+    assert(_active == this);
+    _active = _previous;
+}
+
+yolo::names::owner_map_t TemporaryClassNames::current() {
+    return _active && _active->_lookup ? _active->_lookup() : yolo::names::owner_map_t{};
+}
+
 bool PredictionFilter::allowed(uint16_t clid) const {
     if(_inverted_from)
         return not cmn::contains(*_inverted_from, clid);
@@ -47,7 +65,15 @@ std::optional<uint16_t> PredictionFilter::class_id_for(std::string_view search, 
     return std::nullopt;
 }
 PredictionFilter PredictionFilter::fromStr(std::string_view sv) {
-    const yolo::names::map_t detect_classes = yolo::names::get_map();
+    const auto classes = GlobalSettings::read([](const Configuration& config) {
+        const auto configured = config.values.at("detect_classes").value<blob::MaybeObjectClass_t>();
+        if(configured && not configured->empty())
+            return *configured;
+        return TemporaryClassNames::current();
+    });
+    yolo::names::map_t detect_classes;
+    for(const auto& [id, name] : classes)
+        detect_classes.emplace(id, name);
     std::vector<uint16_t> only_detect;
     
     bool invert = false;
@@ -164,15 +190,21 @@ vec_t get_vector() {
         return easy_cp_names_vector.value();
     }
     
-    std::unique_lock g(names_mutex);
-    auto& names = raw_names();
     std::vector<std::string_view> cp;
-    cp.reserve(names.size());
-    
-    for(auto &[key, value] : names)
-        cp.emplace_back(value);
-    
-    easy_cp_names_vector = cp;
+    std::unique_lock g(names_mutex);
+
+    if(names_owner.has_value()) {
+        auto& names = raw_names();
+        cp.reserve(names.size());
+        
+        for(auto &[key, value] : names)
+            cp.emplace_back(value);
+        
+        easy_cp_names_vector = cp;
+    } else {
+        easy_cp_names_vector.reset();
+    }
+
     return cp;
 }
 
@@ -188,14 +220,19 @@ map_t get_map() {
     }
     
     std::unique_lock g(names_mutex);
-    auto& names = raw_names();
-    std::map<uint16_t, std::string_view> cp;
-    
-    for(auto &[key, value] : names)
-        cp.emplace(key, value);
-    
-    easy_cp_names_reference = cp;
-    return cp;
+    if(names_owner.has_value()) {
+        auto& names = raw_names();
+        std::map<uint16_t, std::string_view> cp;
+        
+        for(auto &[key, value] : names)
+            cp.emplace(key, value);
+        
+        easy_cp_names_reference = cp;
+        return cp;
+    } else {
+        easy_cp_names_reference.reset();
+        return {};
+    }
 }
 
 std::optional<cmn::blob::Pose::Skeleton> get_skeleton(
@@ -238,12 +275,18 @@ bool is_valid_default_model(const std::string& filename) {
                 "|\\d{3,}"         // Any version number with 3 or more digits
             "))"
         ")"
-        "([blmnxsucet]|x6|sp|lu|mu|xu)?"  // Optional suffixes
         "("
-            "(\\d|[sn])+u"                // Optional pattern
+            "([blmnxsucet]|x6|sp|lu|mu|xu)" // Model size or variant
+            "("
+                "(\\d|[sn])+u"
+                "|"
+                "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|sem|v8loader|\\d+)+"
+            ")?"
             "|"
-            "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\\d+)+"
-        ")?"
+            "(\\d|[sn])+u"
+            "|"
+            "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|sem|v8loader|\\d+)+"
+        ")"
         "(\\.pt)?"
         "$"
     );
@@ -258,7 +301,8 @@ bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {
     if(is_default_model(path))
         return true;
     
-    if(fs.exists(path) && path.has_extension("pt"))
+    if(fs.exists(path)
+       && (path.has_extension("pt") || path.has_extension("pth")))
         return true;
     
     return false;
@@ -301,6 +345,10 @@ Size2 get_model_image_size() {
         
     } else if (detection_type() == ObjectDetectionType::yolo) {
         const auto region_resolution = READ_SETTING(region_resolution, track::detect::DetectResolution);
+
+        if(BOOL_SETTING(detect_requires_exact_input_size)) {
+            return Size2(detect_resolution.width, detect_resolution.height);
+        }
         
         Size2 size;
         const double ratio = double(meta_video_size.height) / double(meta_video_size.width);

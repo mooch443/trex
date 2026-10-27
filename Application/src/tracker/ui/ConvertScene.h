@@ -1,55 +1,21 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <core/VideoInfo.h>
 #include <ui/Scene.h>
-#include <python/Detection.h>
-#include <core/indicators.h>
+#include <misc/frame_t.h>
+#include <misc/Timer.h>
 
-//#include <tracking/Segmenter.h>
-#include <core/tomp4.h>
-
-//#include <ui/ScreenRecorder.h>
-#include <ui/Skelett.h>
-#include <ui/Bowl.h>
-
-#include <core/idx_t.h>
-//#include <core/Identity.h>
+namespace cmn {
+struct SegmentationData;
+}
 
 namespace track {
 class Segmenter;
 }
 
-namespace cmn::gui::convert {
-
-struct VideoInfo {
-    Frame_t frame;
-    Frame_t length;
-    Size2 resolution;
-    
-    glz::json_t to_json() const {
-        glz::json_t r;
-        r["frame"] = frame.to_json();
-        r["length"] = length.to_json();
-        r["resolution"] = resolution.to_json();
-        return r;
-    }
-};
-
-}
-
-template <>
-struct glz::meta<cmn::gui::convert::VideoInfo> {
-    using T = cmn::gui::convert::VideoInfo;
-    static constexpr auto value = glz::object(
-        "frame", &T::frame,
-        "length", &T::length,
-        "resolution", &T::resolution
-    );
-};
-
 namespace cmn::gui {
 
-namespace ind = indicators;
 using namespace track;
 
 class Label;
@@ -57,7 +23,7 @@ class ExternalImage;
 
 class ConvertScene : public Scene {
     static glz::json_t fish;
-    static convert::VideoInfo _video_info;
+    static cmn::VideoInfo _video_info;
     std::atomic<Frame_t> _video_length;
     
     Timer last_tick;
@@ -100,7 +66,7 @@ private:
     // Main _draw function
     void _draw(DrawStructure& graph);
     
-    SegmentationData& current_data();
+    cmn::SegmentationData& current_data();
     ExternalImage& background_image();
     
 private:

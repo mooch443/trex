@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <python/Detection.h>
 #include <misc/Image.h>
+#include <core/DetectionTypes.h>
 #include <core/TileImage.h>
 
 namespace track {

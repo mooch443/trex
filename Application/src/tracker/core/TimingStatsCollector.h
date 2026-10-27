@@ -4,7 +4,7 @@
 #include <misc/frame_t.h>
 
 // Extend this enum as needed for new metrics.
-ENUM_CLASS (TimingMetric_t,
+ENUM_CLASS (, TimingMetric_t,
     None,
     FrameRender,       // When a frame is rendered.
     FrameDisplay,

@@ -29,6 +29,7 @@ public:
            std::shared_ptr<TimingStatsCollector> timing_stats,
            std::function<FrameType(Frame_t)> retrieve,
            std::function<void(FrameType&&)> discard = nullptr,
+           std::function<void(Frame_t)> pushed_frame = nullptr,
            TimingMetric announceMetric = TimingMetric_t::None,
            TimingMetric loadMetric = TimingMetric_t::None,
            TimingMetric waitMetric = TimingMetric_t::None,
@@ -36,6 +37,7 @@ public:
         : stats(std::move(timing_stats)),
           retrieve_next(retrieve),
           discard(discard),
+          _pushed_frame(std::move(pushed_frame)),
           _announceMetric(announceMetric),
           _loadMetric(loadMetric),
           _waitMetric(waitMetric),
@@ -145,6 +147,7 @@ private:
     std::function<FrameType(Frame_t)> retrieve_next;
     std::function<void(FrameType&&)> discard;
     std::condition_variable updated_frame;
+    std::function<void(Frame_t)> _pushed_frame;
     std::mutex frame_update_mutex;
     
     LOGGED_MUTEX_VAR(preloaded_frame_mutex, "preloaded_frame_mutex");
@@ -368,6 +371,8 @@ void FramePreloader<FrameType>::preload_frames() {
         
         std::unique_lock g(frame_update_mutex);
         updated_frame.notify_all();
+        if(_pushed_frame)
+            _pushed_frame(current);
     }
 }
 

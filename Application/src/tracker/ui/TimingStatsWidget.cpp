@@ -39,7 +39,7 @@ void TimingStatsWidget::update() {
 
     // Map a TimingMetric to a y-coordinate (each metric gets its own row).
     auto metricToY = [=, this](TimingMetric metric) -> float {
-        int row = narrow_cast<int>((uint32_t)metric.value()); // Assumes enum values start at 0.
+        int row = narrow_cast<int>((uint32_t)metric); // Assumes enum values start at 0.
         return (row - 1) * _rowHeight + 1.f; //+ _rowHeight * 0.5f;
     };
     
@@ -62,7 +62,7 @@ void TimingStatsWidget::update() {
             float y       = metricToY(event.metric);
 
             // Choose a color based on the metric type.
-            ColorWheel wheel{(uint32_t)event.metric.value()};
+            ColorWheel wheel{(uint32_t)event.metric};
             Color clr = wheel.next();
             
             switch (event.metric) {
@@ -138,7 +138,7 @@ void TimingStatsWidget::update() {
             
             add<Text>(
               Str(name.toStr()),
-              Loc(0, (0.5 + (double)name.value() - 1.0) * _rowHeight),
+              Loc(0, (0.5 + double((uint32_t)name) - 1.0) * _rowHeight),
               TextClr{Black},
               Font(0.5),
               Origin(1, 0.5)

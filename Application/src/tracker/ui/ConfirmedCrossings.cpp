@@ -215,7 +215,7 @@ void ConfirmedCrossings::add_foi(const FOI& foi) {
     if(!foi.valid())
         return;
     
-    if(foi.name(foi.id()) != "correcting") {
+    if(foi.name(foi.id()) != FOI::correcting) {
         return;
     }
     

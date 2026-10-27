@@ -3,6 +3,7 @@
 #include <gui/types/Entangled.h>
 #include <ui/Coordinates.h>
 #include <misc/Timer.h>
+#include <data/FrameRepository.h>
 
 namespace cmn::gui {
 
@@ -22,7 +23,7 @@ public:
     
     using Entangled::update;
     void update_scaling(double dt);
-    void update(Frame_t, DrawStructure&, const FindCoord&);
+    void update(const data::FrameRepository&, Frame_t, DrawStructure&, const FindCoord&);
     void set_max_zoom_size(const Vec2& max_zoom);
     
 public:

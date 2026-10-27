@@ -11,6 +11,19 @@
 #include <core/SizeFilters.h>
 #include <processing/encoding.h>
 
+namespace cmn::data {
+class FrameRepository;
+}
+
+/** @brief Optional same-class mask-overlap handling after tile aggregation. */
+ENUM_CLASS(track::, MaskPostprocessMode,
+    none, /// Preserve mask rows without a second overlap-resolution pass.
+    /// Retain preferred rows and discard their eligible neighbors.
+    greedy_nms,
+    /// Transitively group eligible rows and emit their positioned mask union.
+    merge_masks
+);
+
 namespace track {
 using namespace cmn;
 class Individual;
@@ -49,6 +62,7 @@ struct CachedSettings;
 
 struct AssignInfo {
     PPFrame* frame;
+    const data::FrameRepository* repo;
     const FrameProperties* f_prop;
     const FrameProperties* f_prev_prop;
     default_config::matching_mode_t::Class match_mode;
@@ -75,6 +89,125 @@ struct PoseMidlineIndexes {
     }
 };
 
+class ShapeList {
+    std::vector<std::vector<Vec2>> _value;
+    
+public:
+    ShapeList() = default;
+    ShapeList(std::vector<std::vector<Vec2>>);
+    std::string toStr() const;
+    glz::json_t to_json() const;
+    
+    static ShapeList fromStr(cmn::StringLike auto&& str) {
+        return ShapeList(Meta::fromStr<std::vector<std::vector<Vec2>>>(str));
+    }
+    static consteval std::string_view class_name() { return "ShapeList"; }
+
+    bool operator==(const ShapeList&) const = default;
+    
+    void push_back(std::vector<Vec2>);
+    bool empty() const;
+    auto begin() const { return _value.begin(); }
+    auto end() const { return _value.end(); }
+    
+private:
+    void update_value(std::vector<std::vector<Vec2>>&&);
+    void fix_value(std::vector<Vec2>&);
+};
+
+class BdxIgnoreList {
+public:
+    struct Entry {
+        std::map<Frame_t, std::set<pv::bid>> blobs;
+        void merge_with_inplace(const Entry&);
+        static void merge_maps(std::map<Frame_t, std::set<pv::bid>>&, const std::map<Frame_t, std::set<pv::bid>>&);
+        
+        static Entry fromStr(StringLike auto&& str) {
+            return Entry{
+                .blobs = Meta::fromStr<std::map<Frame_t, std::set<pv::bid>>>(std::forward<decltype(str)>(str))
+            };
+        }
+        std::string toStr() const { return Meta::toStr(blobs); }
+        static consteval std::string_view class_name() { return "Entry"; }
+        glz::json_t to_json() const { return cvt2json(blobs); }
+        
+        bool operator==(const Entry&) const = default;
+        bool operator!=(const Entry&) const = default;
+    };
+    
+private:
+    std::vector<Entry> _entries;
+    std::map<Frame_t, std::set<pv::bid>> _cached_merged;
+    
+public:
+    static BdxIgnoreList fromStr(StringLike auto&& str) {
+        auto sv = utils::string_like_view(str);
+        if(sv.empty())
+            throw InvalidArgumentException("Cannot create a bdxignorelist from an empty string.");
+        
+        BdxIgnoreList result;
+        
+        if(sv.front() == '{'
+           && sv.back() == '}')
+        {
+            if(sv == "{}")
+                return {};
+            
+            /// we have been given an "old style" map, so lets convert it as separate entries
+            /// (this is an assumption, but what are we gonna do)
+            auto entry = Entry::fromStr(sv);
+            for(auto &[frame, ids] : entry.blobs) {
+                for(auto id : ids) {
+                    result._entries.push_back(Entry{
+                        .blobs = {
+                            {frame, {id}}
+                        }
+                    });
+                }
+            }
+            
+        } else if(sv.front() == '['
+                  && sv.back() == ']')
+        {
+            /// a proper array
+            result._entries = Meta::fromStr<std::vector<Entry>>(sv);
+            
+        } else {
+            throw InvalidArgumentException("Invalid BdxIgnoreList: ", str);
+        }
+        
+        result.rebuild_cache();
+        return result;
+    }
+    
+    bool ignore(std::map<Frame_t, pv::bid>&&);
+    bool ignore(Frame_t, pv::bid);
+    bool unignore(Frame_t, pv::bid);
+    bool unignore_tracklet_of(Frame_t, pv::bid);
+    
+    std::optional<const std::set<pv::bid>*> merged_entries_for(Frame_t) const;
+    Frame_t first_differing_frame(const BdxIgnoreList&) const;
+    bool frame_has_entries(Frame_t) const;
+    size_t has_tracklet(Frame_t, pv::bid) const;
+    bool is_ignored(Frame_t, pv::bid) const;
+    
+    std::string toStr() const { return Meta::toStr(_entries); }
+    static consteval std::string_view class_name() { return "BdxIgnoreList"; }
+    glz::json_t to_json() const { return cvt2json(_entries); }
+    
+    bool operator==(const BdxIgnoreList& other) const {
+        return other._entries == _entries;
+    }
+    bool operator!=(const BdxIgnoreList& other) const {
+        return other._entries != _entries;
+    }
+    
+private:
+    void rebuild_cache();
+};
+
+//(std::vector<std::vector<Vec2>>, recognition_shapes),
+
 //! A global settings cache used across the application by
 //! calling `FAST_SETTING(name)`.
 CREATE_STRUCT(Settings,
@@ -96,7 +229,7 @@ CREATE_STRUCT(Settings,
   (float, outline_resample),
   (mmatches_t, manual_matches),
   (msplits_t, manual_splits),
-  (msplits_t, track_ignore_bdx),
+  (BdxIgnoreList, track_ignore_bdx),
   (uint32_t, midline_resolution),
   (float, meta_mass_mg),
   (inames_t, individual_names),
@@ -106,10 +239,10 @@ CREATE_STRUCT(Settings,
   (uint16_t, posture_direction_smoothing),
   (file::Path, tags_path),
   (std::vector<Vec2>, grid_points),
-  (std::vector<std::vector<Vec2>>, recognition_shapes),
+  
   (float, grid_points_scaling),
-  (std::vector<std::vector<Vec2>>, track_ignore),
-  (std::vector<std::vector<Vec2>>, track_include),
+  (ShapeList, track_ignore),
+  (ShapeList, track_include),
   (bool, tracklet_punish_timedelta),
   (double, huge_timestamp_seconds),
   (mapproved_t, manually_approved),
@@ -148,7 +281,8 @@ CREATE_STRUCT(Settings,
   (cmn::meta_encoding_t::Class, meta_encoding),
   (float, outline_compression),
   (bool, image_invert),
-  (Frame_t, track_history_split_threshold)
+  (Frame_t, track_history_split_threshold),
+  (uint16_t, output_min_frames)
 )
 
 //! Shorthand for defining slow settings cache entries:
@@ -190,6 +324,7 @@ struct slow {
     DEF_SLOW_SETTINGS(tracklet_max_length);
     
     DEF_SLOW_SETTINGS(posture_direction_smoothing);
+    DEF_SLOW_SETTINGS(output_min_frames);
 };
 
 #undef DEF_SLOW_SETTINGS
@@ -304,3 +439,5 @@ struct IDaverage {
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
 
 }
+
+STRUCT_META_EXTENSIONS(track::Settings)

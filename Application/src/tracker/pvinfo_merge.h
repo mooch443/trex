@@ -3,6 +3,6 @@
 #include <commons.pc.h>
 #include <misc/Path.h>
 
-ENUM_CLASS(merge_mode_t, centered, scaled)
+ENUM_CLASS(,merge_mode_t, centered, scaled)
 
 void initiate_merging(const std::vector<cmn::file::Path>& merge_videos, int argc, char** argv);
