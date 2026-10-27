@@ -16,6 +16,7 @@
 #include <core/GPURecognitionTypes.h>
 #include <core/DetectAnnotation.h>
 #include <core/FrameTags.h>
+#include <core/FOI.h>
 #include <misc/CommandLine.h>
 #include <core/TrackingSettings.h>
 
@@ -1209,8 +1210,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("tracklet_punish_timedelta", true, "If enabled, a huge timestamp difference will end the current trajectory tracklet and will be displayed as a reason in the tracklet overview at the top of the selected individual info card.");
         CONFIG("track_trusted_probability", 0.25_F, "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current tracklet ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
         CONFIG("huge_timestamp_seconds", 0.2, "Time delta threshold in seconds that is considered huge and can force tracklet splitting.");
-        CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
-        CONFIG("gui_foi_types", std::vector<std::string>{"none"}, "A list of all the foi types registered.", SYSTEM);
+        CONFIG("gui_foi_name", std::string(FOI::correcting), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
+        CONFIG("gui_foi_types", std::set<std::string>{std::string(FOI::none)}, "A list of all the foi types registered.", SYSTEM);
         
         CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.");
         

@@ -3505,6 +3505,50 @@ TEST(ListElementTest, DynamicListTemplateDispatchesActionsOnSelection) {
     EXPECT_EQ(received_actions.at(1).parameters.at(1), "1");
 }
 
+/*TEST(EventBindingTest, JsonLoopClickActionUsesUpdatedItem) {
+    const auto object = Meta::fromStr<glz::json_t>(R"json({
+        "type":"each", "var":"items",
+        "do":{
+            "type":"rect", "size":"[{i.value},30]",
+            "clickable":true, "click":"select:{i.value}"
+        }
+    })json");
+    auto items = Meta::fromStr<glz::json_t>(R"json([{"value":10}])json");
+    std::string selected;
+    Context context{
+        VarFunc("items", [&](const VarProps&) -> glz::json_t {
+            return items;
+        }),
+        ActionFunc("select", [&](const Action& action) {
+            selected = action.first();
+        })
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(100, 100);
+    auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_TRUE(root.is<Layout>());
+    ASSERT_EQ(root.to<Layout>()->objects().size(), 1u);
+    auto target = root.to<Layout>()->objects().front();
+    EXPECT_EQ(target->width(), 10);
+    target->mdown(1, 1, true);
+    target->mup(1, 1, true, true);
+    ASSERT_EQ(selected, "10");
+
+    items.get_array().front()["value"] = 20;
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_EQ(root.to<Layout>()->objects().front().get(), target.get());
+    EXPECT_EQ(target->width(), 20);
+    ASSERT_TRUE(handler->capture_scoped_variable_values().empty());
+    selected.clear();
+    target->mdown(1, 1, true);
+    target->mup(1, 1, true, true);
+    EXPECT_EQ(selected, "20");
+}*/
+
 TEST(EventBindingTest, ClickActionsOnlyFireOnMouseButtonWithScopedContext) {
     constexpr std::string_view json = R"json(
 {

@@ -5,8 +5,8 @@
 namespace track {
     IMPLEMENT(FOI::_mutex);
     IMPLEMENT(FOI::_frames_of_interest);
-    IMPLEMENT(FOI::_string_to_id){{"none",Properties{ -1, cmn::gui::Transparent, true }}};
-    IMPLEMENT(FOI::_id_to_string){{-1,"none"}};
+    IMPLEMENT(FOI::_string_to_id){{std::string(FOI::none),Properties{ -1, cmn::gui::Transparent, true }}};
+    IMPLEMENT(FOI::_id_to_string){{-1,std::string(FOI::none)}};
     IMPLEMENT(FOI::_wheel);
     IMPLEMENT(FOI::_ids){-1};
     
@@ -15,7 +15,7 @@ namespace track {
     std::string FOI::toStr() const {
         if(!_props)
             return "FOI<invalid>";
-        return "FOI<'"+name(id())+"' "+Meta::toStr(_frames)+""+(_ids.empty() ? "" : (" ids:" + Meta::toStr(_ids)))+">";
+        return "FOI<'"+(std::string)name(id())+"' "+Meta::toStr(_frames)+""+(_ids.empty() ? "" : (" ids:" + Meta::toStr(_ids)))+">";
     }
 
     bool FOI::operator==(const FOI& other) const {
@@ -30,34 +30,34 @@ namespace track {
         return Meta::toStr(id);
     }
     
-    FOI::FOI(Frame_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
+    FOI::FOI(Frame_t frame, std::set<fdx_t> fdx, std::string_view reason, const std::string& description)
         : FOI(Range<Frame_t>(frame, frame), fdx, reason, description)
     {}
     
-    FOI::FOI(Frame_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
+    FOI::FOI(Frame_t frame, std::set<bdx_t> bdx, std::string_view reason, const std::string& description)
         : FOI(Range<Frame_t>(frame, frame), bdx, reason, description)
     {}
     
-    FOI::FOI(const Range<Frame_t>& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, std::set<fdx_t> fdx, std::string_view reason, const std::string& description)
         : FOI(frames, reason, false, description)
     {
         _fdx.insert(fdx.begin(), fdx.end());
     }
     
-    FOI::FOI(const Range<Frame_t>& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, std::set<bdx_t> bdx, std::string_view reason, const std::string& description)
         : FOI(frames, reason, false, description)
     {
         _bdx.insert(bdx.begin(), bdx.end());
     }
     
-    FOI::FOI(Frame_t frame, const std::string& reason, bool is_global, const std::string& description)
+    FOI::FOI(Frame_t frame, std::string_view reason, bool is_global, const std::string& description)
         : FOI(Range<Frame_t>(frame, frame), reason, is_global, description)
     {}
     
-    FOI::FOI(const Range<Frame_t>& frames, const std::string& reason, bool is_global, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, std::string_view reason, bool is_global, const std::string& description)
         : _frames(frames), _description(description)
     {
-        std::vector<std::string> all_ids;
+        std::set<std::string> all_ids;
         {
             std::lock_guard<std::recursive_mutex> guard(_mutex);
             auto it = _string_to_id.find(utils::lowercase(reason));
@@ -67,12 +67,12 @@ namespace track {
                 _id_to_string[mid] = utils::lowercase(reason);
                 
                 auto color = _wheel.next();
-                if(utils::lowercase(reason) == "correcting")
+                if(utils::lowercase(reason) == correcting)
                     color = gui::Yellow;
                 _string_to_id[utils::lowercase(reason)] = Properties{ mid, color };
                 
-                all_ids = READ_SETTING(gui_foi_types, std::vector<std::string>);
-                all_ids.push_back(utils::lowercase(reason));
+                all_ids = READ_SETTING(gui_foi_types, std::set<std::string>);
+                all_ids.insert(utils::lowercase(reason));
                 
                 changed();
             }
@@ -91,7 +91,7 @@ namespace track {
         return _frames.start < other.frames().start || (_frames.start == other.frames().start && _frames.end < other.frames().end);
     }
 
-    const gui::Color& FOI::color(const std::string& name) {
+    const gui::Color& FOI::color(std::string_view name) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         auto it = _string_to_id.find(name);
         if(it != _string_to_id.end()) {
@@ -217,7 +217,7 @@ namespace track {
         changed();
     }
     
-    const std::string& FOI::name(ID_t id) {
+    std::string_view FOI::name(ID_t id) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         auto it = _id_to_string.find(id);
         if(it != _id_to_string.end()) {
@@ -227,7 +227,23 @@ namespace track {
         throw U_EXCEPTION("Cannot find name of FOI-id ",id,".");
     }
     
-    FOI::ID_t FOI::to_id(const std::string& name) {
+    FOI::Info FOI::info(ID_t id) {
+        static constexpr std::array entries{
+            info(correcting), info(lost_1_fish), info(lost_2_fish),
+            info(huge_time_jump), info(manual_match), info(long_tracklet),
+            info(weird_distance), info(weird_distance_mm), info(weird_angle),
+            info(tracklet_end), info(global_tracklet), info(failed_matches),
+            info(apprx_matching), info(split_up), info(annotated)
+        };
+        auto key = name(id);
+        for(const auto& entry : entries) {
+            if(entry.name == key)
+                return entry;
+        }
+        return {key, {}, {}};
+    }
+
+    FOI::ID_t FOI::to_id(std::string_view name) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         auto it = _string_to_id.find(name);
         if(it != _string_to_id.end()) {

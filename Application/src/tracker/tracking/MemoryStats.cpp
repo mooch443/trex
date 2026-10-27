@@ -291,7 +291,7 @@ TrackerMemoryStats::TrackerMemoryStats(Tracker& tracker) {
         auto name = FOI::name(id);
         auto b = memory_selector(*this, set, "fois");
         foi_bytes += b;
-        details["fois"][name] += b;
+        details["fois"][(std::string)name] += b;
     }
     sizes["fois"] = foi_bytes;
     bytes += foi_bytes;

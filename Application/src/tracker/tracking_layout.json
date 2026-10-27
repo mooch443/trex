@@ -1,7 +1,8 @@
 {
   "locals":{
     "rightclicked_point": {"type":"int_array","value":[]},
-    "clicked_pose_object": {"type":"json","value":null}
+    "clicked_pose_object": {"type":"json","value":null},
+    "change_class_of": {"type":"json","value":null}
   },
 "defaults": {
 "vars":{
@@ -92,7 +93,7 @@
           "type":"rect",
           "pos":"{2hud:[{i.x},{i.y}]}",
           "size":"{size2hud:[{i.w},{i.h}]}",
-          "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{at:0:{dimensions:glabel{i.id}}}}:5}}:[\"topright\",\"bottom\",8]:[\"bottom\",8]}",
+          "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{width_of:glabel{i.id}}}:5}}:[\"topright\",\"bottom\",8]:[\"bottom\",8]}",
           "line": [255,200,200,150]
         },
         {
@@ -107,7 +108,7 @@
           "pad":[10,5,5,5],
           "fill":[0,0,0,50],
           "name":"glabel{i.id}",
-          "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{+:{int:{at:0:{dimensions:glabel{i.id}}}}:5}}:[\"top\",8]:[\"top\",\"bottomright\",8]}",
+          "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{+:{int:{width_of:glabel{i.id}}}:5}}:[\"top\",8]:[\"top\",\"bottomright\",8]}",
           "max_size":[300,50]
         }
       ]
@@ -131,7 +132,7 @@
         "fill":[255,0,0, 20],
         "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
         "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
-        "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{at:0:{dimensions:label{i.id}}}}:50}}:[\"topright\",\"bottom\",8]:[\"bottom\",8]}"
+        "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{width_of:label{i.id}}}:50}}:[\"topright\",\"bottom\",8]:[\"bottom\",8]}"
       },
 
       /* draggable area over the whole annotation for easy dragging */
@@ -141,9 +142,9 @@
         "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
         "line": [255,0,0,100],
         "fill":[255,0,0, 10],
-        "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{at:0:{dimensions:label{i.id}}}}:55}}:[\"topright\",\"bottom\",8]:[\"bottom\",8]}",
+        "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{width_of:label{i.id}}}:55}}:[\"topright\",\"bottom\",8]:[\"bottom\",8]}",
         "modules":["draggable"],
-        "drag":"move_whole_detect_annotation:{i.id}",
+        "drag":"move_whole_detect_annotation:{at:id:{at:{i.idx}:{detect_annotations}}}",
         "children":[
           {
             "type":"condition",
@@ -215,8 +216,8 @@
                 "fill": [255,255,255,150],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
                 "color":[255,255,255,255],
-                "drag":"move_detect_annotation:{i.id}:{index}",
-                "click":"set-local:rightclicked_point:[{i.id},{index}]",
+                "drag":"move_detect_annotation:{at:id:{at:{i.idx}:{detect_annotations}}}:{index}",
+                "click":"set-local:rightclicked_point:[{i.idx},{index}]",
                 "clickable":true
               },
               {
@@ -254,8 +255,8 @@
                 "fill": [255,255,255,50],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
                 "color":[255,255,255,255],
-                "drag":"move_detect_annotation:{i.id}:{index}",
-                "click":"set-local:rightclicked_point:[{i.id},{index}]",
+                "drag":"move_detect_annotation:{at:id:{at:{i.idx}:{detect_annotations}}}:{index}",
+                "click":"set-local:rightclicked_point:[{i.idx},{index}]",
                 "clickable":true
               }
           }
@@ -274,15 +275,15 @@
         "line":[255,0,0,100],
         "pad":[10,5,5,5],
         "fill":[0,0,0,50],
-        "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{at:0:{dimensions:label{i.id}}}}:45}}:[\"top\",8]:[\"top\",\"bottomright\",8]}",
+        "corners":"{if:{>:{at:0:{size2hud:[{i.w},0]}}:{-:{int:{width_of:label{i.id}}}:45}}:[\"top\",8]:[\"top\",\"bottomright\",8]}",
         "max_size":"{maxVector:[200,50]:{size2hud:[{i.w},{i.h}]}}",
-        "click":"set-local:clicked_pose_object:{i}",
+        "click":"set-local:clicked_pose_object:{at:{i.idx}:{detect_annotations}}",
         "clickable":true
       },
 
       {
         "type":"button",
-        "action":"remove_detect_annotation:{i.id}",
+        "action":"remove_detect_annotation:{at:id:{at:{i.idx}:{detect_annotations}}}",
         "text":"<sym>⮿</sym>",
         "z-index": 1,
         "size":[25,30],
@@ -325,13 +326,40 @@
       },
       {
         "text": "<c> </c><sym>🖈</sym> New point here",
-        "action": "add_detection_point_nextto_existing:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
+        "action": "add_detection_point_nextto_existing:{at:id:{at:{at:0:{local.rightclicked_point}}:{detect_annotations}}}:{at:1:{local.rightclicked_point}}"
       },
       {
         "text": "<c> </c><sym>✀</sym> <orange>Remove point</orange>",
-        "action": "remove_detection_point:{at:0:{local.rightclicked_point}}:{at:1:{local.rightclicked_point}}"
+        "action": "remove_detection_point:{at:id:{at:{at:0:{local.rightclicked_point}}:{detect_annotations}}}:{at:1:{local.rightclicked_point}}"
       }
     ]
+  }
+},
+
+{
+  "type":"condition",
+  "var":"{local.change_class_of}",
+  "then":{
+    "type":"list",
+    "var":"{keys:{global.detect_classes}}",
+    "z-index": 5,
+    "select_on_show": true,
+    "deselect": "set-local:change_class_of:null",
+    "list":{
+      "size":[200,130],
+      "fill":[30,30,30,220],
+      "line":[255,255,255,150]
+    },
+    "item":{
+      "font":{"size":0.555},
+      "pad":[15,0]
+    },
+    "pos":"{addVector:[-25,-55]:{2hud:{at:{local.change_class_of.idx}:{detect_annotations}}}}",
+    "template":{
+      "text":"<c>{i}:</c> {at:{i}:{global.detect_classes}}",
+      "disabled": "{equal:{i}:{local.change_class_of.clid}}",
+      "action": "set_detect_annotation_class:{local.change_class_of.id}:{i}"
+    }
   }
 },
 
@@ -360,7 +388,7 @@
       },
       {
         "text": "<c> </c><sym>🖉</sym> Change class",
-        "action": ""
+        "action": "set-local:change_class_of:{local.clicked_pose_object}"
       },
       {
         "text": "<c> </c><sym>✀</sym> <orange>Remove annotation</orange>",

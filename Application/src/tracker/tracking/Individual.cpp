@@ -2729,7 +2729,7 @@ void Individual::calculate_average_tracklet_id(const Tracker& tracker) {
                 prev_end = range.end();
                 processed_tracklets[start] = range;
                 
-                FOI::add(FOI(start, {FOI::fdx_t(identity().ID())}, "split_up"));
+                FOI::add(FOI(start, {FOI::fdx_t(identity().ID())}, FOI::split_up));
             }
         }
     }

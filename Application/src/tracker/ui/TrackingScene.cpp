@@ -224,7 +224,7 @@ bool TrackingScene::Data::update_cached_fois(std::weak_ptr<track::Tracker> track
         }
         
         if (auto list = FOI::foi(id)) {
-            /* ---------- update cached list used by DynGUI (“fois” var) ---------- */
+            /* ---------- update cached list used by DynGUI ("fois" var) ---------- */
             for (const FOI& f : *list)
                 _cached_fois->emplace_back(f.frames().start,
                                            f.frames().end);
@@ -760,23 +760,22 @@ void TrackingScene::settings_callback(std::string_view key) {
         auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
         auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
         
-        static const std::string manual_annotations_foi_name = "annotated";
         std::set<FOI> fois;
         for(auto &[frame, frame_detect_annotations]: detect_annotations) {
             (void)frame_detect_annotations;
-            fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
+            fois.emplace(frame, FOI::annotated, true, "Frame with manual annotations");
         }
         for(auto &[frame, tags] : track_frame_tags) {
-            fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
+            fois.emplace(frame, FOI::annotated, true, "Frame with manual annotations");
         }
 
         if(not fois.empty()) {
             /// Resolve the id AFTER constructing the FOIs: the reason is registered
             /// lazily on first construction, so reading it earlier returns -1 and files
             /// the annotations under the "none" slot on the very first edit.
-            auto id = FOI::to_id(manual_annotations_foi_name);
+            auto id = FOI::to_id(FOI::annotated);
             if(id == -1)
-                FormatError("Failed to resolve FOI id for type ", manual_annotations_foi_name, ".");
+                FormatError("Failed to resolve FOI id for type ", FOI::annotated, ".");
             else
                 FOI::replace_all_of(id, std::move(fois));
             _data->update_cached_fois(_state->tracker, _state->video, true);
@@ -1013,6 +1012,14 @@ void TrackingScene::activate() {
                     gui.context.update_local_setting(
                          gui.current_object_handler.get(),
                          "local.clicked_pose_object",
+                         [](sprite::Reference& ref) {
+                             ref.get().set_value_from_string("null");
+                         });
+                }
+                if(gui.context.has_local_setting("local.change_class_of")) {
+                    gui.context.update_local_setting(
+                         gui.current_object_handler.get(),
+                         "local.change_class_of",
                          [](sprite::Reference& ref) {
                              ref.get().set_value_from_string("null");
                          });
@@ -2336,6 +2343,43 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         SETTING(track_detect_annotations) = std::move(detect_annotations);
                     }
                 });
+            }),
+            
+            ActionFunc("set_detect_annotation_class", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+                auto object_id = Meta::fromStr<uint64_t>(action.parameters.front());
+                auto new_class_id = Meta::fromStr<uint64_t>(action.parameters.back());
+
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    return; /// Not found
+                auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                if(it == detect_annotations.end()) {
+                    throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                }
+                
+                if(_data) {
+                    auto& gui = _data->dynGUI;
+                    gui.context.update_local_setting(
+                         gui.current_object_handler.get(),
+                         "local.change_class_of",
+                         [](sprite::Reference& ref) {
+                             ref.get().set_value_from_string("null");
+                         });
+                }
+                
+                auto &field = it->second;
+                for(auto kit = field.begin(); kit != field.end(); ++kit) {
+                    if(kit->uid == object_id) {
+                        if(kit->clid != new_class_id) {
+                            kit->clid = new_class_id;
+                            SETTING(track_detect_annotations) = std::move(detect_annotations);
+                        }
+                        return;
+                    }
+                }
+
+                throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
             }),
 
             ActionFunc("remove_detect_annotation", [this](const Action& action) {

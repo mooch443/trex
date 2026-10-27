@@ -266,7 +266,7 @@ TEST(TrackerUpdateWarningsTest, ReportsLongTrackletsOnlyAtOrAboveMinimumLength) 
         FOI::fdx_t{(*short_tracklet)->identity().ID()}
     };
     using Warning = std::tuple<Frame_t, Frame_t, std::set<FOI::fdx_t>>;
-    std::map<std::string, std::vector<Warning>> actual;
+    std::map<std::string_view, std::vector<Warning>> actual;
     for(const auto& [id, warnings] : FOI::all_fois()) {
         for(const auto& warning : warnings) {
             actual[FOI::name(id)].emplace_back(
@@ -274,12 +274,12 @@ TEST(TrackerUpdateWarningsTest, ReportsLongTrackletsOnlyAtOrAboveMinimumLength) 
         }
     }
 
-    const std::map<std::string, std::vector<Warning>> expected{
-        {"correcting", {{13_f, 13_f, lost_ids}}},
-        {"long tracklet", {{12_f, 12_f, long_ids}}},
-        {"lost >=1 fish", {{13_f, 13_f, lost_ids}}},
-        {"lost >=2 fish", {{13_f, 13_f, {}}}},
-        {"tracklet end", {{12_f, 12_f, lost_ids}}}
+    const std::map<std::string_view, std::vector<Warning>> expected{
+        {FOI::correcting, {{13_f, 13_f, lost_ids}}},
+        {FOI::long_tracklet, {{12_f, 12_f, long_ids}}},
+        {FOI::lost_1_fish, {{13_f, 13_f, lost_ids}}},
+        {FOI::lost_2_fish, {{13_f, 13_f, {}}}},
+        {FOI::tracklet_end, {{12_f, 12_f, lost_ids}}}
     };
     EXPECT_EQ(actual, expected);
 }
