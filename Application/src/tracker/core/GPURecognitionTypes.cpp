@@ -125,7 +125,7 @@ std::string Sam3PromptPayload::toStr() const {
     }
 }
 
-glz::json_t Sam3PromptPayload::to_json() const {
+glz::generic Sam3PromptPayload::to_json() const {
     switch(type()) {
         case Sam3PromptType::text:
             if(std::holds_alternative<std::monostate>(value))
@@ -133,10 +133,10 @@ glz::json_t Sam3PromptPayload::to_json() const {
             return text();
         case Sam3PromptType::boxes:
         {
-            glz::json_t::array_t xyxy_boxes;
+            glz::generic::array_t xyxy_boxes;
             xyxy_boxes.reserve(boxes().size());
             for(const auto& box : boxes()) {
-                xyxy_boxes.push_back(glz::json_t::array_t{
+                xyxy_boxes.push_back(glz::generic::array_t{
                     box.x,
                     box.y,
                     box.width,
@@ -152,9 +152,9 @@ glz::json_t Sam3PromptPayload::to_json() const {
     }
 }
 
-glz::json_t Sam3Prompts::to_json() const {
+glz::generic Sam3Prompts::to_json() const {
     if(empty())
-        return glz::json_t::object_t();
+        return glz::generic::object_t();
     return cvt2json(map);
 }
 
@@ -173,7 +173,7 @@ std::string Sam3Prompts::toStr() const {
     return Meta::toStr(map);
 }
 
-glz::json_t Sam3PromptList::to_json() const {
+glz::generic Sam3PromptList::to_json() const {
     return cvt2json(static_cast<const base_t&>(*this));
 }
 

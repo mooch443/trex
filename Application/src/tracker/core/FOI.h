@@ -36,8 +36,8 @@ namespace track {
             std::string_view symbol;
             std::string_view tooltip;
 
-            glz::json_t to_json() const {
-                glz::json_t json;
+            glz::generic to_json() const {
+                glz::generic json;
                 if(not glz::read_json(json, toStr()))
                     throw InvalidArgumentException("Failed to serialize Info to JSON.");
                 return json;

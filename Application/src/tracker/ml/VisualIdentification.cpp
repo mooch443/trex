@@ -376,7 +376,7 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                         ModuleProxy m(module_name, [](ModuleProxy&){
                             instance()->setup(false);
                         });
-                        std::optional<glz::json_t> array;
+                        std::optional<glz::generic> array;
                         
                         auto visual_identification_model_path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>);
                         if(visual_identification_model_path.has_value()

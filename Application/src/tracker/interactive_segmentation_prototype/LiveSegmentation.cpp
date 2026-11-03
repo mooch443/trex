@@ -29,8 +29,8 @@ struct DetectionMeta {
     float conf;
     uint16_t x, y, w, h;
     
-    glz::json_t to_json() const {
-        glz::json_t json;
+    glz::generic to_json() const {
+        glz::generic json;
         json["bdx"] = bdx.to_json();
         json["conf"] = conf;
         json["x"] = x;
@@ -682,8 +682,8 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                     VarFunc("frame_requested", [this](const VarProps&) -> std::optional<Frame_t> {
                         return _last_requested_frame;
                     }),
-                    VarFunc("detect_annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
-                        std::vector<glz::json_t> result;
+                    VarFunc("detect_annotations", [this](const VarProps&) -> std::vector<glz::generic> {
+                        std::vector<glz::generic> result;
                         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
                         if(not detect_sam3_prompt)
                             return result;
@@ -692,9 +692,9 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                             const auto materialized = track::materialize_sam3_prompt_state(_current_frame.index, detect_sam3_prompt);
                             result.reserve(materialized.objects.size());
                             for(const auto& object : materialized.objects) {
-                                result.push_back(glz::json_t::object_t{
+                                result.push_back(glz::generic::object_t{
                                     {"id", object.id},
-                                    {"seed_frame", object.seed_frame.valid() ? glz::json_t(object.seed_frame.get()) : glz::json_t(nullptr)},
+                                    {"seed_frame", object.seed_frame.valid() ? glz::generic(object.seed_frame.get()) : glz::generic(nullptr)},
                                     {"x", object.seed_box.x},
                                     {"y", object.seed_box.y},
                                     {"w", object.seed_box.width},
@@ -705,8 +705,8 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         
                         return result;
                     }),
-                    VarFunc("data", [this](const VarProps&) -> std::vector<glz::json_t> {
-                        std::vector<glz::json_t> result;
+                    VarFunc("data", [this](const VarProps&) -> std::vector<glz::generic> {
+                        std::vector<glz::generic> result;
                         if(std::unique_lock guard{_next_frame_mutex};
                            _current_data)
                         {

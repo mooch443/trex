@@ -58,15 +58,15 @@ static bool dispatch_valid(const std::string& name, const std::string& module_na
     return PythonIntegration::valid(name, module_name);
 }
 
-static std::optional<glz::json_t> dispatch_run_no_args(const std::string& module_name, const std::string& function) {
+static std::optional<glz::generic> dispatch_run_no_args(const std::string& module_name, const std::string& function) {
     return PythonIntegration::run(module_name, function);
 }
 
-static std::optional<glz::json_t> dispatch_run_string_arg(const std::string& module_name, const std::string& function, const std::string& parm) {
+static std::optional<glz::generic> dispatch_run_string_arg(const std::string& module_name, const std::string& function, const std::string& parm) {
     return PythonIntegration::run(module_name, function, parm);
 }
 
-static std::optional<glz::json_t> dispatch_run_json_arg(const std::string& module_name, const std::string& function, const glz::json_t& parm) {
+static std::optional<glz::generic> dispatch_run_json_arg(const std::string& module_name, const std::string& function, const glz::generic& parm) {
     return PythonIntegration::run(module_name, function, parm);
 }
 

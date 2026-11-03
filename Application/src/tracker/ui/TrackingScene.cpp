@@ -3012,7 +3012,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     READ_SETTING(detect_tile_overlap, float));
                 return std::vector<Bounds>(source_tiles.begin(), source_tiles.end());
             }),
-            VarFunc("detect_annotations", [this](const VarProps& props) -> glz::json_t {
+            VarFunc("detect_annotations", [this](const VarProps& props) -> glz::generic {
                 if(not _data)
                     throw InvalidArgumentException("_data not set.");
 
@@ -3021,7 +3021,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     filter_for_type = Meta::fromStr<uint8_t>(props.parameters.front());
                 }
                 
-                glz::json_t json = glz::json_t::array_t{};
+                glz::generic json = glz::generic::array_t{};
                 auto& result = json.get_array();
                 auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
                 if(not detect_annotations)
@@ -3056,7 +3056,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         if(bds.x == FLT_MAX)
                             continue;
 
-                        result.push_back(glz::json_t::object_t{
+                        result.push_back(glz::generic::object_t{
                             {"idx", result.size()},
                             {"id", object.uid},
                             {"clid", object.clid},
@@ -3078,7 +3078,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     
     dyn::Modules::add(Modules::Module{
         ._name = "draggable",
-        ._apply = [](size_t hash, const glz::json_t& obj, const Context&, State& state, const Layout::Ptr& o) {
+        ._apply = [](size_t hash, const glz::generic& obj, const Context&, State& state, const Layout::Ptr& o) {
             if(obj.contains("initial_pos")) {
                 auto initial_pos = dyn::get(state, obj.get_object(), Vec2(), "initial_pos", hash, "draggable_");
                 if(initial_pos == Vec2()) {

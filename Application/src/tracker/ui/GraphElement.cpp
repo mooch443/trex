@@ -30,9 +30,9 @@ struct GraphPoints {
         return std::holds_alternative<std::string>(pts);
     }
 
-    glz::json_t to_json() const {
-        glz::json_t out;
-        //out["name"] = glz::json_t(name);
+    glz::generic to_json() const {
+        glz::generic out;
+        //out["name"] = glz::generic(name);
         //out["pts"] = cvt2json(pts);
         
         // Serialize this object to a JSON string using its explicit metadata.
@@ -41,7 +41,7 @@ struct GraphPoints {
             // Bubble up a helpful error if serialization fails
             throw RuntimeError(glz::format_error(s.error(), ""));
         }
-        // Parse the JSON string into a dynamic glz::json_t
+        // Parse the JSON string into a dynamic glz::generic
         auto ec = glz::read_json(out, *s);
         if (ec != glz::error_code::none) {
             throw RuntimeError(glz::format_error(ec, *s));
@@ -111,9 +111,9 @@ struct GraphLine {
         return std::get<std::string>(pts);
     }
 
-    glz::json_t to_json() const {
-        glz::json_t out;
-        //out["name"] = glz::json_t(name);
+    glz::generic to_json() const {
+        glz::generic out;
+        //out["name"] = glz::generic(name);
         //out["pts"] = cvt2json(pts);
         
         // Serialize this object to a JSON string using its explicit metadata.
@@ -122,7 +122,7 @@ struct GraphLine {
             // Bubble up a helpful error if serialization fails
             throw RuntimeError(glz::format_error(s.error(), ""));
         }
-        // Parse the JSON string into a dynamic glz::json_t
+        // Parse the JSON string into a dynamic glz::generic
         auto ec = glz::read_json(out, *s);
         if (ec != glz::error_code::none) {
             throw RuntimeError(glz::format_error(ec, *s));

@@ -3,9 +3,9 @@
 namespace track::detect {
 using namespace cmn;
 
-glz::json_t AnnotationMap::to_json() const {
+glz::generic AnnotationMap::to_json() const {
     if(not *this)
-        return glz::json_t{};
+        return glz::generic{};
     if(not _sources.empty())
         return cvt2json(_sources);
     return cvt2json((Map_t)*this);

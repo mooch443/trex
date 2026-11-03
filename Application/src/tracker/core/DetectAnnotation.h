@@ -29,8 +29,8 @@ struct Annotation {
     
     auto operator<=>(const Annotation& other) const = default;
     bool operator==(const Annotation& other) const noexcept = default;
-    glz::json_t to_json() const {
-        glz::json_t::array_t array{glz::json_t(clid), glz::json_t(uint8_t(type)), cmn::cvt2json(points)};
+    glz::generic to_json() const {
+        glz::generic::array_t array{glz::generic(clid), glz::generic(uint8_t(type)), cmn::cvt2json(points)};
         return array;
     }
     std::string toStr() const {
@@ -90,7 +90,7 @@ public:
     SourceMap_t& sources() { return _sources; }
     bool has_sources() const { return not _sources.empty(); }
     
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static AnnotationMap fromStr(cmn::StringLike auto&& _str) {
         AnnotationMap result;

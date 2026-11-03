@@ -66,9 +66,9 @@ public:
     static bool has_loaded_module(const std::string&);
     static bool check_module(const std::string&, std::function<void()> unloader = nullptr);
     static bool is_none(const std::string& name, const std::string& attribute);
-    static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function);
-    static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const std::string& parm);
-    static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const glz::json_t& json);
+    static std::optional<glz::generic> run(const std::string& module_name, const std::string& function);
+    static std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const std::string& parm);
+    static std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const glz::generic& json);
     static std::string run_retrieve_str(const std::string& module_name, const std::string& function);
 
     template<typename T>
@@ -94,7 +94,7 @@ public:
     static void set_function(const char* name_, std::function<void(const std::vector<track::detect::Result>&)> f, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>)> f, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<float>, std::vector<float>, std::vector<int>)> f, const std::string& m = "");
-    static void set_function(const char* name_, std::function<glz::json_t()>, const std::string& m = "");
+    static void set_function(const char* name_, std::function<glz::generic()>, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<uint64_t>, std::vector<float>)> f, const std::string& m = "");
     static void set_function(const char* name_, std::function<void(std::vector<int>)> f, const std::string &m = "");
     static void set_function(const char* name_, cmn::package::F<void(std::vector<std::vector<float>>&&,std::vector<float>&&)>&& f, const std::string &m = "");

@@ -28,7 +28,7 @@ struct TrivialType {
     std::string toStr() const { throw std::exception(); }
     static TrivialType fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "TrivialType"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct NonTrivialType {
@@ -38,7 +38,7 @@ struct NonTrivialType {
     std::string toStr() const { throw std::exception(); }
     static NonTrivialType fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "NonTrivialType"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct TrivialTypeWithoutNonEquals {
@@ -47,7 +47,7 @@ struct TrivialTypeWithoutNonEquals {
     std::string toStr() const { throw std::exception(); }
     static TrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "TrivialTypeWithoutNonEquals"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct NonTrivialTypeWithoutNonEquals {
@@ -56,7 +56,7 @@ struct NonTrivialTypeWithoutNonEquals {
     std::string toStr() const { throw std::exception(); }
     static NonTrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "NonTrivialTypeWithoutNonEquals"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 TEST(ValueStoreTest, TrivialTypeWithNotEqualOperator) {

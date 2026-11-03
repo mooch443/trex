@@ -81,7 +81,7 @@ struct PoseMidlineIndexes {
         };
     }
     std::string toStr() const;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     static consteval std::string_view class_name() { return "PoseMidlineIndexes"; }
 
     bool operator==(const PoseMidlineIndexes& other) const {
@@ -96,7 +96,7 @@ public:
     ShapeList() = default;
     ShapeList(std::vector<std::vector<Vec2>>);
     std::string toStr() const;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     
     static ShapeList fromStr(cmn::StringLike auto&& str) {
         return ShapeList(Meta::fromStr<std::vector<std::vector<Vec2>>>(str));
@@ -129,7 +129,7 @@ public:
         }
         std::string toStr() const { return Meta::toStr(blobs); }
         static consteval std::string_view class_name() { return "Entry"; }
-        glz::json_t to_json() const { return cvt2json(blobs); }
+        glz::generic to_json() const { return cvt2json(blobs); }
         
         bool operator==(const Entry&) const = default;
         bool operator!=(const Entry&) const = default;
@@ -193,7 +193,7 @@ public:
     
     std::string toStr() const { return Meta::toStr(_entries); }
     static consteval std::string_view class_name() { return "BdxIgnoreList"; }
-    glz::json_t to_json() const { return cvt2json(_entries); }
+    glz::generic to_json() const { return cvt2json(_entries); }
     
     bool operator==(const BdxIgnoreList& other) const {
         return other._entries == _entries;

@@ -81,7 +81,7 @@ requirements:
     - {{ compiler('cxx') }} # [osx and not arm64]
     - {{ compiler('c') }}   # [not osx]
     - {{ compiler('cxx') }} # [not osx]
-    - cmake >=3.26,<5
+    - cmake >=3.31,<5
     - patchelf # [linux]
     - ninja # [linux]
     - git # [not win]

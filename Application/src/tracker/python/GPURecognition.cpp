@@ -1180,7 +1180,7 @@ std::string& python_gpu_name() {
     return _python_gpu_name;
 }
 
-py::dict json_to_pydict(const glz::json_t& j);
+py::dict json_to_pydict(const glz::generic& j);
 
 std::mutex module_mutex;
 std::map<std::string, std::string> _module_contents;
@@ -1490,13 +1490,13 @@ bool PythonIntegration::check_module(const std::string& name,
     return result;
 }
 
-std::optional<glz::json_t> result_to_json(py::handle&& result) {
+std::optional<glz::generic> result_to_json(py::handle&& result) {
     if(CHECK_NONE(result)) {
         return std::nullopt;
     }
 
-    auto parse_json_string = [](const std::string& str) -> glz::json_t {
-        glz::json_t json;
+    auto parse_json_string = [](const std::string& str) -> glz::generic {
+        glz::generic json;
         auto error = glz::read_json(json, str);
         if(error != glz::error_code::none) {
             std::string descriptive_error = glz::format_error(error, str);
@@ -1525,7 +1525,7 @@ std::optional<glz::json_t> result_to_json(py::handle&& result) {
             try {
                 return parse_json_string(str);
             } catch(...) {
-                glz::json_t json = str;
+                glz::generic json = str;
                 return json;
             }
         }
@@ -1547,7 +1547,7 @@ std::optional<glz::json_t> result_to_json(py::handle&& result) {
     return std::nullopt;
 }
 
-std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function, const std::string& parm) {
+std::optional<glz::generic> PythonIntegration::run(const std::string& module_name, const std::string& function, const std::string& parm) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
     Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
@@ -1596,7 +1596,7 @@ std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name
     return std::nullopt;
 }
 
-std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function) {
+std::optional<glz::generic> PythonIntegration::run(const std::string& module_name, const std::string& function) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
     Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
@@ -1644,7 +1644,7 @@ std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name
     return std::nullopt;
 }
 
-std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function, const glz::json_t& json)
+std::optional<glz::generic> PythonIntegration::run(const std::string& module_name, const std::string& function, const glz::generic& json)
 {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
@@ -1893,9 +1893,9 @@ std::vector<track::detect::Result> PythonIntegration::predict_frame(track::detec
 }
 
 // Forward declaration of the function to handle recursive calls
-py::object json_to_pyobject(const glz::json_t& j);
+py::object json_to_pyobject(const glz::generic& j);
 
-py::dict json_to_pydict(const glz::json_t& j) {
+py::dict json_to_pydict(const glz::generic& j) {
     py::dict dict;
     if(j.is_null())
         return dict;
@@ -1906,7 +1906,7 @@ py::dict json_to_pydict(const glz::json_t& j) {
     return dict;
 }
 
-py::list json_to_pylist(const glz::json_t& j) {
+py::list json_to_pylist(const glz::generic& j) {
     py::list list;
     for (const auto& item : j.get_array()) {
         list.append(json_to_pyobject(item));
@@ -1914,7 +1914,7 @@ py::list json_to_pylist(const glz::json_t& j) {
     return list;
 }
 
-py::object json_to_pyobject(const glz::json_t& j) {
+py::object json_to_pyobject(const glz::generic& j) {
     if (j.is_null()) {
         return py::none();
     } else if (j.is_boolean()) {
@@ -1939,11 +1939,11 @@ py::object json_to_pyobject(const glz::json_t& j) {
 void PythonIntegration::set_function(const char* name_, std::function<bool()> f, const std::string &m) {
     set_function_internal(name_, f, m);
 }
-void PythonIntegration::set_function(const char* name_, std::function<glz::json_t()> f, const std::string &m) {
+void PythonIntegration::set_function(const char* name_, std::function<glz::generic()> f, const std::string &m) {
     set_function_internal(name_, [f = std::move(f)]() -> py::dict {
         //py::dict dict = json_to_pydict(f());
         try {
-            glz::json_t json = f();
+            glz::generic json = f();
             if(json.is_null()) {
                 return py::none();
             }

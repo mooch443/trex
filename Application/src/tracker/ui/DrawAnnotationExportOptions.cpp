@@ -44,7 +44,7 @@ struct DrawAnnotationExportOptions::Data {
     std::optional<pfd::select_folder> _folder_dialog;
 
     Summary _summary;
-    glz::json_t _info;
+    glz::generic _info;
     
     std::shared_ptr<pv::File> _video;
 
@@ -166,15 +166,15 @@ struct DrawAnnotationExportOptions::Data {
 
         _summary = summarize(options, source_length, source_size);
 
-        _info = glz::json_t::object_t{
-            {"format", glz::json_t(_format.str())},
-            {"output_directory", glz::json_t(_output_directory_text)},
-            {"default_output_directory", glz::json_t(options.output_directory.str())},
-            {"detect_format", glz::json_t(options.detect_format.str())},
-            {"selected_count", glz::json_t(_summary.counts.total())},
-            {"has_annotations", glz::json_t(raw_counts.total() > 0)},
-            {"can_export", glz::json_t(_summary.can_export())},
-            {"summary", glz::json_t(summary_text())}
+        _info = glz::generic::object_t{
+            {"format", glz::generic(_format.str())},
+            {"output_directory", glz::generic(_output_directory_text)},
+            {"default_output_directory", glz::generic(options.output_directory.str())},
+            {"detect_format", glz::generic(options.detect_format.str())},
+            {"selected_count", glz::generic(_summary.counts.total())},
+            {"has_annotations", glz::generic(raw_counts.total() > 0)},
+            {"can_export", glz::generic(_summary.can_export())},
+            {"summary", glz::generic(summary_text())}
         };
     }
 
@@ -286,7 +286,7 @@ struct DrawAnnotationExportOptions::Data {
                 };
 
                 context.variables = {
-                    VarFunc("info", [this](const VarProps&) -> const glz::json_t& {
+                    VarFunc("info", [this](const VarProps&) -> const glz::generic& {
                         return _info;
                     })
                 };

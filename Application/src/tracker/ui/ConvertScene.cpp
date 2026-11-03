@@ -58,28 +58,28 @@ read_once<bool> ConvertScene::force_start_over;
 
 template<typename T>
     requires has_to_json_method<std::remove_cvref_t<T>>
-glz::json_t to_json(T&& obj) {
+glz::generic to_json(T&& obj) {
     if constexpr (_clean_same<Vec2, T>) {
-        glz::json_t p;
+        glz::generic p;
         p["x"] = obj.x;
         p["y"] = obj.y;
         return p;
     } else if constexpr (_clean_same<Size2, T>) {
-        glz::json_t p;
+        glz::generic p;
         p["x"] = obj.width;
         p["y"] = obj.height;
         return p;
     } else if constexpr(_clean_same<Bounds, T>) {
-        glz::json_t p;
+        glz::generic p;
         p["x"] = obj.x;
         p["y"] = obj.y;
         p["w"] = obj.width;
         p["h"] = obj.height;
         return p;
     } else if constexpr(_clean_same<cmn::blob::Pose, T>) {
-        std::vector<glz::json_t> j;
+        std::vector<glz::generic> j;
         for(size_t i = 0; i < obj.points.size(); ++i) {
-            glz::json_t p;
+            glz::generic p;
             p["x"] = obj.points[i].x;
             p["y"] = obj.points[i].y;
             j.push_back(p);
@@ -119,15 +119,15 @@ struct ConvertScene::Data {
     std::optional<blob::Pose::Skeletons> skelet;
     
     std::mutex _current_json_mutex;
-    glz::json_t _current_json;
+    glz::generic _current_json;
 
     // Individual properties for each object
-    glz::json_t _primary_selection;
+    glz::generic _primary_selection;
     std::vector<Vec2> _zoom_targets;
     std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui;
-    std::map<Idx_t, glz::json_t> _individual_properties;
-    std::vector<glz::json_t> _untracked_properties;
-    std::vector<glz::json_t*> _tracked_properties;
+    std::map<Idx_t, glz::generic> _individual_properties;
+    std::vector<glz::generic> _untracked_properties;
+    std::vector<glz::generic*> _tracked_properties;
     std::unordered_map<pv::bid, Identity> _visible_bdx;
     std::vector<std::vector<Vertex>> _trajectories;
     std::vector<std::tuple<Color, std::vector<Vec2>>> _postures;
@@ -258,7 +258,7 @@ struct ConvertScene::Data {
     bool retrieve_and_prepare_data();
     void draw_scene(DrawStructure& graph, const detect::yolo::names::map_t& detect_classes, bool dirty);
     
-    glz::json_t frame_info() {
+    glz::generic frame_info() {
         std::unique_lock guard{_current_json_mutex};
         return _current_json;
     }
@@ -270,8 +270,8 @@ Segmenter& ConvertScene::segmenter() const {
     return *_data->_segmenter;
 }
 
-glz::json_t ConvertScene::fish = []() {
-    glz::json_t fish;
+glz::generic ConvertScene::fish = []() {
+    glz::generic fish;
     fish["name"] = std::string("fish0");
     fish["color"] = to_json(Red);
     fish["pos"] = to_json(Vec2(100, 150));
@@ -476,8 +476,8 @@ void ConvertScene::open_camera() {
     _video_length = segmenter().video_length();
 }
 
-glz::json_t sprite_map_to_json(const sprite::Map& map) {
-    glz::json_t json;
+glz::generic sprite_map_to_json(const sprite::Map& map) {
+    glz::generic json;
     for(auto& key : map.keys()) {
         auto &prop = map.at(key).get();
         json[key] = prop.to_json();
@@ -682,7 +682,7 @@ void ConvertScene::Data::drawBlobs(
     auto selected_ids = READ_SETTING(gui_focus_group, std::vector<Idx_t>);
     const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
     
-    std::vector<glz::json_t> acc_json;
+    std::vector<glz::generic> acc_json;
     _zoom_targets.clear();
 
     for (auto& blob : _object_blobs) {
@@ -750,7 +750,7 @@ void ConvertScene::Data::drawBlobs(
             }
         }();
 
-        glz::json_t* tmp = nullptr;
+        glz::generic* tmp = nullptr;
 
         if (tracked_id.valid()) {
             tmp = &_individual_properties[tracked_id];
@@ -762,7 +762,7 @@ void ConvertScene::Data::drawBlobs(
             }
 
             if (untracked >= _untracked_gui.size())
-                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> const glz::json_t& {
+                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> const glz::generic& {
                     //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                     return _untracked_properties.at(i);
                 }));
@@ -847,7 +847,7 @@ void ConvertScene::Data::drawBlobs(
             _tracked_properties[tracked] = &_individual_properties[id];
 
         if (tracked >= _tracked_gui.size())
-            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> const glz::json_t& {
+            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> const glz::generic& {
                 //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                 return *_tracked_properties.at(i);
             }));
@@ -1039,7 +1039,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("detect_format", [](const VarProps&) {
             return READ_SETTING(detect_format, detect::ObjectDetectionFormat_t);
         }),
-        VarFunc("fish", [](const VarProps&) -> const glz::json_t& {
+        VarFunc("fish", [](const VarProps&) -> const glz::generic& {
             return fish;
         }),
         VarFunc("precomputed_is_caching", [this](const VarProps&) {
@@ -1089,7 +1089,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
             return _untracked_gui;
         }),
-        VarFunc("primary_selection", [this](const VarProps&) -> const glz::json_t& {
+        VarFunc("primary_selection", [this](const VarProps&) -> const glz::generic& {
             return _primary_selection;
         }),
         VarFunc("tiles", [this](const VarProps&) -> std::vector<Bounds> {

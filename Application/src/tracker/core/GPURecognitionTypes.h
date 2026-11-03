@@ -508,7 +508,7 @@ struct TREX_EXPORT Sam3PromptPayload {
         throw InvalidArgumentException("Invalid data type.");
     }
 
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static consteval std::string_view class_name() { return "Sam3Prompt"; }
     bool operator==(const Sam3PromptPayload&) const = default;
@@ -524,7 +524,7 @@ struct TREX_EXPORT Sam3PromptList : public std::vector<Sam3PromptPayload> {
     {}
 
     std::string toStr() const;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
 
     static Sam3PromptList fromStr(StringLike auto&& str) {
         auto sv = utils::trim(utils::string_like_view(str));
@@ -614,7 +614,7 @@ struct TREX_EXPORT Sam3Prompts {
     auto erase(auto&& k) { return map.erase(std::forward<decltype(k)>(k)); }
     
     std::string toStr() const;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     
     bool operator==(const Sam3Prompts&) const = default;
     bool operator!=(const Sam3Prompts&) const = default;

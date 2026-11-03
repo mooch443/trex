@@ -11,11 +11,11 @@ struct RecentItemJSON {
     std::variant<uint64_t, std::string> created{cmn::timestamp_t::now().get()}, modified{0llu};
     std::string name, output_prefix;
     std::string output_dir, filename;
-    std::map<std::string, glz::json_t> settings;
+    std::map<std::string, glz::generic> settings;
 
     cmn::sprite::Map _options;
     
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static consteval std::string_view class_name() { return "RecentItem"; }
     

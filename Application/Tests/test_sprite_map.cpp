@@ -4,6 +4,30 @@
 
 namespace {
 
+TEST(SpritePropertyTests, JsonEqualityUsesValuesAndIgnoresObjectKeyOrder) {
+    glz::generic first, reordered;
+    ASSERT_EQ(glz::read_json(first, R"({"name":"fish","nested":{"active":true,"values":[1,2]},"empty":null})"), glz::error_code::none);
+    ASSERT_EQ(glz::read_json(reordered, R"({"empty":null,"nested":{"values":[1,2],"active":true},"name":"fish"})"), glz::error_code::none);
+
+    cmn::sprite::Property<glz::generic> property("json", first);
+    EXPECT_TRUE(property.equals(reordered));
+
+    reordered["nested"]["values"][0] = 2;
+    reordered["nested"]["values"][1] = 1;
+    EXPECT_FALSE(property.equals(reordered));
+
+    reordered = first;
+    reordered["nested"]["active"] = 1;
+    EXPECT_FALSE(property.equals(reordered));
+
+    reordered = first;
+    reordered.get_object().erase("empty");
+    EXPECT_FALSE(property.equals(reordered));
+
+    cmn::sprite::Property<glz::generic> unset;
+    EXPECT_FALSE(unset.equals(first));
+}
+
 class SpriteMapMoveTests : public testing::TestWithParam<bool> {};
 
 TEST_P(SpriteMapMoveTests, TransfersAttachedGeneralAndPendingCallbacks) {

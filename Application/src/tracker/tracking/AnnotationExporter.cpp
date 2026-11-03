@@ -25,14 +25,14 @@ struct Tags {
     std::string toStr() const {
         return "<"+source.toStr() + "," + fdx.toStr() + "," + Meta::toStr(source_tracklet) + "," + Meta::toStr(tags) +">";
     }
-    glz::json_t to_json() const {
-        glz::json_t j;
-        j["id"] = id ? glz::json_t(*id) : glz::json_t();
-        j["source_tracklet"] = source_tracklet ? glz::json_t(*source_tracklet) : glz::json_t();
-        j["source_tracklet_range"] = source_tracklet_range ? glz::json_t({source_tracklet_range->start.get(), source_tracklet_range->end.get()}) : glz::json_t();
+    glz::generic to_json() const {
+        glz::generic j;
+        j["id"] = id ? glz::generic(*id) : glz::generic();
+        j["source_tracklet"] = source_tracklet ? glz::generic(*source_tracklet) : glz::generic();
+        j["source_tracklet_range"] = source_tracklet_range ? glz::generic({source_tracklet_range->start.get(), source_tracklet_range->end.get()}) : glz::generic();
         j["fdx"] = fdx.get();
         j["source"] = source.get();
-        std::vector<glz::json_t> tag_jsons;
+        std::vector<glz::generic> tag_jsons;
         for(const auto& tag : tags)
             tag_jsons.emplace_back(tag.to_json());
         j["tags"] = std::move(tag_jsons);
@@ -55,7 +55,7 @@ struct Metadata {
     uint8_t channels;
     std::string encoding;
     std::set<std::string_view> tag_names;
-    glz::json_t meta_tags_json;
+    glz::generic meta_tags_json;
 };
 
 }
@@ -322,23 +322,23 @@ std::string yolo_bbox(const Bounds& bounds, const Size2& image_size) {
     return Meta::toStr(cx) + " " + Meta::toStr(cy) + " " + Meta::toStr(width) + " " + Meta::toStr(height);
 }
 
-std::vector<glz::json_t> bbox_json(const Bounds& bounds) {
+std::vector<glz::generic> bbox_json(const Bounds& bounds) {
     return {
-        glz::json_t(bounds.x),
-        glz::json_t(bounds.y),
-        glz::json_t(bounds.width),
-        glz::json_t(bounds.height)
+        glz::generic(bounds.x),
+        glz::generic(bounds.y),
+        glz::generic(bounds.width),
+        glz::generic(bounds.height)
     };
 }
 
-std::vector<glz::json_t> segmentation_json(const std::vector<Vec2>& points) {
-    std::vector<glz::json_t> polygon;
+std::vector<glz::generic> segmentation_json(const std::vector<Vec2>& points) {
+    std::vector<glz::generic> polygon;
     polygon.reserve(points.size() * 2);
     for(const auto& point : points) {
         polygon.emplace_back(point.x);
         polygon.emplace_back(point.y);
     }
-    return {glz::json_t(polygon)};
+    return {glz::generic(polygon)};
 }
 
 std::set<uint16_t> class_ids(const AnnotationMap& annotations) {
@@ -628,7 +628,7 @@ void export_tag_annotations(TagDatasetConfig config) {
         }
     }
 
-    glz::json_t meta_tag_json = cvt2json(meta_tags);
+    glz::generic meta_tag_json = cvt2json(meta_tags);
     
     if(not without_fdx.empty())
         Print("* did not find fdx for ", without_fdx, ". these are likely global properties or SpatialTags - exporting arbitrary crops from the video is not supported yet :(");
@@ -1082,20 +1082,20 @@ std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const An
     return output;
 }
 
-glz::json_t build_coco_json(const cmn::file::PathArray& source, const AnnotationMap& annotations, const std::vector<Frame_t>& image_frames, const Size2& image_size, const std::vector<std::string>& keypoint_names, const std::map<int, float>& point_radii, float fallback_point_radius) {
-    std::vector<glz::json_t> images;
-    std::vector<glz::json_t> annotation_json;
+glz::generic build_coco_json(const cmn::file::PathArray& source, const AnnotationMap& annotations, const std::vector<Frame_t>& image_frames, const Size2& image_size, const std::vector<std::string>& keypoint_names, const std::map<int, float>& point_radii, float fallback_point_radius) {
+    std::vector<glz::generic> images;
+    std::vector<glz::generic> annotation_json;
     std::map<uint16_t, std::vector<std::string>> category_keypoints;
     const auto counts = count_annotation_types(annotations);
     const bool point_dataset = counts.points > 0 && counts.points + counts.empties == counts.total();
     std::set<uint16_t> point_categories;
 
     for(const auto& frame : image_frames) {
-        images.push_back(glz::json_t::object_t{
-            {"id", glz::json_t(frame.get())},
-            {"file_name", glz::json_t(frame_stem(source, frame) + ".jpg")},
-            {"width", glz::json_t(image_size.width)},
-            {"height", glz::json_t(image_size.height)}
+        images.push_back(glz::generic::object_t{
+            {"id", glz::generic(frame.get())},
+            {"file_name", glz::generic(frame_stem(source, frame) + ".jpg")},
+            {"width", glz::generic(image_size.width)},
+            {"height", glz::generic(image_size.height)}
         });
     }
 
@@ -1106,17 +1106,17 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
             if(annotation.type == AnnotationType::EMPTY)
                 continue;
             auto bounds = annotation_bounds(annotation.type, points);
-            glz::json_t::object_t object{
-                {"id", glz::json_t(annotation_id++)},
-                {"image_id", glz::json_t(frame.get())},
-                {"category_id", glz::json_t(uint64_t(annotation.clid))},
-                {"bbox", glz::json_t(bbox_json(bounds))},
-                {"area", glz::json_t(bounds.width * bounds.height)},
-                {"iscrowd", glz::json_t(0)}
+            glz::generic::object_t object{
+                {"id", glz::generic(annotation_id++)},
+                {"image_id", glz::generic(frame.get())},
+                {"category_id", glz::generic(uint64_t(annotation.clid))},
+                {"bbox", glz::generic(bbox_json(bounds))},
+                {"area", glz::generic(bounds.width * bounds.height)},
+                {"iscrowd", glz::generic(0)}
             };
 
             if(annotation.type == AnnotationType::SEGMENTATION || annotation.type == AnnotationType::OBB) {
-                object["segmentation"] = glz::json_t(segmentation_json(points));
+                object["segmentation"] = glz::generic(segmentation_json(points));
                 double twice_area = 0;
                 for(size_t i = 0; i < points.size(); ++i) {
                     const auto& a = points[i];
@@ -1125,7 +1125,7 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
                 }
                 object["area"] = std::abs(twice_area) * 0.5;
             } else
-                object["segmentation"] = glz::json_t(std::vector<glz::json_t>{});
+                object["segmentation"] = glz::generic(std::vector<glz::generic>{});
 
             if(annotation.type == AnnotationType::OBB) {
                 object["trex_annotation_type"] = std::string("obb");
@@ -1133,12 +1133,12 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
                 point_categories.insert(annotation.clid);
                 const auto& point = annotation.points.front();
                 object["trex_annotation_type"] = std::string("point");
-                object["keypoints"] = glz::json_t::array_t{glz::json_t(point.x), glz::json_t(point.y), glz::json_t(2)};
+                object["keypoints"] = glz::generic::array_t{glz::generic(point.x), glz::generic(point.y), glz::generic(2)};
                 object["num_keypoints"] = 1;
             }
 
             if(annotation.type == AnnotationType::POSE) {
-                std::vector<glz::json_t> keypoints;
+                std::vector<glz::generic> keypoints;
                 keypoints.reserve(keypoint_names.size() * 3);
                 uint64_t num_keypoints = 0;
                 for(size_t i = 0; i < keypoint_names.size(); ++i) {
@@ -1155,8 +1155,8 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
                         keypoints.emplace_back(0);
                     }
                 }
-                object["keypoints"] = glz::json_t(keypoints);
-                object["num_keypoints"] = glz::json_t(num_keypoints);
+                object["keypoints"] = glz::generic(keypoints);
+                object["num_keypoints"] = glz::generic(num_keypoints);
                 category_keypoints[annotation.clid] = keypoint_names;
             }
 
@@ -1164,7 +1164,7 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
         }
     }
 
-    std::vector<glz::json_t> categories;
+    std::vector<glz::generic> categories;
 
     std::set<uint16_t> ids;
     std::vector<std::string> names;
@@ -1187,30 +1187,30 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
     }
 
     for(auto [id, name] : Zip::Zip(ids, names)) {
-        glz::json_t::object_t category{
-            {"id", glz::json_t(uint64_t(id))},
-            {"name", glz::json_t(name)},
-            {"supercategory", glz::json_t("object")}
+        glz::generic::object_t category{
+            {"id", glz::generic(uint64_t(id))},
+            {"name", glz::generic(name)},
+            {"supercategory", glz::generic("object")}
         };
         if(auto it = category_keypoints.find(id); it != category_keypoints.end()) {
-            std::vector<glz::json_t> names;
+            std::vector<glz::generic> names;
             for(const auto& name : it->second)
                 names.emplace_back(name);
-            category["keypoints"] = glz::json_t(names);
-            category["skeleton"] = glz::json_t(std::vector<glz::json_t>{});
+            category["keypoints"] = glz::generic(names);
+            category["skeleton"] = glz::generic(std::vector<glz::generic>{});
         } else if(point_dataset || point_categories.contains(id)) {
             category["trex_annotation_type"] = std::string("point");
             category["trex_point_radius"] = point_radius(id, point_radii, fallback_point_radius);
-            category["keypoints"] = glz::json_t::array_t{glz::json_t("point")};
-            category["skeleton"] = glz::json_t(std::vector<glz::json_t>{});
+            category["keypoints"] = glz::generic::array_t{glz::generic("point")};
+            category["skeleton"] = glz::generic(std::vector<glz::generic>{});
         }
         categories.emplace_back(std::move(category));
     }
 
-    return glz::json_t::object_t{
-        {"images", glz::json_t(images)},
-        {"annotations", glz::json_t(annotation_json)},
-        {"categories", glz::json_t(categories)}
+    return glz::generic::object_t{
+        {"images", glz::generic(images)},
+        {"annotations", glz::generic(annotation_json)},
+        {"categories", glz::generic(categories)}
     };
 }
 

@@ -890,12 +890,12 @@ void update_detect_format_metadata(ImportPreview& preview, const ImportOptions& 
         preview.warnings.push_back("Import will update detect_format to " + imported_format->str() + ".");
 }
 
-const glz::json_t* object_value(const glz::json_t::object_t& object, const std::string& key) {
+const glz::generic* object_value(const glz::generic::object_t& object, const std::string& key) {
     auto it = object.find(key);
     return it == object.end() ? nullptr : &it->second;
 }
 
-double required_number(const glz::json_t::object_t& object, const std::string& key, const std::string& context) {
+double required_number(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = object_value(object, key);
     if(!value || !value->is_number())
         throw InvalidArgumentException(context, " is missing numeric field '", key, "'.");
@@ -906,28 +906,28 @@ bool is_integer_number(double value) {
     return std::isfinite(value) && std::floor(value) == value;
 }
 
-uint64_t required_coco_id(const glz::json_t::object_t& object, const std::string& key, const std::string& context) {
+uint64_t required_coco_id(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = required_number(object, key, context);
     if(value < 0 || !is_integer_number(value))
         throw InvalidArgumentException(context, " field '", key, "' must be a non-negative integer.");
     return narrow_cast<uint64_t>(value);
 }
 
-uint8_t required_coco_class_id(const glz::json_t::object_t& object, const std::string& key, const std::string& context) {
+uint8_t required_coco_class_id(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = required_number(object, key, context);
     if(value < 0 || value > 255 || !is_integer_number(value))
         throw InvalidArgumentException(context, " field '", key, "' must be an integer in the supported Annotation range 0-255.");
     return narrow_cast<uint8_t>(value);
 }
 
-std::string required_string(const glz::json_t::object_t& object, const std::string& key, const std::string& context) {
+std::string required_string(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = object_value(object, key);
     if(!value || !value->is_string())
         throw InvalidArgumentException(context, " is missing string field '", key, "'.");
     return value->get_string();
 }
 
-std::vector<double> json_number_array(const glz::json_t& json, const std::string& context) {
+std::vector<double> json_number_array(const glz::generic& json, const std::string& context) {
     if(!json.is_array())
         throw InvalidArgumentException(context, " must be an array.");
     std::vector<double> values;
@@ -939,7 +939,7 @@ std::vector<double> json_number_array(const glz::json_t& json, const std::string
     return values;
 }
 
-std::vector<blob::Pose::Skeleton::Connection> coco_skeleton_connections(const glz::json_t& skeleton, const std::string& context) {
+std::vector<blob::Pose::Skeleton::Connection> coco_skeleton_connections(const glz::generic& skeleton, const std::string& context) {
     if(!skeleton.is_array())
         throw InvalidArgumentException(context, " skeleton must be an array.");
 
@@ -997,13 +997,13 @@ Annotation coco_bbox_annotation(uint8_t clid, const std::vector<double>& bbox, c
     };
 }
 
-std::optional<std::vector<Annotation::Point_t>> coco_segmentation_points(const glz::json_t& segmentation, const Size2& image_size, const std::string& context) {
+std::optional<std::vector<Annotation::Point_t>> coco_segmentation_points(const glz::generic& segmentation, const Size2& image_size, const std::string& context) {
     if(segmentation.is_null())
         return std::nullopt;
     if(!segmentation.is_array())
         throw InvalidArgumentException(context, " uses unsupported COCO RLE segmentation. Polygon segmentation is required.");
 
-    const glz::json_t* polygon = nullptr;
+    const glz::generic* polygon = nullptr;
     const auto& array = segmentation.get_array();
     if(array.empty())
         return std::nullopt;
@@ -1024,7 +1024,7 @@ std::optional<std::vector<Annotation::Point_t>> coco_segmentation_points(const g
     return points;
 }
 
-std::optional<std::vector<Annotation::Point_t>> coco_keypoints(const glz::json_t& keypoints, const Size2& image_size, const std::string& context) {
+std::optional<std::vector<Annotation::Point_t>> coco_keypoints(const glz::generic& keypoints, const Size2& image_size, const std::string& context) {
     if(keypoints.is_null())
         return std::nullopt;
     auto values = json_number_array(keypoints, context + " keypoints");
@@ -1237,7 +1237,7 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
         if(options.dataset_file.is_folder())
             throw InvalidArgumentException("Expected a COCO annotations JSON file but got folder ", options.dataset_file, ".");
 
-        glz::json_t root;
+        glz::generic root;
         auto text = options.dataset_file.read_file();
         if(auto error = glz::read_json(root, text); error != glz::error_code::none)
             throw InvalidArgumentException("Cannot parse COCO JSON: ", glz::format_error(error, text));

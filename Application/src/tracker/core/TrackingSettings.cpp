@@ -34,8 +34,8 @@ std::string PoseMidlineIndexes::toStr() const {
     return Meta::toStr(indexes);
 }
 
-glz::json_t PoseMidlineIndexes::to_json() const {
-    std::vector<glz::json_t> a;
+glz::generic PoseMidlineIndexes::to_json() const {
+    std::vector<glz::generic> a;
     for(auto i : indexes)
         a.push_back(i);
     return a;
@@ -50,7 +50,7 @@ std::string ShapeList::toStr() const {
     return Meta::toStr(_value);
 }
 
-glz::json_t ShapeList::to_json() const {
+glz::generic ShapeList::to_json() const {
     return cvt2json(_value);
 }
 

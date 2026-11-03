@@ -42,8 +42,8 @@ struct JsonBackedSample {
     file::Path name;
     bool enabled;
 
-    glz::json_t to_json() const {
-        glz::json_t json;
+    glz::generic to_json() const {
+        glz::generic json;
         json["x"] = x;
         json["name"] = cvt2json(name);
         json["enabled"] = enabled;
@@ -403,7 +403,7 @@ TEST(DynamicGUIButtonTest, KeepsInlineConditionTextAndActionInSyncAcrossMissingS
 }
 )json";
 
-    glz::json_t object;
+    glz::generic object;
     const auto parse_error = glz::read_json(object, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
@@ -522,7 +522,7 @@ TEST(DynamicGUIEventCapture, DragActionPreventsParentDragAction) {
 }
 )json";
 
-    glz::json_t object;
+    glz::generic object;
     const auto parse_error = glz::read_json(object, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
@@ -651,7 +651,7 @@ TEST(DynamicGUIPointerEvents, ResolvesDynamicExpressions) {
 }
 )json";
 
-    glz::json_t object;
+    glz::generic object;
     const auto parse_error = glz::read_json(object, json);
     ASSERT_EQ(parse_error, glz::error_code::none)
         << glz::format_error(parse_error, json);
@@ -951,13 +951,13 @@ TYPED_TEST_SUITE(ParseAndResolveTest, ParserImpls);
 TYPED_TEST(ParseAndResolveTest, SettingsConversionWarningsLeavePvTrackingAvailable) {
     for(const auto* filename : {"settings_layout.json", "choose_settings_layout.json", "tracking_settings_layout.json"}) {
         SCOPED_TRACE(filename);
-        glz::json_t layout;
+        glz::generic layout;
         const auto json = (file::Path(TREX_TEST_FOLDER).remove_filename()
                            / "src" / "tracker" / filename).read_file();
         ASSERT_EQ(glz::read_json(layout, json), glz::error_code::none);
 
         std::string convert, track, tooltip;
-        std::function<void(const glz::json_t&)> visit = [&](const glz::json_t& node) {
+        std::function<void(const glz::generic&)> visit = [&](const glz::generic& node) {
             if(node.is_object()) {
                 const auto& fields = node.get_object();
                 if(auto then = fields.find("then"); then != fields.end() && then->second.is_object()) {
@@ -1426,7 +1426,7 @@ TEST(ConditionElementTest, EvaluatesOnlySelectedBranch)
 }
 )json";
 
-    glz::json_t object;
+    glz::generic object;
     auto parse_error = glz::read_json(object, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(object.is_object());
@@ -1516,7 +1516,7 @@ TEST(DynamicGUIErrorRecovery, RestoresCustomObjectsWithoutRecreatingThem)
             state._current_object_handler = handler;
             DrawStructure graph(640, 480);
 
-            glz::json_t object;
+            glz::generic object;
             const auto parse_error = glz::read_json(object, layouts[i]);
             ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, layouts[i]);
             auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
@@ -1594,7 +1594,7 @@ TEST(DynamicGUIErrorRecovery, PointerReplacementDoesNotOverrideUpdateResult)
     auto handler = std::make_shared<CurrentObjectHandler>();
     state._current_object_handler = handler;
     DrawStructure graph(640, 480);
-    glz::json_t object;
+    glz::generic object;
     ASSERT_EQ(glz::read_json(object, R"json({"type":"replaceable"})json"), glz::error_code::none);
     auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
     const auto original = root;
@@ -1632,7 +1632,7 @@ TEST(ConditionElementTest, PropagatesChildUpdateWithoutPointerReplacement)
         auto handler = std::make_shared<CurrentObjectHandler>();
         state._current_object_handler = handler;
         DrawStructure graph(640, 480);
-        glz::json_t object;
+        glz::generic object;
         ASSERT_EQ(glz::read_json(object, json), glz::error_code::none);
         auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
         ASSERT_TRUE(DynamicGUI::update_objects(nullptr, graph, root, context, state));
@@ -1672,7 +1672,7 @@ TEST(DynamicGUIErrorRecovery, RecoversInitialUpdateOfCachedCustomObject)
     auto handler = std::make_shared<CurrentObjectHandler>();
     state._current_object_handler = handler;
     DrawStructure graph(640, 480);
-    glz::json_t object;
+    glz::generic object;
     ASSERT_EQ(glz::read_json(object, R"json({"type":"recoverable","name":"recoverable"})json"), glz::error_code::none);
 
     auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults, 91);
@@ -1706,7 +1706,7 @@ TEST(DynamicGUIErrorRecovery, ConstructionFailureRemainsAnError)
     auto handler = std::make_shared<CurrentObjectHandler>();
     state._current_object_handler = handler;
     DrawStructure graph(640, 480);
-    glz::json_t object;
+    glz::generic object;
     ASSERT_EQ(glz::read_json(object, R"json({"type":"broken"})json"), glz::error_code::none);
     auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
     ASSERT_TRUE(dynamic_cast<ErrorElement*>(root.get()));
@@ -1737,7 +1737,7 @@ TEST(ConditionElementTest, ResolutionFailureDisplaysErrorAndRecovers)
 }
 )json";
 
-    glz::json_t object;
+    glz::generic object;
     const auto parse_error = glz::read_json(object, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
@@ -1827,7 +1827,7 @@ TYPED_TEST(ParseAndResolveTest, SpriteMapFieldAccess)
 {
     State state;
     sprite::Map map;
-    glz::json_t test;
+    glz::generic test;
     test["value"] = 42;
     
     map["x"] = 42;
@@ -1849,10 +1849,10 @@ TYPED_TEST(ParseAndResolveTest, SpriteMapFieldAccess)
 TYPED_TEST(ParseAndResolveTest, JsonSubArrayTest)
 {
     State state;
-    glz::json_t object= cvt2json(std::vector<int>{1,2,3});
+    glz::generic object= cvt2json(std::vector<int>{1,2,3});
 
     Context ctx{
-        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+        VarFunc("object", [&object](const VarProps&) -> glz::generic { return object; })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "[1,2,3]");
@@ -1911,11 +1911,11 @@ TYPED_TEST(ParseAndResolveTest, CanParseGlobalVariable)
 TYPED_TEST(ParseAndResolveTest, JsonSubSubArrayTest)
 {
     State state;
-    glz::json_t object;
+    glz::generic object;
     object["array"] = cvt2json(std::vector<int>{1,2,3});
 
     Context ctx{
-        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+        VarFunc("object", [&object](const VarProps&) -> glz::generic { return object; })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{object.array}", ctx, state), "[1,2,3]");
@@ -1925,12 +1925,12 @@ TYPED_TEST(ParseAndResolveTest, JsonSubSubArrayTest)
 TYPED_TEST(ParseAndResolveTest, JsonDynamicSubSubArrayTest)
 {
     State state;
-    glz::json_t object;
+    glz::generic object;
     object["array"] = cvt2json(std::vector<int>{1,2,3});
 
     Context ctx{
         VarFunc("index", [](const VarProps&){ return 1; }),
-        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+        VarFunc("object", [&object](const VarProps&) -> glz::generic { return object; })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{index}", ctx, state), "1");
@@ -1955,13 +1955,13 @@ TYPED_TEST(ParseAndResolveTest, SpriteSubArrayTest)
 TYPED_TEST(ParseAndResolveTest, JsonObjectSubfieldReplacement)
 {
     State state;
-    glz::json_t object;
+    glz::generic object;
     object["x"] = 42;
     object["name"] = std::string("trex");
     object["enabled"] = true;
 
     Context ctx{
-        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+        VarFunc("object", [&object](const VarProps&) -> glz::generic { return object; })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{object.x}", ctx, state), "42");
@@ -1972,14 +1972,14 @@ TYPED_TEST(ParseAndResolveTest, JsonObjectSubfieldReplacement)
 TYPED_TEST(ParseAndResolveTest, JsonObjectNestedSubfieldReplacement)
 {
     State state;
-    glz::json_t nested;
+    glz::generic nested;
     nested["value"] = 123;
 
-    glz::json_t object;
+    glz::generic object;
     object["value"] = nested;
 
     Context ctx{
-        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+        VarFunc("object", [&object](const VarProps&) -> glz::generic { return object; })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{object.value.value}", ctx, state), "123");
@@ -2000,7 +2000,7 @@ TYPED_TEST(ParseAndResolveTest, NullableObjects)
 {
     State state;
     Context ctx{
-        VarFunc("object", [](const VarProps&) -> glz::json_t { return glz::json_t{}; })
+        VarFunc("object", [](const VarProps&) -> glz::generic { return glz::generic{}; })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "null");
@@ -2011,7 +2011,7 @@ TYPED_TEST(ParseAndResolveTest, EmptyObjects)
 {
     State state;
     Context ctx{
-        VarFunc("object", [](const VarProps&) -> glz::json_t { return glz::json_t::object_t{}; })
+        VarFunc("object", [](const VarProps&) -> glz::generic { return glz::generic::object_t{}; })
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "{}");
@@ -2028,7 +2028,7 @@ TYPED_TEST(ParseAndResolveTest, CustomStructJsonSubfieldReplacement)
     };
 
     Context ctx{
-        VarFunc("custom", [sample](const VarProps&) -> glz::json_t {
+        VarFunc("custom", [sample](const VarProps&) -> glz::generic {
             return cvt2json(sample);
         })
     };
@@ -2048,11 +2048,11 @@ TEST(ScopedVariableTest, DynamicScopedJsonVariableInvalidatesPreparedPatternCach
     auto pattern = cmn::pattern::UnresolvedStringPattern::prepare("{i.name}");
 
     {
-        glz::json_t first;
+        glz::generic first;
         first["name"] = std::string("alpha");
 
         auto scope = handler->scope();
-        scope.set("i", VarFunc("i", [first](const VarProps&) -> glz::json_t {
+        scope.set("i", VarFunc("i", [first](const VarProps&) -> glz::generic {
             return first;
         }).second);
 
@@ -2060,11 +2060,11 @@ TEST(ScopedVariableTest, DynamicScopedJsonVariableInvalidatesPreparedPatternCach
     }
 
     {
-        glz::json_t second;
+        glz::generic second;
         second["name"] = std::string("beta");
 
         auto scope = handler->scope();
-        scope.set("i", VarFunc("i", [second](const VarProps&) -> glz::json_t {
+        scope.set("i", VarFunc("i", [second](const VarProps&) -> glz::generic {
             return second;
         }).second);
 
@@ -2079,8 +2079,8 @@ TEST(ScopedVariableTest, StringAndDynamicConflictsShadowGracefully)
     state._current_object_handler = handler;
 
     Context ctx{
-        VarFunc("item", [](const VarProps&) -> glz::json_t {
-            glz::json_t value;
+        VarFunc("item", [](const VarProps&) -> glz::generic {
+            glz::generic value;
             value["name"] = std::string("global");
             return value;
         })
@@ -2088,8 +2088,8 @@ TEST(ScopedVariableTest, StringAndDynamicConflictsShadowGracefully)
 
     {
         auto outer = handler->scope();
-        outer.set("item", VarFunc("item", [](const VarProps&) -> glz::json_t {
-            glz::json_t value;
+        outer.set("item", VarFunc("item", [](const VarProps&) -> glz::generic {
+            glz::generic value;
             value["name"] = std::string("outer");
             return value;
         }).second);
@@ -2104,8 +2104,8 @@ TEST(ScopedVariableTest, StringAndDynamicConflictsShadowGracefully)
         EXPECT_EQ(parse_text("{.item.name}", ctx, state), "");
         EXPECT_FALSE(ctx.has("item", state));
 
-        inner.set("item", VarFunc("item", [](const VarProps&) -> glz::json_t {
-            glz::json_t value;
+        inner.set("item", VarFunc("item", [](const VarProps&) -> glz::generic {
+            glz::generic value;
             value["name"] = std::string("inner");
             return value;
         }).second);
@@ -2500,7 +2500,7 @@ TEST(EachElementTest, NestedEachRestoresOuterScope) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -2585,7 +2585,7 @@ TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -2602,8 +2602,8 @@ TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
     };
 
     Context context{
-        VarFunc("annotations", [&source](const VarProps&) -> std::vector<glz::json_t> {
-            std::vector<glz::json_t> result;
+        VarFunc("annotations", [&source](const VarProps&) -> std::vector<glz::generic> {
+            std::vector<glz::generic> result;
             result.reserve(source.size());
 
             for(auto& object : source) {
@@ -2630,9 +2630,9 @@ TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
                     continue;
                 }
 
-                result.push_back(glz::json_t::object_t{
+                result.push_back(glz::generic::object_t{
                     {"id", object.uid},
-                    {"seed_frame", glz::json_t{0}},
+                    {"seed_frame", glz::generic{0}},
                     {"type", object.type},
                     {"x", bds.x},
                     {"y", bds.y},
@@ -2692,7 +2692,7 @@ TEST(EachElementTest, GenericVectorLoopUpdatesStringifiedValues) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -2747,7 +2747,7 @@ TEST(EachElementTest, CustomLoopVariableNameWorksForGenericVectorLoops) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -2789,7 +2789,7 @@ TEST(EachElementTest, SpriteMapSubfieldArrayLoopUpdatesValues) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -2859,7 +2859,7 @@ TEST(EachElementTest, CustomLoopVariableNamesWorkInNestedObjectLoops) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -2932,27 +2932,27 @@ TEST(EachElementTest, VectorOfJsonObjectsExpandsObjectFields) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
 
-    std::vector<glz::json_t> items;
+    std::vector<glz::generic> items;
     {
-        glz::json_t first;
+        glz::generic first;
         first["x"] = 42;
         first["name"] = std::string("trex");
         items.push_back(first);
     }
     {
-        glz::json_t second;
+        glz::generic second;
         second["x"] = 7;
         second["name"] = std::string("raptor");
         items.push_back(second);
     }
 
     Context context{
-        VarFunc("items", [&items](const VarProps&) -> std::vector<glz::json_t> { return items; })
+        VarFunc("items", [&items](const VarProps&) -> std::vector<glz::generic> { return items; })
     };
 
     State state;
@@ -2983,21 +2983,21 @@ TEST(EachElementTest, VectorOfJsonObjectsExpandsObjectFields) {
 TEST(EachElementTest, JsonCallbacksRetainItemsAcrossSourceUpdates) {
     for(int return_kind = 0; return_kind < 3; ++return_kind) {
         SCOPED_TRACE(return_kind);
-        glz::json_t source;
+        glz::generic source;
         ASSERT_EQ(glz::read_json(source, R"json({"rows":[{"name":"first"}]})json"), glz::error_code::none);
 
         Context context;
         if(return_kind == 0) {
-            context.variables["items"] = VarFunc("items", [&](const VarProps& props) -> glz::json_t {
+            context.variables["items"] = VarFunc("items", [&](const VarProps& props) -> glz::generic {
                 EXPECT_THAT(props.parameters, ::testing::ElementsAre("1"));
                 return std::move(source);
             }).second;
         } else if(return_kind == 1) {
-            context.variables["items"] = VarFunc("items", [&](const VarProps&) -> glz::json_t& {
+            context.variables["items"] = VarFunc("items", [&](const VarProps&) -> glz::generic& {
                 return source;
             }).second;
         } else {
-            context.variables["items"] = VarFunc("items", [&](const VarProps&) -> const glz::json_t& {
+            context.variables["items"] = VarFunc("items", [&](const VarProps&) -> const glz::generic& {
                 return source;
             }).second;
         }
@@ -3020,7 +3020,7 @@ TEST(EachElementTest, JsonCallbacksRetainItemsAcrossSourceUpdates) {
         auto handler = std::make_shared<CurrentObjectHandler>();
         state._current_object_handler = handler;
         DrawStructure graph(640, 480);
-        glz::json_t obj;
+        glz::generic obj;
         ASSERT_EQ(glz::read_json(obj, R"json({
             "type":"each", "var":"{items.rows:1}", "do":{"type":"capture_item"}
         })json"), glz::error_code::none);
@@ -3036,14 +3036,14 @@ TEST(EachElementTest, JsonCallbacksRetainItemsAcrossSourceUpdates) {
             ASSERT_EQ(source["rows"].get_array().size(), 1u);
             EXPECT_EQ(source["rows"][0]["name"].get_string(), "first");
         }
-        source = glz::json_t{};
+        source = glz::generic{};
         ASSERT_EQ(glz::read_json(source, R"json({"rows":[{"name":"second"}]})json"), glz::error_code::none);
         EXPECT_EQ(first_callback(), "first:0");
 
         const auto previous_count = callbacks.size();
         ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
         ASSERT_GT(callbacks.size(), previous_count);
-        source = glz::json_t{};
+        source = glz::generic{};
         EXPECT_EQ(callbacks.back()(), "second:0");
         EXPECT_EQ(first_callback(), "first:0");
         EXPECT_TRUE(handler->capture_scoped_variable_values().empty());
@@ -3063,25 +3063,25 @@ TEST(EachElementTest, CustomLoopVariableNameWorksForJsonObjectLoops) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
 
-    std::vector<glz::json_t> items;
+    std::vector<glz::generic> items;
     {
-        glz::json_t first;
+        glz::generic first;
         first["name"] = std::string("trex");
         items.push_back(first);
     }
     {
-        glz::json_t second;
+        glz::generic second;
         second["name"] = std::string("raptor");
         items.push_back(second);
     }
 
     Context context{
-        VarFunc("items", [&items](const VarProps&) -> std::vector<glz::json_t> { return items; })
+        VarFunc("items", [&items](const VarProps&) -> std::vector<glz::generic> { return items; })
     };
 
     State state;
@@ -3116,7 +3116,7 @@ TEST(EachElementTest, CustomLoopVariableNameWorksForStringArrayLoops) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -3147,7 +3147,7 @@ TEST(EachElementTest, CustomLoopVariableNameWorksForStringArrayLoops) {
 }
 
 TEST(EachElementTest, NestedStringArraysUseReferenceItems) {
-    glz::json_t obj;
+    glz::generic obj;
     ASSERT_EQ(glz::read_json(obj, R"json({
         "type":"each", "var":"[[1,2]]",
         "do":{
@@ -3203,7 +3203,7 @@ TEST(EachElementTest, ConditionBranchNewlyParsedKeepsOuterScopedVariables) {
 }
 )json";
 
-        glz::json_t obj;
+        glz::generic obj;
         auto parse_error = glz::read_json(obj, json);
         ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
         ASSERT_TRUE(obj.is_object());
@@ -3297,7 +3297,7 @@ TEST(EachElementTest, ConditionBranchNestedEachUpdatesWithoutOuterLoopCacheMiss)
 }
 )json";
 
-        glz::json_t obj;
+        glz::generic obj;
         auto parse_error = glz::read_json(obj, json);
         ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
         ASSERT_TRUE(obj.is_object());
@@ -3371,7 +3371,7 @@ TEST(ListElementTest, DynamicListTemplateRendersAndUpdatesItems) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -3436,10 +3436,10 @@ TEST(ListElementTest, DynamicListTemplateRendersAndUpdatesItems) {
 }
 
 TEST(ListElementTest, DynamicListTemplateDispatchesActionsOnSelection) {
-    glz::json_t obj = glz::json_t::object_t{
+    glz::generic obj = glz::generic::object_t{
         {"type", "list"},
         {"var", "items"},
-        {"template", glz::json_t::object_t{
+        {"template", glz::generic::object_t{
             {"text", "{i.name}"},
             {"action", "select:{i.name}:{index}"},
             {"disabled", "{i.disabled}"}
@@ -3506,17 +3506,17 @@ TEST(ListElementTest, DynamicListTemplateDispatchesActionsOnSelection) {
 }
 
 /*TEST(EventBindingTest, JsonLoopClickActionUsesUpdatedItem) {
-    const auto object = Meta::fromStr<glz::json_t>(R"json({
+    const auto object = Meta::fromStr<glz::generic>(R"json({
         "type":"each", "var":"items",
         "do":{
             "type":"rect", "size":"[{i.value},30]",
             "clickable":true, "click":"select:{i.value}"
         }
     })json");
-    auto items = Meta::fromStr<glz::json_t>(R"json([{"value":10}])json");
+    auto items = Meta::fromStr<glz::generic>(R"json([{"value":10}])json");
     std::string selected;
     Context context{
-        VarFunc("items", [&](const VarProps&) -> glz::json_t {
+        VarFunc("items", [&](const VarProps&) -> glz::generic {
             return items;
         }),
         ActionFunc("select", [&](const Action& action) {
@@ -3566,7 +3566,7 @@ TEST(EventBindingTest, ClickActionsOnlyFireOnMouseButtonWithScopedContext) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -3647,7 +3647,7 @@ TEST(EventBindingTest, NestedEachClickPreservesOuterAndInnerScopedContext) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     const auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
@@ -3739,7 +3739,7 @@ TEST(LineElementTest, ParsesLineFromEndpoints)
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -3770,7 +3770,7 @@ TEST(LineElementTest, UpdatesLinePatterns)
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -3834,7 +3834,7 @@ TEST(LineElementTest, UpdatesParameterizedLineEndpointPatterns)
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -4422,7 +4422,7 @@ TEST(ConditionElementTest, IfInsideEachKeepsScopedVariables)
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
@@ -4495,7 +4495,7 @@ TEST(DynamicGUIListTest, KeepsItemFillAndTextColorAttributesDistinct) {
   }
 }
 )json";
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
@@ -4891,7 +4891,7 @@ TEST(DynamicGUITagListTest, ResolvesSourcesStylesAndControlledActions) {
 }
 )json";
 
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
@@ -5020,7 +5020,7 @@ TEST(DynamicGUITagListTest, SupportsLiteralAndGlobalCatalogsAndDisplayOnlyMode) 
     DrawStructure graph(640, 480);
 
     auto parse_tag_list = [&](std::string_view source) {
-        glz::json_t obj;
+        glz::generic obj;
         const auto error = glz::read_json(obj, source);
         EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, source);
         State state;
@@ -5061,17 +5061,17 @@ TEST(DynamicGUITagListTest, SupportsSetAndJsonArrayVariableSources) {
   "add_action": "add"
 }
 )json";
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
     std::set<std::string> selected{"Beta", "Alpha"};
-    glz::json_t catalog;
+    glz::generic catalog;
     parse_error = glz::read_json(catalog, R"json(["Alpha", "Beta", "Gamma"])json");
     ASSERT_EQ(parse_error, glz::error_code::none);
     Context context{
         VarFunc("selected", [&selected](const VarProps&) -> std::set<std::string> { return selected; }),
-        VarFunc("catalog", [&catalog](const VarProps&) -> glz::json_t { return catalog; }),
+        VarFunc("catalog", [&catalog](const VarProps&) -> glz::generic { return catalog; }),
         ActionFunc("add", [](Action) {})
     };
     State state;
@@ -5103,7 +5103,7 @@ TEST(DynamicGUITagListTest, ReportsMissingControlledSourceAndMissingAddCatalog) 
     state._current_object_handler = handler;
 
     auto parse = [&](std::string_view source) {
-        glz::json_t obj;
+        glz::generic obj;
         const auto error = glz::read_json(obj, source);
         EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, source);
         return parse_object(nullptr, obj.get_object(), context, state, context.defaults);
@@ -5128,7 +5128,7 @@ TEST(DynamicGUIFloatingLayoutTest, ParsesPolicyAndTracksDynamicMaxSize) {
   ]
 }
 )json";
-    glz::json_t obj;
+    glz::generic obj;
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
@@ -5172,7 +5172,7 @@ TEST(DynamicGUIFloatingLayoutTest, ReportsUnknownPolicyAsAnErrorElement) {
   "children": []
 }
 )json";
-    glz::json_t obj;
+    glz::generic obj;
     const auto error = glz::read_json(obj, json);
     ASSERT_EQ(error, glz::error_code::none) << glz::format_error(error, json);
 

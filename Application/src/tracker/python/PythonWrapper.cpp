@@ -646,21 +646,21 @@ bool valid(const std::string& name, const std::string& m) {
     return impl.valid(name, m);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function) {
     auto& impl = active_python_impl();
     if (!impl.run_no_args)
         throw SoftException("trex_python did not register run(module, function).");
     return impl.run_no_args(module_name, function);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const std::string& parm) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const std::string& parm) {
     auto& impl = active_python_impl();
     if (!impl.run_string_arg)
         throw SoftException("trex_python did not register run(module, function, string).");
     return impl.run_string_arg(module_name, function, parm);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const glz::json_t& parm) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const glz::generic& parm) {
     auto& impl = active_python_impl();
     if (!impl.run_json_arg)
         throw SoftException("trex_python did not register run(module, function, json).");

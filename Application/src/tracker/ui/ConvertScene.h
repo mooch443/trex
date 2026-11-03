@@ -22,7 +22,7 @@ class Label;
 class ExternalImage;
 
 class ConvertScene : public Scene {
-    static glz::json_t fish;
+    static glz::generic fish;
     static cmn::VideoInfo _video_info;
     std::atomic<Frame_t> _video_length;
     

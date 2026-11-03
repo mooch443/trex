@@ -12,7 +12,7 @@ public:
     using base_t::base_t;
 
     std::string toStr() const { return cmn::Meta::toStr<base_t>((const base_t&)*this); }
-    glz::json_t to_json() const { return cvt2json((const base_t&)*this); }
+    glz::generic to_json() const { return cvt2json((const base_t&)*this); }
     consteval static std::string_view class_name() { return "FrameTags"; }
     static FrameTags fromStr(cmn::StringLike auto && str) {
         FrameTags tags;

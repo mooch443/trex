@@ -38,7 +38,7 @@ struct PredictionFilter {
     std::optional<std::vector<uint16_t>> _inverted_from;
     
     std::string toStr() const;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     static consteval std::string_view class_name() { return "PredictionFilter"; }
     
     static std::vector<uint16_t> invert(const std::vector<uint16_t>& ids, const yolo::names::map_t& detect_classes);
@@ -98,7 +98,7 @@ struct KeypointFormat {
     uint8_t n_dims{0};
     
     constexpr bool operator==(const KeypointFormat&) const = default;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static KeypointFormat fromStr(cmn::StringLike auto&& str) {
         if(str == "null") {
@@ -122,7 +122,7 @@ struct KeypointNames {
     std::optional<std::string> name(size_t index) const;
     
     constexpr bool operator==(const KeypointNames&) const = default;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static KeypointNames fromStr(cmn::StringLike auto&& str) {
         if(str == "null") {
@@ -182,7 +182,7 @@ struct DetectResolution {
         }
     }
     
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static consteval std::string_view class_name() { return "DetectResolution"; }
 };
@@ -230,7 +230,7 @@ struct VIWeights {
     std::string toStr() const;
     static VIWeights fromStr(const std::string&);
     static consteval std::string_view class_name() { return "VIWeights"; }
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
 };
 
 }

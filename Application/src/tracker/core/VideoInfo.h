@@ -14,7 +14,7 @@ struct VideoInfo {
     Frame_t length;
     Frame_t current_frame_index; // Pipeline index; invalid until supplied.
 
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
 };
 

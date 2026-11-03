@@ -53,7 +53,7 @@ void SAM3::reinit(track::ModuleProxy& proxy) {
         throw U_EXCEPTION("SAM3 requires `detect_model` to point to the SAM3 weights path.");
     }
 
-    glz::json_t create_req {
+    glz::generic create_req {
         {"weights_path", weights.str()},
         {"imgsz", cvt2json(std::vector<uint16_t>{
             READ_SETTING(detect_resolution, detect::DetectResolution).width,

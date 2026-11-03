@@ -11,7 +11,7 @@ using namespace track::detect;
 
 namespace {
 
-std::string json_string(const glz::json_t& json) {
+std::string json_string(const glz::generic& json) {
     return glz::write_json(json).value();
 }
 

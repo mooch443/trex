@@ -57,7 +57,7 @@ struct Idx_t {
             return Idx_t();
         return Idx_t(cmn::Meta::fromStr<uint32_t>(str));
     }
-    glz::json_t to_json() const {
+    glz::generic to_json() const {
         if(not valid())
             return {};
         return get();

@@ -34,8 +34,8 @@ std::string join(const std::vector<std::string>& parts, const std::string& separ
 struct SourceChoiceItems {
     const ImportPreview* preview{nullptr};
 
-    std::vector<glz::json_t> to_list() const {
-        std::vector<glz::json_t> items;
+    std::vector<glz::generic> to_list() const {
+        std::vector<glz::generic> items;
         if(not preview)
             return items;
 
@@ -46,15 +46,15 @@ struct SourceChoiceItems {
             if(selected)
                 detail = "current import source";
 
-            items.emplace_back(glz::json_t::object_t{
-                {"name", glz::json_t(source)},
-                {"text", glz::json_t(std::string(selected ? "<b>" : "") + source + (selected ? "</b>" : ""))},
-                {"detail", glz::json_t(detail)},
-                {"selected", glz::json_t(selected)}
+            items.emplace_back(glz::generic::object_t{
+                {"name", glz::generic(source)},
+                {"text", glz::generic(std::string(selected ? "<b>" : "") + source + (selected ? "</b>" : ""))},
+                {"detail", glz::generic(detail)},
+                {"selected", glz::generic(selected)}
             });
         }
         
-        std::sort(items.begin(), items.end(), [](const glz::json_t& A, const glz::json_t& B){
+        std::sort(items.begin(), items.end(), [](const glz::generic& A, const glz::generic& B){
             return std::make_tuple(not A.get_object().at("selected").get_boolean(), A.get_object().at("name").get_string()) < std::make_tuple(not B.get_object().at("selected").get_boolean(), B.get_object().at("name").get_string());
         });
         return items;
@@ -77,7 +77,7 @@ struct DrawDetectAnnotationImportOptions::Data {
     bool _metadata_confirmed{false};
     bool _preview_dirty{true};
     ImportPreview _preview;
-    glz::json_t _info;
+    glz::generic _info;
 
     Data()
         : parent(Box(120, 90, 0, 0))
@@ -133,9 +133,9 @@ struct DrawDetectAnnotationImportOptions::Data {
         return options;
     }
 
-    glz::json_t preview_text() const {
+    glz::generic preview_text() const {
         if(_dataset_file.empty())
-            return glz::json_t{};
+            return glz::generic{};
 
         std::string text;
         if(_preview.can_import()) {
@@ -208,7 +208,7 @@ struct DrawDetectAnnotationImportOptions::Data {
         else if(!_preview.warnings.empty())
             text += "\n<yellow>" + settings::htmlify(_preview.warnings.front()) + "</yellow>";
 
-        return glz::json_t::val_t{text};
+        return glz::generic::val_t{text};
     }
 
     void refresh_preview() {
@@ -244,47 +244,47 @@ struct DrawDetectAnnotationImportOptions::Data {
         const auto detected_format = dataset::format_from_dataset_file(_dataset_file);
         const auto detected_format_text = detected_format ? detected_format->str() : std::string("unknown");
 
-        _info = glz::json_t::object_t{
-            {"dataset_file", glz::json_t(_dataset_file.str())},
-            {"mapping_csv", glz::json_t(_mapping_csv.str())},
-            {"selected_source", glz::json_t(_preview.selected_source_basename)},
-            {"auto_source", glz::json_t(_preview.auto_source_basename)},
+        _info = glz::generic::object_t{
+            {"dataset_file", glz::generic(_dataset_file.str())},
+            {"mapping_csv", glz::generic(_mapping_csv.str())},
+            {"selected_source", glz::generic(_preview.selected_source_basename)},
+            {"auto_source", glz::generic(_preview.auto_source_basename)},
             {"source_choices", cvt2json(source_choices.to_list())},
-            {"format", glz::json_t(detected_format_text)},
-            {"import_task", glz::json_t(_task.str())},
-            {"file_hint", glz::json_t("YOLO .yaml/.yml or COCO .json")},
-            {"file_placeholder", glz::json_t("/path/to/data.yaml or /path/to/_annotations.coco.json")},
-            {"mode", glz::json_t(_mode.str())},
-            {"scope", glz::json_t(_scope.str())},
-            {"has_dataset_file", glz::json_t(!_dataset_file.empty())},
-            {"can_import", glz::json_t(can_import)},
-            {"metadata_changes", glz::json_t(metadata_changes)},
-            {"metadata_confirmed", glz::json_t(_metadata_confirmed)},
+            {"format", glz::generic(detected_format_text)},
+            {"import_task", glz::generic(_task.str())},
+            {"file_hint", glz::generic("YOLO .yaml/.yml or COCO .json")},
+            {"file_placeholder", glz::generic("/path/to/data.yaml or /path/to/_annotations.coco.json")},
+            {"mode", glz::generic(_mode.str())},
+            {"scope", glz::generic(_scope.str())},
+            {"has_dataset_file", glz::generic(!_dataset_file.empty())},
+            {"can_import", glz::generic(can_import)},
+            {"metadata_changes", glz::generic(metadata_changes)},
+            {"metadata_confirmed", glz::generic(_metadata_confirmed)},
             
             // Preview counts
-            {"counts", glz::json_t::object_t{
-                {"boxes", glz::json_t(_preview.counts.boxes)},
-                {"segmentations", glz::json_t(_preview.counts.segmentations)},
-                {"poses", glz::json_t(_preview.counts.poses)},
-                {"obbs", glz::json_t(_preview.counts.obbs)},
-                {"points", glz::json_t(_preview.counts.points)},
-                {"empties", glz::json_t(_preview.counts.empties)},
-                {"total", glz::json_t(_preview.counts.total())}
+            {"counts", glz::generic::object_t{
+                {"boxes", glz::generic(_preview.counts.boxes)},
+                {"segmentations", glz::generic(_preview.counts.segmentations)},
+                {"poses", glz::generic(_preview.counts.poses)},
+                {"obbs", glz::generic(_preview.counts.obbs)},
+                {"points", glz::generic(_preview.counts.points)},
+                {"empties", glz::generic(_preview.counts.empties)},
+                {"total", glz::generic(_preview.counts.total())}
             }},
             
             // Preview details
-            {"task", glz::json_t(_preview.task.str())},
-            {"annotated_frames", glz::json_t(_preview.annotated_frames)},
-            {"mapped_from_filenames", glz::json_t(_preview.mapped_from_filenames)},
-            {"mapped_from_csv", glz::json_t(_preview.mapped_from_csv)},
-            {"skipped_other_sources", glz::json_t(_preview.skipped_other_sources)},
+            {"task", glz::generic(_preview.task.str())},
+            {"annotated_frames", glz::generic(_preview.annotated_frames)},
+            {"mapped_from_filenames", glz::generic(_preview.mapped_from_filenames)},
+            {"mapped_from_csv", glz::generic(_preview.mapped_from_csv)},
+            {"skipped_other_sources", glz::generic(_preview.skipped_other_sources)},
             
             // Metadata change details
-            {"metadata_class_names_changed", glz::json_t(_preview.metadata.class_names_changed)},
-            {"metadata_keypoint_names_changed", glz::json_t(_preview.metadata.keypoint_names_changed)},
-            {"metadata_skeletons_changed", glz::json_t(_preview.metadata.skeletons_changed)},
-            {"metadata_detect_format_changed", glz::json_t(_preview.metadata.detect_format_changed)},
-            {"metadata_point_radii_changed", glz::json_t(_preview.metadata.point_radii_changed)},
+            {"metadata_class_names_changed", glz::generic(_preview.metadata.class_names_changed)},
+            {"metadata_keypoint_names_changed", glz::generic(_preview.metadata.keypoint_names_changed)},
+            {"metadata_skeletons_changed", glz::generic(_preview.metadata.skeletons_changed)},
+            {"metadata_detect_format_changed", glz::generic(_preview.metadata.detect_format_changed)},
+            {"metadata_point_radii_changed", glz::generic(_preview.metadata.point_radii_changed)},
             
             {"detect_classes", cvt2json(_preview.metadata.imported_class_names) },
             {"detect_skeletons", cvt2json(_preview.metadata.imported_skeletons) },
@@ -293,13 +293,13 @@ struct DrawDetectAnnotationImportOptions::Data {
             {"detect_point_radii", cvt2json(_preview.metadata.imported_point_radii) },
             
             // Errors and warnings
-            {"has_errors", glz::json_t(!_preview.errors.empty())},
-            {"first_error", glz::json_t(_preview.errors.empty() ? std::string() : _preview.errors.front())},
-            {"has_warnings", glz::json_t(!_preview.warnings.empty())},
-            {"first_warning", glz::json_t(_preview.warnings.empty() ? std::string() : _preview.warnings.front())},
+            {"has_errors", glz::generic(!_preview.errors.empty())},
+            {"first_error", glz::generic(_preview.errors.empty() ? std::string() : _preview.errors.front())},
+            {"has_warnings", glz::generic(!_preview.warnings.empty())},
+            {"first_warning", glz::generic(_preview.warnings.empty() ? std::string() : _preview.warnings.front())},
             
             // Source count (for "all X dataset sources")
-            {"source_count", glz::json_t(_preview.source_choices.size())}
+            {"source_count", glz::generic(_preview.source_choices.size())}
         };
     }
 
@@ -437,10 +437,10 @@ struct DrawDetectAnnotationImportOptions::Data {
                 };
 
                 context.variables = {
-                    VarFunc("info", [this](const VarProps&) -> const glz::json_t& {
+                    VarFunc("info", [this](const VarProps&) -> const glz::generic& {
                         return _info;
                     }),
-                    VarFunc("source_choices", [this](const VarProps&) -> std::vector<glz::json_t> {
+                    VarFunc("source_choices", [this](const VarProps&) -> std::vector<glz::generic> {
                         return SourceChoiceItems{&_preview}.to_list();
                     })
                 };

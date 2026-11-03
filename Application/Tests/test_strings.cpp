@@ -22,6 +22,8 @@
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
 
+static_assert(cmn::Meta::name<glz::generic>() == "json");
+
 static constexpr auto lower = cmn::utils::lowercase("hiIbImS");
 
 using namespace cmn;
@@ -87,7 +89,7 @@ struct Object {
 
 struct MainFile {
     std::vector<Object> objects;
-    std::optional<glz::json_t> defaults;
+    std::optional<glz::generic> defaults;
 };
 
 
@@ -1833,7 +1835,7 @@ TEST(ConversionTest, VideoInfoSerializesAllFields) {
 
     const auto serialized = glz::write_json(info);
     ASSERT_TRUE(serialized.has_value());
-    glz::json_t reflected;
+    glz::generic reflected;
     ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
 
     for(const auto& json : {info.to_json(), reflected}) {
@@ -1855,7 +1857,7 @@ TEST(ConversionTest, VideoInfoPreservesInvalidFrames) {
     const VideoInfo info{};
     const auto serialized = glz::write_json(info);
     ASSERT_TRUE(serialized.has_value());
-    glz::json_t reflected;
+    glz::generic reflected;
     ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
 
     for(const auto& json : {info.to_json(), reflected}) {
@@ -1883,7 +1885,7 @@ TEST(ConversionTest, FileObjects) {
 }
 
 TEST(ConversionTest, RealObjects) {
-    /*glz::json_t json{};
+    /*glz::generic json{};
     std::string buffer = R"([18446744073709551615,"Hello World",{"pi":3.14}])";
     glz::read_json(json, buffer);
     ASSERT_EQ(json[1].get<std::string>(), "Hello World");*/
@@ -1912,7 +1914,7 @@ TEST(ConversionTest, RealObjects) {
 }
 
 TEST(ConversionTest, Website) {
-    /*glz::json_t json{};
+    /*glz::generic json{};
     std::string buffer = R"([18446744073709551615,"Hello World",{"pi":3.14}])";
     glz::read_json(json, buffer);
     ASSERT_EQ(json[1].get<std::string>(), "Hello World");*/
@@ -1929,17 +1931,17 @@ TEST(ConversionTest, Website) {
 }
 
 /*TEST(ConversionTest, Basic) {
-    glz::json_t tuple_test = { 5.5, 5.5 };
+    glz::generic tuple_test = { 5.5, 5.5 };
     
     std::string s{};
     double dbl = 3.14;
-    glz::json_t dblj = dbl;
+    glz::generic dblj = dbl;
     glz::write_json(dblj, s);
     
     uint64_t nr = 55;
 
     static_assert(glz::detail::num_t<uint64_t>);
-    glz::json_t j = nr;
+    glz::generic j = nr;
     ASSERT_TRUE(j.is_number());
     ASSERT_TRUE(j.holds<uint64_t>());
     glz::write_json(j, s);
@@ -1948,7 +1950,7 @@ TEST(ConversionTest, Website) {
     
     glz::write_json(j, s);
     
-    glz::json_t json = 64u;
+    glz::generic json = 64u;
     glz::error_ctx error;
     EXPECT_NO_THROW(error = glz::read_json(json, s));
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
@@ -1961,7 +1963,7 @@ class NumberConversionTest : public ::testing::Test {
 protected:
     void test_conversion(T value) {
         std::string s;
-        glz::json_t json = value;
+        glz::generic json = value;
         glz::write_json(json, s);
 
         std::string expected;
@@ -1975,7 +1977,7 @@ protected:
 
         EXPECT_EQ(s, expected);
         
-        glz::json_t json_read;
+        glz::generic json_read;
         auto error = glz::read_json(json_read, s);
         EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
         EXPECT_EQ(json_read.get<T>(), value);
@@ -1996,12 +1998,12 @@ TYPED_TEST(NumberConversionTest, BasicConversion) {
 TEST(FloatDoubleConversionTest, PrecisionCheck) {
     std::string s;
     double dbl = 3.141592653589793;
-    glz::json_t dblj = dbl;
+    glz::generic dblj = dbl;
     glz::write_json(dblj, s);
     
     EXPECT_EQ(s, "3.141592653589793");
 
-    glz::json_t json;
+    glz::generic json;
     auto error = glz::read_json(json, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json.get_float(), 3.141592653589793);
@@ -2010,12 +2012,12 @@ TEST(FloatDoubleConversionTest, PrecisionCheck) {
 TEST(FloatDoubleConversionTest, ScientificNotation) {
     std::string s;
     double dbl = 1.23e-10;
-    glz::json_t dblj = dbl;
+    glz::generic dblj = dbl;
     glz::write_json(dblj, s);
     
     EXPECT_EQ(s, "1.23E-10");
 
-    glz::json_t json;
+    glz::generic json;
     auto error = glz::read_json(json, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json.get_float(), 1.23e-10);
@@ -2031,23 +2033,23 @@ TEST(FloatDoubleConversionTest, ParsesScientificNotation) {
 TEST(IntegerConversionTest, LargeIntegers) {
     std::string s;
     uint64_t large_uint = 18446744073709551615ULL; // Max value for uint64_t
-    glz::json_t json_uint = large_uint;
+    glz::generic json_uint = large_uint;
     glz::write_json(json_uint, s);
     
     EXPECT_EQ(s, "18446744073709551615");
 
-    glz::json_t json;
+    glz::generic json;
     auto error = glz::read_json(json, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json.get<uint64_t>(), 18446744073709551615ULL);
 
     int64_t large_int = 9223372036854775807LL; // Max value for int64_t
-    glz::json_t json_int = large_int;
+    glz::generic json_int = large_int;
     glz::write_json(json_int, s);
     
     EXPECT_EQ(s, "9223372036854775807");
 
-    glz::json_t json_i;
+    glz::generic json_i;
     error = glz::read_json(json_i, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json_i.get<int64_t>(), 9223372036854775807LL);
@@ -2055,21 +2057,21 @@ TEST(IntegerConversionTest, LargeIntegers) {
 
 TEST(ErrorHandlingTest, InvalidJson) {
     std::string invalid_json = R"({"invalid": )"; // malformed JSON
-    glz::json_t input;
+    glz::generic input;
     auto error = glz::read_json(input, invalid_json);
     EXPECT_NE(error, glz::error_code::none);
 }
 
 TEST(ErrorHandlingTest, NonNumberToNumber) {
     std::string invalid_json = R"("not a number")";
-    glz::json_t input;
+    glz::generic input;
     auto error = glz::read_json(input, invalid_json);
     EXPECT_NE(error, glz::error_code::none);
 }
 
 TEST(ErrorHandlingTest, ValidStringToNumber) {
     std::string valid_number = "123";
-    glz::json_t input;
+    glz::generic input;
     auto error = glz::read_json(input, valid_number);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, valid_number);
     EXPECT_EQ(input.get<int64_t>(), 123);

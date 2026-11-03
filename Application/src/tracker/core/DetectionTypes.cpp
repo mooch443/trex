@@ -40,7 +40,7 @@ std::string PredictionFilter::toStr() const {
     return Meta::toStr(detect_only);
 }
 
-glz::json_t PredictionFilter::to_json() const {
+glz::generic PredictionFilter::to_json() const {
     return toStr(); /// we return a string here because it will include the - sign that is not valid JSON
 }
 
@@ -116,9 +116,9 @@ std::string KeypointNames::toStr() const {
     return cmn::Meta::toStr(names.value());
 }
 
-glz::json_t KeypointNames::to_json() const {
+glz::generic KeypointNames::to_json() const {
     if(not valid())
-        return glz::json_t::null_t{};
+        return glz::generic::null_t{};
     return cvt2json(names.value());
 }
 
@@ -134,9 +134,9 @@ std::string KeypointFormat::toStr() const {
     return "[" + cmn::Meta::toStr(n_points) + "," + cmn::Meta::toStr(n_dims) + "]";
 }
 
-glz::json_t KeypointFormat::to_json() const {
+glz::generic KeypointFormat::to_json() const {
     if(not valid())
-        return glz::json_t::null_t{};
+        return glz::generic::null_t{};
     return { n_points, n_dims };
 }
 
@@ -314,7 +314,7 @@ bool is_default_model(const file::Path& path) {
 
 }
 
-glz::json_t DetectResolution::to_json() const {
+glz::generic DetectResolution::to_json() const {
     return { height, width };
 }
 std::string DetectResolution::toStr() const {
@@ -397,15 +397,15 @@ std::string VIWeights::toStr() const {
     return glz::write_json(to_json()).value();
 }
 
-glz::json_t VIWeights::to_json() const {
-    glz::json_t json = std::initializer_list<std::pair<const char*, glz::json_t>>{
+glz::generic VIWeights::to_json() const {
+    glz::generic json = std::initializer_list<std::pair<const char*, glz::generic>>{
         {"path", _path.to_json()},
-        {"uniqueness", _uniqueness ? glz::json_t(_uniqueness.value()) : nullptr},
+        {"uniqueness", _uniqueness ? glz::generic(_uniqueness.value()) : nullptr},
         {"loaded", _loaded},
         {"status", _status},
-        {"modified", _modified ? glz::json_t(_modified.value()) : nullptr},
+        {"modified", _modified ? glz::generic(_modified.value()) : nullptr},
         {"resolution", _resolution ? cvt2json(_resolution.value()) : nullptr},
-        {"num_classes", _num_classes ? glz::json_t(_num_classes.value()) : nullptr}
+        {"num_classes", _num_classes ? glz::generic(_num_classes.value()) : nullptr}
     };
     return json;
 }

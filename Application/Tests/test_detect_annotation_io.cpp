@@ -635,7 +635,7 @@ TEST(DetectAnnotationExporter, RoundTripsExplicitEmptyFramesForEveryDatasetTask)
             } else {
                 dataset = options.output_directory / "train" / "_annotations.coco.json";
                 EXPECT_TRUE((options.output_directory / "train" / (stem + ".jpg")).exists());
-                glz::json_t json;
+                glz::generic json;
                 ASSERT_EQ(glz::error_code::none, glz::read_json(json, dataset.read_file()));
                 EXPECT_EQ(1u, json.get_object().at("images").get_array().size());
                 EXPECT_TRUE(json.get_object().at("annotations").get_array().empty());

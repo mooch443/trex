@@ -7,8 +7,8 @@ std::string VideoInfo::toStr() const {
     return Meta::toStr(to_json());
 }
 
-glz::json_t VideoInfo::to_json() const {
-    glz::json_t result;
+glz::generic VideoInfo::to_json() const {
+    glz::generic result;
     result["base"] = base.to_json();
     result["resolution"] = resolution.to_json();
     result["framerate"] = framerate;

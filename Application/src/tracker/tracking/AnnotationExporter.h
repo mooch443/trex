@@ -82,7 +82,7 @@ std::string annotation_to_yolo(const cmn::file::PathArray& source, const Annotat
 /// after conversion ranges have shifted annotation frame keys.
 std::string build_frame_mapping_csv(const Options&, const std::vector<cmn::Frame_t>& image_frames);
 /// Builds a COCO document for the selected frames without writing it to disk.
-glz::json_t build_coco_json(const cmn::file::PathArray& source, const AnnotationMap&, const std::vector<cmn::Frame_t>& image_frames, const cmn::Size2&, const std::vector<std::string>& keypoint_names, const std::map<int, float>& point_radii = {}, float fallback_point_radius = 0.f);
+glz::generic build_coco_json(const cmn::file::PathArray& source, const AnnotationMap&, const std::vector<cmn::Frame_t>& image_frames, const cmn::Size2&, const std::vector<std::string>& keypoint_names, const std::map<int, float>& point_radii = {}, float fallback_point_radius = 0.f);
 /// Validates the options, writes the selected YOLO or COCO dataset and mapping
 /// sidecar, and returns the completed export summary.
 Summary export_dataset(const Options&);

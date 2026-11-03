@@ -46,11 +46,11 @@ timestamp_t RecentItemJSON::t_created() const {
     }
 }
 
-glz::json_t RecentItemJSON::to_json() const {
-    glz::json_t obj{};
+glz::generic RecentItemJSON::to_json() const {
+    glz::generic obj{};
     obj["name"] = name;
 
-    glz::json_t settings{};
+    glz::generic settings{};
     for (auto& key : _options.keys()) {
         if(not is_writable_key(key))
             continue;

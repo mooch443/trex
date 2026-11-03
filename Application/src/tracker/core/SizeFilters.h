@@ -27,7 +27,7 @@ public:
     bool empty() const { return _ranges.empty(); }
     
     std::string toStr() const { return Meta::toStr(_ranges); }
-    glz::json_t to_json() const {
+    glz::generic to_json() const {
         return cvt2json(_ranges);
     }
     static consteval std::string_view class_name() { return "SizeFilters"; }
