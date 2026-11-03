@@ -704,6 +704,14 @@ TEST(DetectAnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
               annotation_to_yolo({}, annotation, Size2(400, 200), keypoints));
 }
 
+TEST(DetectAnnotationExporter, PreservesSparseConfiguredKeypointIndices) {
+    AnnotationMap annotations;
+    annotations[0_f].push_back(make_annotation(0, AnnotationType::POSE, {{10, 10}, {20, 20}, {30, 30}, {40, 40}}));
+
+    const auto names = default_keypoint_names(annotations, {{1, "head"}, {3, "tail"}});
+    EXPECT_EQ(names, (std::vector<std::string>{"kp_0", "head", "kp_2", "tail"}));
+}
+
 TEST(DetectAnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
     Options options;
     options.source = file::PathArray("current_video.mp4");
@@ -968,7 +976,7 @@ TEST(DetectAnnotationImporter, ImportsPoseWithKeypointMetadata) {
     EXPECT_TRUE(preview.metadata.detect_format_changed);
     EXPECT_EQ(track::detect::ObjectDetectionFormat::poses, preview.metadata.imported_detect_format);
     EXPECT_TRUE(preview.metadata.keypoint_names_changed);
-    EXPECT_EQ(std::vector<std::string>({"nose", "tail"}), preview.metadata.imported_keypoint_names);
+    EXPECT_EQ((std::map<size_t, std::string>{{0, "nose"}, {1, "tail"}}), preview.metadata.imported_keypoint_names);
     const auto& annotation = preview.annotations.at(2_f).front();
     EXPECT_EQ(AnnotationType::POSE, annotation.type);
     ASSERT_EQ(2u, annotation.points.size());
@@ -1007,7 +1015,7 @@ TEST(DetectAnnotationImporter, ImportsYoloClassAndKeypointNamesFromDataYaml) {
     EXPECT_EQ("locust-98Nu", preview.metadata.imported_class_names.at(0));
     EXPECT_EQ("Locusta", preview.metadata.imported_class_names.at(1));
     EXPECT_EQ((blob::ObjectClass_t{{0, "locust-98Nu"}, {1, "Locusta"}}), preview.metadata.imported_class_names);
-    EXPECT_EQ((std::vector<std::string>{"left_antenna", "head", "right_antenna", "QR", "tail", "left_hind", "right_hind"}),
+    EXPECT_EQ((std::map<size_t, std::string>{{0, "left_antenna"}, {1, "head"}, {2, "right_antenna"}, {3, "QR"}, {4, "tail"}, {5, "left_hind"}, {6, "right_hind"}}),
               preview.metadata.imported_keypoint_names);
     ASSERT_TRUE(preview.annotations.contains(0_f));
     EXPECT_EQ("Locusta", preview.metadata.imported_class_names.at(preview.annotations.at(0_f).front().clid));
@@ -1441,7 +1449,7 @@ TEST(DetectAnnotationImporter, ImportsCocoClassAndKeypointNamesFromRoboflowStyle
     EXPECT_EQ("locust-98Nu", preview.metadata.imported_class_names.at(0));
     EXPECT_EQ("Locusta", preview.metadata.imported_class_names.at(1));
     EXPECT_EQ((blob::ObjectClass_t{{0, "locust-98Nu"}, {1, "Locusta"}}), preview.metadata.imported_class_names);
-    EXPECT_EQ((std::vector<std::string>{"left_antenna", "head", "right_antenna", "QR", "tail", "left_hind", "right_hind"}),
+    EXPECT_EQ((std::map<size_t, std::string>{{0, "left_antenna"}, {1, "head"}, {2, "right_antenna"}, {3, "QR"}, {4, "tail"}, {5, "left_hind"}, {6, "right_hind"}}),
               preview.metadata.imported_keypoint_names);
     EXPECT_EQ("Locusta", preview.metadata.imported_class_names.at(preview.annotations.at(82_f).front().clid));
     EXPECT_EQ(AnnotationType::POSE, preview.annotations.at(82_f).front().type);
@@ -1529,7 +1537,7 @@ TEST(DetectAnnotationImporter, ImportsCocoPoseAndKeypointMetadata) {
     EXPECT_TRUE(preview.metadata.detect_format_changed);
     EXPECT_EQ(track::detect::ObjectDetectionFormat::poses, preview.metadata.imported_detect_format);
     EXPECT_TRUE(preview.metadata.keypoint_names_changed);
-    EXPECT_EQ(std::vector<std::string>({"nose", "tail"}), preview.metadata.imported_keypoint_names);
+    EXPECT_EQ((std::map<size_t, std::string>{{0, "nose"}, {1, "tail"}}), preview.metadata.imported_keypoint_names);
     const auto& annotation = preview.annotations.at(2_f).front();
     EXPECT_EQ(AnnotationType::POSE, annotation.type);
     ASSERT_EQ(2u, annotation.points.size());
@@ -1581,7 +1589,7 @@ TEST(DetectAnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
     EXPECT_TRUE(imported.points.at(2).valid());
 
     auto json = build_coco_json({}, preview.annotations, {3_f}, Size2(400, 200),
-                                preview.metadata.imported_keypoint_names);
+                                default_keypoint_names(preview.annotations, preview.metadata.imported_keypoint_names));
     const auto& annotation = json.get_object().at("annotations").get_array().front().get_object();
     const auto& kpts = annotation.at("keypoints").get_array();
     ASSERT_EQ(9u, kpts.size());

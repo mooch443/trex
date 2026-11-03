@@ -121,7 +121,7 @@ void exportDetectAnnotationsToYolo(const std::vector<Annotation>& detect_annotat
         throw InvalidArgumentException("Export type must match detect_format ", options.detect_format, ".");
 
     const auto configured = READ_SETTING(detect_keypoint_names, KeypointNames);
-    const auto keypoints = dataset_export::default_keypoint_names(selected, configured.names.value_or(std::vector<std::string>{}));
+    const auto keypoints = dataset_export::default_keypoint_names(selected, configured.names.value_or(std::map<size_t, std::string>{}));
     const auto radii = READ_SETTING(detect_point_radii, std::map<int, float>);
     const auto image_size = READ_SETTING(individual_image_size, Size2);
     const float fallback_radius = 0.5f * std::max(image_size.width, image_size.height);

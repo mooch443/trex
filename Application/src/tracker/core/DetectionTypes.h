@@ -117,7 +117,7 @@ struct KeypointFormat {
 };
 
 struct KeypointNames {
-    std::optional<std::vector<std::string>> names;
+    std::optional<std::map<size_t, std::string>> names;
     
     std::optional<std::string> name(size_t index) const;
     
@@ -125,12 +125,24 @@ struct KeypointNames {
     glz::generic to_json() const;
     std::string toStr() const;
     static KeypointNames fromStr(cmn::StringLike auto&& str) {
-        if(str == "null") {
+        auto sv = cmn::utils::string_like_view(std::forward<decltype(str)>(str));
+        if(sv == "null" || sv.empty()) {
             return KeypointNames{};
         }
-        auto names = cmn::Meta::fromStr<std::vector<std::string>>(str);
+        
+        if(sv.front() == '['
+           || sv.back() == ']')
+        {
+            auto array = cmn::Meta::fromStr<std::vector<std::string>>(sv);
+            KeypointNames names{.names = std::map<size_t, std::string>{}};
+            for(size_t i = 0; i < array.size(); ++i) {
+                (*names.names)[i] = std::move(array[i]);
+            }
+            return names;
+        }
+        
         return KeypointNames{
-            .names = names
+            .names = cmn::Meta::fromStr<std::map<size_t, std::string>>(sv)
         };
     }
     bool valid() const {

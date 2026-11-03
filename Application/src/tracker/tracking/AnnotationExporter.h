@@ -63,7 +63,7 @@ struct Summary {
 std::string frame_stem(const cmn::file::PathArray&, cmn::Frame_t);
 /// Returns a keypoint schema large enough for every pose, preferring configured
 /// names and filling missing entries with deterministic `kp_N` names.
-std::vector<std::string> default_keypoint_names(const AnnotationMap&, const std::vector<std::string>& configured_names);
+std::vector<std::string> default_keypoint_names(const AnnotationMap&, const std::map<size_t, std::string>& configured_names);
 /// Selects the annotation type requested by detect_format and explicit empty frames.
 AnnotationMap select_annotations(const Options&);
 /// Validates export options and computes image/type counts without writing.

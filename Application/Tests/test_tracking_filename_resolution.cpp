@@ -632,7 +632,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         }},
         "detect_keypoint_format", track::detect::KeypointFormat{.n_points = 2, .n_dims = 2},
         "detect_keypoint_names", track::detect::KeypointNames{
-            .names = std::vector<std::string>{"head", "tail"}
+            .names = std::map<size_t, std::string>{{0, "head"}, {1, "tail"}}
         },
         "detect_iou_threshold", std::optional<Float2_t>{0.75_F},
         "detect_conf_threshold", Float2_t(0.25),
@@ -2341,7 +2341,7 @@ TEST_F(SettingsPrecedenceTest, BackgroundSettingsPreserveUnusedModelValuesWithou
     };
     const track::detect::KeypointFormat custom_format{.n_points = 2, .n_dims = 2};
     const track::detect::KeypointNames custom_names{
-        .names = std::vector<std::string>{"head", "tail"}
+        .names = std::map<size_t, std::string>{{0, "head"}, {1, "tail"}}
     };
     for(const bool has_saved_values : {false, true}) {
         SCOPED_TRACE(has_saved_values ? "saved model values" : "no saved model values");
@@ -2455,7 +2455,7 @@ TEST_F(SettingsPrecedenceTest, EmptyModelValuesInSettingsFileOverrideSavedPvValu
             .n_points = 2, .n_dims = 2
         };
         metadata["detect_keypoint_names"] = track::detect::KeypointNames{
-            .names = std::vector<std::string>{"head", "tail"}
+            .names = std::map<size_t, std::string>{{0, "head"}, {1, "tail"}}
         };
         write_pv(video_base, guppies_video_fixture(), metadata);
 
@@ -2503,7 +2503,7 @@ TEST_F(SettingsPrecedenceTest, ReconversionUsesNewModelSetupFromGuiValues) {
         .n_points = 2, .n_dims = 2
     };
     saved["detect_keypoint_names"] = track::detect::KeypointNames{
-        .names = std::vector<std::string>{"old-head", "old-tail"}
+        .names = std::map<size_t, std::string>{{0, "old-head"}, {1, "old-tail"}}
     };
     saved["track_threshold"] = int(37);
     write_pv(video_base, source, saved);
@@ -2533,7 +2533,7 @@ TEST_F(SettingsPrecedenceTest, ReconversionUsesNewModelSetupFromGuiValues) {
             };
             keypoint_format = {.n_points = 3, .n_dims = 2};
             keypoint_names = {
-                .names = std::vector<std::string>{"head", "body", "tail"}
+                .names = std::map<size_t, std::string>{{0, "head"}, {1, "body"}, {2, "tail"}}
             };
         }
 

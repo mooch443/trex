@@ -62,7 +62,7 @@ struct DrawAnnotationExportOptions::Data {
             _folder_dialog->kill();
     }
 
-    std::vector<std::string> configured_keypoint_names() const {
+    std::map<size_t, std::string> configured_keypoint_names() const {
         auto configured = READ_SETTING(detect_keypoint_names, track::detect::KeypointNames);
         if(configured.names)
             return *configured.names;

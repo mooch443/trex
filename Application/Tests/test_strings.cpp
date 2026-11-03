@@ -18,6 +18,7 @@
 #include <gui/DynamicGUI.h>
 #include <core/idx_t.h>
 #include <core/VideoInfo.h>
+#include <core/DetectionTypes.h>
 #include <core/FOI.h>
 #include <core/TrackingSettings.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
@@ -52,6 +53,15 @@ using namespace utils;
  
  */
 
+
+namespace track::detect {
+std::ostream& operator<<(std::ostream& os, const KeypointNames& dt)
+{
+    os << dt.toStr();
+    return os;
+}
+
+}
 
 namespace dyn {
 enum class Align {
@@ -1883,6 +1893,113 @@ TEST(ConversionTest, VideoInfoPreservesInvalidFrames) {
         EXPECT_TRUE(fields.at("current_frame_index").is_null());
         EXPECT_DOUBLE_EQ(fields.at("framerate").get_number(), 0);
         EXPECT_FALSE(fields.at("finite").get_boolean());
+    }
+}
+
+using KeypointNamesRoundTripTest = ::testing::TestWithParam<track::detect::KeypointNames>;
+
+TEST(KeypointNamesTest, LooksUpSparseIndicesWithoutChangingNames) {
+    const track::detect::KeypointNames names{.names = std::map<size_t, std::string>{{2, "nose"}, {10, "tail"}}};
+    EXPECT_EQ(names.name(2), std::optional<std::string>{"nose"});
+    EXPECT_EQ(names.name(10), std::optional<std::string>{"tail"});
+    EXPECT_EQ(names.name(0), std::nullopt);
+    EXPECT_EQ(names.name(3), std::nullopt);
+    EXPECT_EQ(names.name(11), std::nullopt);
+    EXPECT_EQ(names.names->size(), 2u);
+    EXPECT_EQ(track::detect::KeypointNames{}.name(0), std::nullopt);
+}
+
+TEST(KeypointNamesTest, FromStrAcceptsStringLiterals) {
+    using track::detect::KeypointNames;
+    const KeypointNames empty{.names = std::map<size_t, std::string>{}};
+    const KeypointNames contiguous{.names = std::map<size_t, std::string>{{0, "nose"}, {1, "tail"}}};
+    const KeypointNames sparse{.names = std::map<size_t, std::string>{{2, "nose"}, {10, "tail"}}};
+
+    EXPECT_EQ(KeypointNames::fromStr(""), KeypointNames{});
+    EXPECT_EQ(KeypointNames::fromStr("null"), KeypointNames{});
+    EXPECT_EQ(KeypointNames::fromStr("[]"), empty);
+    EXPECT_EQ(KeypointNames::fromStr("{}"), empty);
+    EXPECT_EQ(KeypointNames::fromStr(R"(["nose","tail"])"), contiguous);
+    EXPECT_EQ(KeypointNames::fromStr(R"({"2":"nose","10":"tail"})"), sparse);
+    EXPECT_EQ(Meta::fromStr<KeypointNames>(R"(["nose","tail"])"), contiguous);
+    EXPECT_EQ(Meta::fromStr<KeypointNames>(R"({"2":"nose","10":"tail"})"), sparse);
+}
+
+TEST_P(KeypointNamesRoundTripTest, ToStrFromStr) {
+    const auto& names = GetParam();
+    const auto text = names.toStr();
+
+    if(names.names.has_value()) {
+        ASSERT_FALSE(text.empty());
+        EXPECT_EQ(text.front(), '{');
+        EXPECT_EQ(text.back(), '}');
+    } else {
+        EXPECT_EQ(text, "null");
+    }
+
+    EXPECT_EQ(track::detect::KeypointNames::fromStr(text), names);
+    EXPECT_EQ(track::detect::KeypointNames::fromStr(text.c_str()), names);
+    EXPECT_EQ(track::detect::KeypointNames::fromStr(std::string_view(text)), names);
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(Meta::toStr(names)), names);
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(text.c_str()), names);
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(std::string_view(text)), names);
+}
+
+TEST_P(KeypointNamesRoundTripTest, ToJsonFromStr) {
+    const auto& names = GetParam();
+    const auto json = cvt2json(names);
+
+    if(names.names.has_value()) {
+        ASSERT_TRUE(json.is_object());
+        const auto& fields = json.get_object();
+        EXPECT_EQ(fields.size(), names.names->size());
+        for(const auto& [index, name] : *names.names) {
+            const auto key = std::to_string(index);
+            ASSERT_TRUE(fields.contains(key));
+            ASSERT_TRUE(fields.at(key).is_string());
+            EXPECT_EQ(fields.at(key).get_string(), name);
+        }
+    } else {
+        EXPECT_TRUE(json.is_null());
+    }
+
+    const auto serialized = glz::write_json(json);
+    ASSERT_TRUE(serialized.has_value());
+
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(serialized.value()), names);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    KeypointNames,
+    KeypointNamesRoundTripTest,
+    ::testing::Values(
+        track::detect::KeypointNames{},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{}},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{{0,"nose"}, {1,"left_eye"}, {2,"right_eye"}}},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{{2,"nose"}, {10,"left_eye"}, {42,"tail"}}},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{
+            {0,""}, {1,"left eye"}, {2,"tail,tip"}, {3,R"(quoted "name")"}, {4,R"(back\slash)"}
+        }}
+    ));
+
+TEST(KeypointNamesTest, LegacyArrayInputWritesMap) {
+    const std::vector<std::pair<std::string, track::detect::KeypointNames>> cases{
+        {"[]", {.names = std::map<size_t, std::string>{}}},
+        {R"(["nose","left eye","tail,tip"])",
+         {.names = std::map<size_t, std::string>{{0,"nose"}, {1,"left eye"}, {2,"tail,tip"}}}}
+    };
+
+    for(const auto& [input, expected] : cases) {
+        SCOPED_TRACE(input);
+        const auto names = Meta::fromStr<track::detect::KeypointNames>(input);
+        EXPECT_EQ(names, expected);
+        EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(input.c_str()), expected);
+        EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(std::string_view(input)), expected);
+        EXPECT_EQ(names.toStr(), Meta::toStr(*expected.names));
+        const auto json = names.to_json();
+        ASSERT_TRUE(json.is_object());
+        EXPECT_EQ(glz::write_json(json).value(),
+                  glz::write_json(cvt2json(*expected.names)).value());
     }
 }
 

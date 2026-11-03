@@ -49,7 +49,7 @@ struct ImportOptions {
     std::optional<cmn::Frame_t> source_start;
     std::optional<cmn::Frame_t> source_end;
     cmn::blob::MaybeObjectClass_t current_class_names;
-    std::vector<std::string> current_keypoint_names;
+    std::map<size_t, std::string> current_keypoint_names;
     std::optional<cmn::blob::Pose::Skeletons> current_skeletons;
     track::detect::ObjectDetectionFormat_t current_detect_format{track::detect::ObjectDetectionFormat::none};
     std::map<int, float> current_point_radii;
@@ -59,7 +59,7 @@ struct ImportOptions {
 /// values differ from the currently loaded detection configuration.
 struct MetadataChanges {
     cmn::blob::ObjectClass_t imported_class_names;
-    std::vector<std::string> imported_keypoint_names;
+    std::map<size_t, std::string> imported_keypoint_names;
     std::optional<cmn::blob::Pose::Skeletons> imported_skeletons;
     track::detect::ObjectDetectionFormat_t imported_detect_format{track::detect::ObjectDetectionFormat::none};
     bool class_names_changed{false};

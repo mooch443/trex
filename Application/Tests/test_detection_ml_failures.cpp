@@ -404,7 +404,7 @@ TEST_F(MLFailures, YoloModelInspectionPreservesConfiguredMetadata) {
     };
     SETTING(detect_keypoint_format) = KeypointFormat{.n_points = 2, .n_dims = 2};
     SETTING(detect_keypoint_names) = KeypointNames{
-        .names = std::vector<std::string>{"head", "tail"}
+        .names = std::map<size_t, std::string>{{0, "head"}, {1, "tail"}}
     };
     SETTING(region_model) = Path(python_environment->model.string());
     SETTING(region_resolution) = DetectResolution{24, 24};
@@ -523,7 +523,7 @@ TEST_F(MLFailures, ConversionAppliesModelMetadataAndPreservesConfiguredAnnotatio
             ._skeletons = {{"animal", blob::Pose::Skeleton{{{0, 1, ""}}}}}
         }
     };
-    const KeypointNames names{.names = std::vector<std::string>{"head", "tail"}};
+    const KeypointNames names{.names = std::map<size_t, std::string>{{0, "head"}, {1, "tail"}}};
     SETTING(detect_classes) = classes;
     SETTING(detect_skeleton) = skeleton;
     SETTING(detect_keypoint_names) = names;

@@ -919,7 +919,7 @@ std::string build_frame_mapping_csv(const Options& options, const std::vector<Fr
     return text;
 }
 
-std::vector<std::string> default_keypoint_names(const AnnotationMap& annotations, const std::vector<std::string>& configured_names) {
+std::vector<std::string> default_keypoint_names(const AnnotationMap& annotations, const std::map<size_t, std::string>& configured_names) {
     size_t max_points = 0;
     for(const auto& [frame, frame_annotations] : annotations) {
         (void)frame;
@@ -932,7 +932,7 @@ std::vector<std::string> default_keypoint_names(const AnnotationMap& annotations
     std::vector<std::string> names;
     names.reserve(max_points);
     for(size_t i = 0; i < max_points; ++i) {
-        if(i < configured_names.size() && !configured_names.at(i).empty())
+        if(configured_names.contains(i) && !configured_names.at(i).empty())
             names.push_back(configured_names.at(i));
         else
             names.push_back("kp_" + Meta::toStr(i));

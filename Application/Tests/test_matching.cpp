@@ -630,7 +630,7 @@ TEST(DefaultConfigTest, ListAutoPoseFields_WithPartialNames)
     // Set the global keypoint format to 3 keypoints with 2 dimensions each.
     SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
     // Provide keypoint names for only the first 2 keypoints.
-    SETTING(detect_keypoint_names) = KeypointNames{ std::vector<std::string>{"nose", "left_eye"}};
+    SETTING(detect_keypoint_names) = KeypointNames{ std::map<size_t, std::string>{{0, "nose"}, {1, "left_eye"}}};
 
     // Expected:
     // Index 0: "nose_X", "nose_Y"
@@ -656,6 +656,24 @@ TEST(DefaultConfigTest, ListAutoPoseFields_WithPartialNames)
         ASSERT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
     }
+}
+
+TEST(DefaultConfigTest, SparsePoseNamesPreserveIndices) {
+    resetGlobalSettings();
+    SETTING(detect_keypoint_format) = KeypointFormat{4, 2};
+    SETTING(detect_keypoint_names) = KeypointNames{
+        .names = std::map<size_t, std::string>{{1, "head"}, {3, "tail"}}
+    };
+
+    const auto [indexes, fields] = list_auto_pose_fields();
+    EXPECT_EQ(indexes, (std::vector<size_t>{0, 0, 1, 1, 2, 2, 3, 3}));
+    ASSERT_EQ(fields.size(), 8u);
+    EXPECT_EQ(fields.at(0).first, "poseX0");
+    EXPECT_EQ(fields.at(2).first, "head_X");
+    EXPECT_EQ(fields.at(4).first, "poseX2");
+    EXPECT_EQ(fields.at(6).first, "tail_X");
+    EXPECT_EQ(find_user_defined_pose_fields({{"head_X", {}}, {"tail_Y", {}}}),
+              (std::set<uint8_t>{1, 3}));
 }
 
 // ------------------------------------------------------------

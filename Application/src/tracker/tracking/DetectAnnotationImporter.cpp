@@ -22,7 +22,7 @@ struct DatasetConfig {
     file::Path dataset_root;
     std::vector<file::Path> image_inputs;
     cmn::blob::ObjectClass_t class_names;
-    std::vector<std::string> keypoint_names;
+    std::map<size_t, std::string> keypoint_names;
     size_t keypoint_count{0};
     size_t keypoint_dims{0};
     Task task{task_t::unknown};
@@ -424,10 +424,13 @@ DatasetConfig parse_dataset_config(const file::Path& data_yaml, Task task) {
     if(auto names = yaml_find(yaml, "names"); names)
         config.class_names = yaml_names(*names);
 
-    if(auto keypoint_names = yaml_find(yaml, "keypoint_names"); keypoint_names)
-        config.keypoint_names = keypoint_names->is_sequence()
+    if(auto keypoint_names = yaml_find(yaml, "keypoint_names"); keypoint_names) {
+        const auto names = keypoint_names->is_sequence()
             ? keypoint_names->get_value<std::vector<std::string>>()
             : std::vector<std::string>{keypoint_names->get_value<std::string>()};
+        for(size_t i = 0; i < names.size(); ++i)
+            config.keypoint_names.emplace(i, names.at(i));
+    }
 
     if(auto kpt_shape = yaml_find(yaml, "kpt_shape"); kpt_shape) {
         std::tie(config.keypoint_count, config.keypoint_dims) = yaml_kpt_shape(*kpt_shape);
@@ -437,7 +440,7 @@ DatasetConfig parse_dataset_config(const file::Path& data_yaml, Task task) {
 
     if(config.keypoint_names.empty() && config.keypoint_count > 0) {
         for(size_t i = 0; i < config.keypoint_count; ++i)
-            config.keypoint_names.push_back("kp_" + Meta::toStr(i));
+            config.keypoint_names.emplace(i, "kp_" + Meta::toStr(i));
     }
 
     return config;
@@ -1287,7 +1290,7 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
         }
         preview.image_count = images.size();
 
-        std::vector<std::string> first_keypoint_names;
+        std::map<size_t, std::string> first_keypoint_names;
         blob::Pose::Skeletons imported_skeletons;
         if(categories_json && categories_json->is_array()) {
             for(const auto& category_json : categories_json->get_array()) {
@@ -1313,10 +1316,11 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
                     }
 
                     if(auto keypoints = object_value(category, "keypoints"); keypoints && keypoints->is_array()) {
-                        std::vector<std::string> names;
-                        for(const auto& keypoint : keypoints->get_array()) {
+                        std::map<size_t, std::string> names;
+                        for(size_t i = 0; i < keypoints->get_array().size(); ++i) {
+                            const auto& keypoint = keypoints->get_array().at(i);
                             if(keypoint.is_string())
-                                names.push_back(keypoint.get_string());
+                                names.emplace(i, keypoint.get_string());
                         }
                         if(first_keypoint_names.empty())
                             first_keypoint_names = names;

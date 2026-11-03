@@ -123,9 +123,9 @@ glz::generic KeypointNames::to_json() const {
 }
 
 std::optional<std::string> KeypointNames::name(size_t index) const {
-    if(not names || names->size() <= index)
+    if(not names || not names->contains(index))
         return std::nullopt;
-    return names.value()[index];
+    return names.value().at(index);
 }
 
 std::string KeypointFormat::toStr() const {
