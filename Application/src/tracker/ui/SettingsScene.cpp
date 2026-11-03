@@ -88,7 +88,7 @@ struct SettingsScene::Data {
 
         bool is_current() const {
             return type == READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{})
-                && detect_model == READ_SETTING_WITH_DEFAULT(detect_model, file::Path{})
+                && detect_model == detect::yolo::current_detect_model_path()
                 && region_model == READ_SETTING_WITH_DEFAULT(region_model, file::Path{});
         }
     };
@@ -200,7 +200,7 @@ struct SettingsScene::Data {
         return config
             && config->output_format != track::detect::ObjectDetectionFormat::none
             && track::detect::yolo::valid_model(
-                READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
+                                                detect::yolo::current_detect_model_path());
     }
 
     bool conversion_source_exists() const {
@@ -224,7 +224,7 @@ struct SettingsScene::Data {
 
         const DetectionModelRequest request{
             .type = type,
-            .detect_model = READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}),
+            .detect_model = detect::yolo::current_detect_model_path(),
             .region_model = READ_SETTING_WITH_DEFAULT(region_model, file::Path{})
         };
 
@@ -312,7 +312,7 @@ struct SettingsScene::Data {
             GlobalSettings::unregister_callbacks(std::move(callback));
         
         auto fn = [this](std::string_view name) {
-            if(is_in(name, "detect_type", "detect_model", "region_model"))
+            if(is_in(name, "detect_type", "detect_model", "region_model", "output_dir", "output_prefix"))
                 ++_model_generation;
 
             if(name == "averaging_method") {
@@ -357,8 +357,9 @@ struct SettingsScene::Data {
                 auto detect_type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
                 
                 ExtendableVector exclude;
-                if(not READ_SETTING(detect_model, file::Path).empty()
-                   && READ_SETTING(detect_model, file::Path) != file::Path(track::detect::yolo::default_model()).remove_extension())
+                if(auto detect_model = detect::yolo::current_detect_model_path();
+                   not detect_model.empty()
+                   && detect_model != file::Path(track::detect::yolo::default_model()).remove_extension())
                 {
                     exclude = {
                         "detect_model"
@@ -383,7 +384,7 @@ struct SettingsScene::Data {
                     }
                 }
                 
-            } else if(name == "detect_model" || name == "region_model") {
+            } else if(is_in(name, "detect_model", "region_model", "output_dir", "output_prefix")) {
                 _detection_models_changed = true;
             }
         };
@@ -394,7 +395,9 @@ struct SettingsScene::Data {
             "detect_type",
             "detect_model",
             "region_model",
-            "averaging_method"
+            "averaging_method",
+            "output_dir",
+            "output_prefix"
 
         }, fn);
         
@@ -588,7 +591,7 @@ struct SettingsScene::Data {
                                 if (auto detect_type = READ_SETTING(detect_type, detect::ObjectDetectionType_t);
                                     detect_type && *detect_type == detect::ObjectDetectionType::yolo)
                                 {
-                                    auto path = READ_SETTING(detect_model, file::Path);
+                                    auto path = detect::yolo::current_detect_model_path();
                                     if (track::detect::yolo::valid_model(path))
                                     {
                                         /// we have a valid model

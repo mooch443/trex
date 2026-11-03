@@ -3,6 +3,7 @@
 #include <core/SoftException.h>
 #include <misc/GlobalSettings.h>
 #include <misc/CropOffsets.h>
+#include <file/DataLocation.h>
 
 using namespace cmn;
 
@@ -295,6 +296,25 @@ bool is_valid_default_model(const std::string& filename) {
 
 std::string default_model() {
     return "yolo26n.pt";
+}
+
+file::Path current_detect_model_path() {
+    auto path = READ_SETTING_WITH_DEFAULT(detect_model, file::Path{});
+    if(path.empty() || path.is_absolute())
+        return path;
+
+    if(is_default_model(path) && not path.has_extension())
+        path = path.add_extension("pt");
+
+    auto candidate = path;
+    if(candidate.exists())
+        return candidate;
+
+    candidate = file::DataLocation::parse("output", candidate);
+    if(candidate.exists())
+        return candidate;
+
+    return path;
 }
 
 bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {

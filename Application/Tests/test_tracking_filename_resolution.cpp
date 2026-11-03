@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <core/DetectionTypes.h>
 #include <core/GPURecognitionTypes.h>
 #include <core/SettingsInitializer.h>
 #include <core/SettingsPaths.h>
@@ -232,6 +233,20 @@ protected:
         return map;
     }
 };
+
+TEST_F(TrackingFilenameResolutionTest, BuiltinModelAliasKeepsResolvedPathAfterDownload) {
+    ScopedCurrentPath cwd(input_dir.str());
+    SETTING(detect_model) = file::Path("yolo26n");
+
+    const auto before_download = track::detect::yolo::current_detect_model_path();
+    EXPECT_EQ(before_download, file::Path("yolo26n.pt"));
+    EXPECT_FALSE(before_download.exists());
+
+    create_regular_file(input_dir / "yolo26n.pt");
+    const auto after_download = track::detect::yolo::current_detect_model_path();
+    EXPECT_TRUE(after_download.exists());
+    EXPECT_EQ(after_download, before_download);
+}
 
 TEST_F(TrackingFilenameResolutionTest, MissingConversionSourceStillAllowsAdjacentPvTracking) {
     const auto pv = create_regular_file(input_dir / "source.pv");

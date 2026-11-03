@@ -1646,7 +1646,7 @@ void Segmenter::printDebugInformation() {
     DebugHeader("Starting tracking of");
     Print("average at: ", average_name());
     using namespace track::detect;
-    Print("model: ", READ_SETTING(detect_model, file::Path));
+    Print("model: ", detect::yolo::current_detect_model_path());
     Print("region model: ", READ_SETTING(region_model, file::Path));
     Print("video: ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
     Print("model resolution: ", READ_SETTING(detect_resolution, DetectResolution));

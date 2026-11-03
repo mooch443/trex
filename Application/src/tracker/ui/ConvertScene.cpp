@@ -456,7 +456,7 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
-    if(not track::detect::yolo::valid_model(READ_SETTING(detect_model, file::Path)))
+    if(not track::detect::yolo::valid_model(detect::yolo::current_detect_model_path()))
     {
         SETTING(detect_model) = file::Path(track::detect::yolo::default_model());
     }
