@@ -763,10 +763,10 @@ void TrackingScene::settings_callback(std::string_view key) {
         std::set<FOI> fois;
         for(auto &[frame, frame_detect_annotations]: detect_annotations) {
             (void)frame_detect_annotations;
-            fois.emplace(frame, FOI::annotated, true, "Frame with manual annotations");
+            fois.insert(FOI::Make<FOI::annotated>(frame, true));
         }
         for(auto &[frame, tags] : track_frame_tags) {
-            fois.emplace(frame, FOI::annotated, true, "Frame with manual annotations");
+            fois.insert(FOI::Make<FOI::annotated>(frame, true));
         }
 
         if(not fois.empty()) {
@@ -2513,6 +2513,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 }
             }),
             
+            VarFunc("foi_info", [](const VarProps& props) -> glz::generic {
+                REQUIRE_EXACTLY(1, props);
+                return FOI::dyn_info(props.parameters.front()).to_json();
+            }),
             VarFunc("is_segment", [this](const VarProps& props) -> bool {
                 REQUIRE_EXACTLY(1, props);
                 

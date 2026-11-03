@@ -2728,8 +2728,7 @@ void Individual::calculate_average_tracklet_id(const Tracker& tracker) {
                 assert(start == range.start() && ((not prev_end.valid() && start == start_frame()) || (prev_end.valid() && prev_end + 1_f == start)));
                 prev_end = range.end();
                 processed_tracklets[start] = range;
-                
-                FOI::add(FOI(start, {FOI::fdx_t(identity().ID())}, FOI::split_up));
+                FOI::add(FOI::Make<FOI::split_up>(start, std::set<FOI::fdx_t>{FOI::fdx_t(identity().ID())}));
             }
         }
     }

@@ -18,6 +18,7 @@
 #include <gui/DynamicGUI.h>
 #include <core/idx_t.h>
 #include <core/VideoInfo.h>
+#include <core/FOI.h>
 #include <core/TrackingSettings.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
@@ -1820,6 +1821,21 @@ TEST(UnresolvedStringPatternTest, SelfAssignmentNoLeakNoCrash) {
     ASSERT_EQ(a.objects.size(), 1);
     ASSERT_EQ(a.objects[0].type, PreparedPattern::PREPARED);
     ASSERT_EQ(a.objects[0].value.prepared, a.all_patterns[0]);
+}
+
+TEST(ConversionTest, FoiInfoSupportsRuntimeLookupAndJsonSerialization) {
+    constexpr auto expected = track::FOI::info<track::FOI::lost_2_fish>();
+    static_assert(expected.name == track::FOI::lost_2_fish);
+
+    const std::function<glz::generic(const std::string&)> lookup = [](const std::string& name) {
+        return track::FOI::dyn_info(name).to_json();
+    };
+    const std::string name(track::FOI::lost_2_fish);
+    const auto json = lookup(name);
+    const auto& fields = json.get_object();
+    EXPECT_EQ(fields.at("name").get_string(), expected.name);
+    EXPECT_EQ(fields.at("symbol").get_string(), expected.symbol);
+    EXPECT_EQ(fields.at("tooltip").get_string(), expected.tooltip);
 }
 
 TEST(ConversionTest, VideoInfoSerializesAllFields) {

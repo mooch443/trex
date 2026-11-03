@@ -252,7 +252,7 @@ uint64_t MemoryStats::get_memory_size(const std::vector<Individual*>& obj, const
 
 template <>
 uint64_t MemoryStats::get_memory_size(const FOI& foi, const std::string& ) {
-    return sizeof(foi) + foi.description().capacity();
+    return sizeof(foi);// + foi.description().capacity();
 }
 
 template <>

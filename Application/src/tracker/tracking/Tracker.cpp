@@ -2101,16 +2101,17 @@ void Tracker::update_warnings(
       const set_of_individuals_t& active_individuals,
       ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators)
 {
-    std::map<std::string_view, std::map<Frame_t, std::set<FOI::fdx_t>>> merge;
+    std::map<Frame_t, std::set<FOI::fdx_t>> correcting_merge;
+    std::map<Frame_t, std::set<FOI::fdx_t>> long_merge;
     
     if(n_found < n_prev-1) {
-        FOI::add(FOI(frameIndex, FOI::lost_2_fish));
+        FOI::add(FOI::Make<FOI::lost_2_fish>(frameIndex));
     }
     
     if(prev_props && time - prev_props->time() >= s.huge_timestamp_seconds) {
-        FOI::add(FOI(frameIndex, FOI::huge_time_jump));
+        FOI::add(FOI::Make<FOI::huge_time_jump>(frameIndex));
         for(auto fish : active_individuals)
-            merge[FOI::correcting][frameIndex].insert(FOI::fdx_t(fish->identity().ID()));
+            correcting_merge[frameIndex].insert(FOI::fdx_t(fish->identity().ID()));
     }
     
     std::set<FOI::fdx_t> found_matches;
@@ -2120,8 +2121,8 @@ void Tracker::update_warnings(
     }
     
     if(!found_matches.empty()) {
-        FOI::add(FOI(frameIndex, found_matches, FOI::manual_match));
-        merge[FOI::correcting][frameIndex].insert(found_matches.begin(), found_matches.end());
+        FOI::add(FOI::Make<FOI::manual_match>(frameIndex, found_matches));
+        correcting_merge[frameIndex].insert(found_matches.begin(), found_matches.end());
     }
     
     update_iterator_maps(frameIndex - 1_f, active_individuals, individual_iterators);
@@ -2236,32 +2237,31 @@ void Tracker::update_warnings(
 #endif
         
         if(!lost_fdx.empty()) {
-            FOI::add(FOI(frameIndex, lost_fdx, FOI::lost_1_fish));
-            merge[FOI::correcting][frameIndex].insert(lost_fdx.begin(), lost_fdx.end());
+            FOI::add(FOI::Make<FOI::lost_1_fish>(frameIndex, lost_fdx));
+            correcting_merge[frameIndex].insert(lost_fdx.begin(), lost_fdx.end());
         }
         
         if(!lost_fdx_over_threshold.empty()) {
             //Print("* adding long tracklet at ", frameIndex.try_sub(1_f), " with individuals ", lost_fdx_over_threshold);
-            FOI::add(FOI(frameIndex.try_sub(1_f), lost_fdx_over_threshold, FOI::long_tracklet));
-            merge[FOI::long_tracklet][frameIndex.try_sub(1_f)].insert(lost_fdx_over_threshold.begin(), lost_fdx_over_threshold.end());
+            FOI::add(FOI::Make<FOI::long_tracklet>(frameIndex.try_sub(1_f), lost_fdx_over_threshold));
         }
         
         if(!weird_distance.empty()) {
-            FOI::add(FOI(frameIndex, weird_distance, FOI::weird_distance));
-            merge[FOI::correcting][frameIndex].insert(weird_distance.begin(), weird_distance.end());
+            FOI::add(FOI::Make<FOI::weird_distance>(frameIndex, weird_distance));
+            correcting_merge[frameIndex].insert(weird_distance.begin(), weird_distance.end());
             
             if(!found_matches.empty()) {
                 std::set<FOI::fdx_t> combined;
                 for(auto id : found_matches)
                     if(weird_distance.find(id) != weird_distance.end())
                         combined.insert(id);
-                FOI::add(FOI(frameIndex, combined, FOI::weird_distance_mm));
+                FOI::add(FOI::Make<FOI::weird_distance_mm>(frameIndex, combined));
             }
         }
         if(!weird_angle.empty())
-            FOI::add(FOI(frameIndex, weird_angle, FOI::weird_angle));
+            FOI::add(FOI::Make<FOI::weird_angle>(frameIndex, weird_angle));
         if(!tracklet_end.empty())
-            FOI::add(FOI(frameIndex - 1_f, tracklet_end, FOI::tracklet_end));
+            FOI::add(FOI::Make<FOI::tracklet_end>(frameIndex - 1_f, tracklet_end));
     }
     
     /*if(n_found < n_prev || frameIndex == start_frame()) {
@@ -2301,10 +2301,8 @@ void Tracker::update_warnings(
         }
     }
     */
-    for(auto && [key, v] : merge) {
-        for(auto && [frame, value] : v) {
-            FOI::add(FOI(frame, value, key));
-        }
+    for(auto && [frame, value] : correcting_merge) {
+        FOI::add(FOI::Make<FOI::correcting>(frame, value));
     }
 }
 
@@ -2333,7 +2331,7 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
                 
             } else {
                 if(!data.consec.empty()) {
-                    FOI::add(FOI(data.consec.back(), FOI::global_tracklet));
+                    FOI::add(FOI::Make<FOI::global_tracklet>(data.consec.back()));
                 }
                 
                 /// start a new range

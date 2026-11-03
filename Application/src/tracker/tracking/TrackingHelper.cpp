@@ -310,7 +310,7 @@ void TrackingHelper::apply_manual_matches(Tracker& tracker)
             FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", no_quotes(error));
         });
         
-        FOI::add(FOI(frameIndex, identities, FOI::failed_matches));
+        FOI::add(FOI::Make<FOI::failed_matches>(frameIndex, identities));
     }
 }
 
@@ -517,7 +517,7 @@ void TrackingHelper::apply_matching() {
         
         _approximative_enabled_in_frame = frameIndex;
         
-        FOI::add(FOI(Range<Frame_t>(frameIndex, frameIndex + CACHE_SETTING(approximation_delay_time) - 1_f), FOI::apprx_matching));
+        FOI::add(FOI::Make<FOI::apprx_matching>(Range<Frame_t>(frameIndex, frameIndex + CACHE_SETTING(approximation_delay_time).try_sub(1_f))));
     }
 }
 

@@ -1271,7 +1271,8 @@
               "folded":true,
               "var":"{concat:[\"uniqueness\"]:{global.gui_foi_types}}",
               "template":{
-                "text":"{if:{equal:{global.gui_foi_name}:{i}}:'<sym>☑</sym> ':'<sym>☐</sym> '}{i}",
+                "text":"{if:{equal:{global.gui_foi_name}:{i}}:'<sym>☑</sym> ':'<sym>☐</sym> '}<sym>{foi_info.symbol:{i}}</sym> {i}",
+                "tooltip":"{foi_info.tooltip:{i}}",
                 "disabled":"{if:{equal:{global.gui_foi_name}:{i}}:true:false}",
                 "action":"set:gui_foi_name:{i}"
               }
