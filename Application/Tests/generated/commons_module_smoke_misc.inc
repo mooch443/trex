@@ -50,6 +50,11 @@ using ::cmn::Deprecation;
 using ::cmn::Deprecations;
 }
 
+// misc/DisplayValue.h
+namespace commons_module_smoke::commons_misc::cmn::sprite {
+using ::cmn::sprite::display_property;
+}
+
 // misc/EnumClass.h
 namespace commons_module_smoke::commons_misc::EnumMeta {
 using ::EnumMeta::HasCustomParser;
@@ -77,9 +82,13 @@ using ::cmn::SpatialTag;
 
 // misc/GlobalSettings.h
 namespace commons_module_smoke::commons_misc::cmn {
+using ::cmn::AccessLevel;
 using ::cmn::Configuration;
 using ::cmn::GlobalSettings;
+using ::cmn::HistoryItem;
 using ::cmn::NoType;
+using ::cmn::ParameterHistory;
+using ::cmn::SafeWriteWrapper;
 using ::cmn::bool_setting_config;
 using ::cmn::docs_map_t;
 using ::cmn::optional_setting_config;
@@ -290,6 +299,7 @@ using ::cmn::curves::interpolate;
 // misc/default_settings.h
 namespace commons_module_smoke::commons_misc::cmn::settings {
 using ::cmn::settings::Adding;
+using ::cmn::settings::ParameterCategory;
 using ::cmn::settings::help_html;
 using ::cmn::settings::help_restructured_text;
 using ::cmn::settings::htmlify;

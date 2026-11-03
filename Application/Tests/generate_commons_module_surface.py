@@ -442,6 +442,14 @@ def parse_macro_invocations(header: str, module: str, text: str) -> tuple[list[S
     scope_stack: list[tuple[list[str], int]] = []
     brace_depth = 0
     lines = text.splitlines()
+    cleaned = strip_comments_and_literals(strip_preprocessor_blocks(text))
+    enum_invocations = {
+        cleaned.count("\n", 0, match.start()) + 1: match
+        for match in re.finditer(
+            r"\bENUM_CLASS\s*\(\s*((?:[A-Za-z_]\w*\s*::\s*)*)\s*,\s*([A-Za-z_]\w*)",
+            cleaned,
+        )
+    }
     in_macro_definition = False
     for line_no, raw_line in enumerate(lines, start=1):
         line = re.sub(r"//.*", "", raw_line)
@@ -472,8 +480,8 @@ def parse_macro_invocations(header: str, module: str, text: str) -> tuple[list[S
                 if "ALIAS" in pattern:
                     symbols.append(Symbol(header, module, current_namespace, f"{name}Tag", "struct", "using"))
 
-        for match in re.finditer(r"\bENUM_CLASS\s*\(\s*([A-Za-z_]\w*)", line):
-            name = match.group(1)
+        if match := enum_invocations.get(line_no):
+            name = re.sub(r"\s+", "", match.group(1)) + match.group(2)
             enum_namespace = f"{current_namespace}::{name}" if current_namespace else name
             symbols.append(Symbol(header, module, enum_namespace, "Class", "enum_class", "using"))
             exclusions.append(
@@ -589,6 +597,22 @@ def parse_regular_symbols(header: str, module: str, text: str) -> tuple[list[Sym
 
     while i < len(tokens):
         tok = tokens[i]
+        if tok in {
+            "ENUM_CLASS", "ENUM_CLASS_HAS_DOCS", "ENUM_CLASS_HAS_DOCS_NAMESPACE",
+            "ENUM_CLASS_DOCS", "ENUM_CLASS_DOCS_NAMESPACE", "ATTRIBUTE_ALIAS",
+            "NUMBER_ALIAS", "CREATE_STRUCT",
+        } and i + 1 < len(tokens) and tokens[i + 1] == "(":
+            # Declaration macros do not require a trailing semicolon.
+            depth = 1
+            i += 2
+            while i < len(tokens) and depth:
+                if tokens[i] == "(":
+                    depth += 1
+                elif tokens[i] == ")":
+                    depth -= 1
+                i += 1
+            pending_template = False
+            continue
         if tok == "{":
             push_scope("block")
             i += 1

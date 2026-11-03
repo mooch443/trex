@@ -18,6 +18,8 @@ using ::cmn::gui::attr::Clickable;
 using ::cmn::gui::attr::ClickableTag;
 using ::cmn::gui::attr::CornerFlags_t;
 using ::cmn::gui::attr::CornerFlags_tTag;
+using ::cmn::gui::attr::Disabled_t;
+using ::cmn::gui::attr::Disabled_tTag;
 using ::cmn::gui::attr::FillClr;
 using ::cmn::gui::attr::FillClrTag;
 using ::cmn::gui::attr::Folded_t;
@@ -34,6 +36,7 @@ using ::cmn::gui::attr::Margins;
 using ::cmn::gui::attr::MarginsTag;
 using ::cmn::gui::attr::Name;
 using ::cmn::gui::attr::NameTag;
+using ::cmn::gui::attr::NumberAlias;
 using ::cmn::gui::attr::Origin;
 using ::cmn::gui::attr::OriginTag;
 using ::cmn::gui::attr::ParmName;
@@ -211,6 +214,8 @@ namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Circle;
 using ::cmn::gui::ExternalImage;
 using ::cmn::gui::Line;
+using ::cmn::gui::LineClosed;
+using ::cmn::gui::LineClosedTag;
 using ::cmn::gui::Polygon;
 using ::cmn::gui::PrimitiveType;
 using ::cmn::gui::Rect;
@@ -236,6 +241,10 @@ using cmn_gui_Text_Shadow_tTag = ::cmn::gui::Text::Shadow_tTag;
 }
 
 // gui/IMGUIBase.h
+namespace commons_module_smoke::commons_gui::cmn::gui {
+using ::cmn::gui::IMGUIBase;
+}
+
 namespace commons_module_smoke::commons_gui::cmn::gui::Effects {
 using ::cmn::gui::Effects::Class;
 }
@@ -259,6 +268,8 @@ using ::cmn::gui::DetailFont_t;
 using ::cmn::gui::DetailFont_tTag;
 using ::cmn::gui::Foldable_t;
 using ::cmn::gui::Foldable_tTag;
+using ::cmn::gui::ItemCornerFlags;
+using ::cmn::gui::ItemCornerFlagsTag;
 using ::cmn::gui::ItemFillClr_t;
 using ::cmn::gui::ItemFillClr_tTag;
 using ::cmn::gui::ItemFont_t;
@@ -391,6 +402,7 @@ using ::cmn::gui::DrawableCollection;
 using ::cmn::gui::SectionInterface;
 using ::cmn::gui::TopLeft;
 using ::cmn::gui::TopRight;
+using ::cmn::gui::interface_scale;
 }
 
 namespace commons_module_smoke::commons_gui::cmn::gui::Type {
