@@ -7,8 +7,8 @@ using namespace cmn;
 
 namespace track {
 
-UniquenessProvider::UniquenessProvider(std::weak_ptr<pv::File> vs) noexcept
-    : _video_source(vs)
+UniquenessProvider::UniquenessProvider(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> vs) noexcept
+    : _video_source(vs), _tracker(tracker)
 {}
 
 bool UniquenessProvider::busy() const noexcept
@@ -152,15 +152,21 @@ void UniquenessProvider::launch_worker_locked_()
                 std::unique_lock sm{_samples_mutex};
                 if (!_samples)
                 {
-                    if (auto vs = _video_source.lock())
+                    auto tracker = _tracker.lock();
+                    if (auto vs = _video_source.lock();
+                        vs && tracker)
                     {
                         auto && [data, images, map]
-                            = accumulation_runtime::generate_discrimination_data(*vs);
+                            = accumulation_runtime::generate_discrimination_data(*tracker, *vs);
                         _samples = Samples{ std::move(data),
                                             std::move(images),
                                             std::move(map) };
                     }
                 }
+            }
+            
+            if(not _samples) {
+                throw SoftException("No samples collected in UniquenessProvider.");
             }
 
             // 3.  heavy lifting

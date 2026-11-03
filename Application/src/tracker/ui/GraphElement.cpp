@@ -8,6 +8,14 @@ using namespace dyn;
 struct GraphPoints {
     std::string name;
     std::variant<std::vector<Vec2>, std::string> pts;
+
+    struct glaze {
+        using T = GraphPoints;
+        static constexpr auto value = glz::object(
+            "name", &T::name,
+            "pts", &T::pts
+        );
+    };
     
     const std::vector<Vec2>& get_points() const {
         assert(not is_pattern());
@@ -22,18 +30,18 @@ struct GraphPoints {
         return std::holds_alternative<std::string>(pts);
     }
 
-    glz::json_t to_json() const {
-        glz::json_t out;
-        //out["name"] = glz::json_t(name);
+    glz::generic to_json() const {
+        glz::generic out;
+        //out["name"] = glz::generic(name);
         //out["pts"] = cvt2json(pts);
         
-        // Serialize this object to a JSON string first (leveraging the glz::meta below)
+        // Serialize this object to a JSON string using its explicit metadata.
         auto s = glz::write_json(*this);
         if (!s) {
             // Bubble up a helpful error if serialization fails
             throw RuntimeError(glz::format_error(s.error(), ""));
         }
-        // Parse the JSON string into a dynamic glz::json_t
+        // Parse the JSON string into a dynamic glz::generic
         auto ec = glz::read_json(out, *s);
         if (ec != glz::error_code::none) {
             throw RuntimeError(glz::format_error(ec, *s));
@@ -43,6 +51,7 @@ struct GraphPoints {
     std::string toStr() const {
         return glz::write_json(*this).value_or("null");
     }
+    static consteval std::string_view class_name() { return "GraphPoints"; }
     
     static GraphPoints fromStr(cmn::StringLike auto&& str) {
         GraphPoints pts;
@@ -78,6 +87,16 @@ struct GraphLine {
     std::variant<std::vector<Vec2>, std::string> pts;
     std::optional<bool> extrapolate;
     std::optional<bool> display_points;
+
+    struct glaze {
+        using T = GraphLine;
+        static constexpr auto value = glz::object(
+            "name", &T::name,
+            "pts", &T::pts,
+            "extrapolate", &T::extrapolate,
+            "display_points", &T::display_points
+        );
+    };
     
     bool is_pattern() const {
         return std::holds_alternative<std::string>(pts);
@@ -92,18 +111,18 @@ struct GraphLine {
         return std::get<std::string>(pts);
     }
 
-    glz::json_t to_json() const {
-        glz::json_t out;
-        //out["name"] = glz::json_t(name);
+    glz::generic to_json() const {
+        glz::generic out;
+        //out["name"] = glz::generic(name);
         //out["pts"] = cvt2json(pts);
         
-        // Serialize this object to a JSON string first (leveraging the glz::meta below)
+        // Serialize this object to a JSON string using its explicit metadata.
         auto s = glz::write_json(*this);
         if (!s) {
             // Bubble up a helpful error if serialization fails
             throw RuntimeError(glz::format_error(s.error(), ""));
         }
-        // Parse the JSON string into a dynamic glz::json_t
+        // Parse the JSON string into a dynamic glz::generic
         auto ec = glz::read_json(out, *s);
         if (ec != glz::error_code::none) {
             throw RuntimeError(glz::format_error(ec, *s));
@@ -113,6 +132,7 @@ struct GraphLine {
     std::string toStr() const {
         return glz::write_json(*this).value_or("null");
     }
+    static consteval std::string_view class_name() { return "GraphLine"; }
     
     static GraphLine fromStr(cmn::StringLike auto&& str) {
         GraphLine pts;
@@ -358,23 +378,3 @@ bool GraphElement::_update(Layout::Ptr& o,
 }
 
 }
-
-
-
-template<>
-struct glz::meta<cmn::gui::GraphPoints> {
-  using T = cmn::gui::GraphPoints;
-  static constexpr auto value = glz::object(
-    "name", &T::name,
-    "pts", &T::pts
-  );
-};
-
-template<>
-struct glz::meta<cmn::gui::GraphLine> {
-  using T = cmn::gui::GraphLine;
-  static constexpr auto value = glz::object(
-    "name", &T::name,
-    "pts", &T::pts
-  );
-};

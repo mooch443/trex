@@ -2,6 +2,10 @@
 // Do not edit by hand.
 
 // video/AveragingAccumulator.h
+namespace commons_module_smoke::commons_video::cmn {
+using ::cmn::AveragingAccumulator;
+}
+
 namespace commons_module_smoke::commons_video::cmn::averaging_method_t {
 using ::cmn::averaging_method_t::Class;
 }
@@ -20,4 +24,12 @@ using ::cmn::GenericVideo;
 namespace commons_module_smoke::commons_video::cmn {
 using ::cmn::Video;
 using ::cmn::VideoSource;
+}
+
+namespace commons_module_smoke::commons_video::cmn::video {
+using ::cmn::video::File;
+}
+
+namespace commons_module_smoke::commons_video::cmn::video_cache {
+using ::cmn::video_cache::CVideo;
 }

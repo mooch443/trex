@@ -65,11 +65,11 @@ struct BenchmarkRunner<ResolveTag> {
     cmn::pattern::UnresolvedStringPattern prepared;
 };
 
-glz::json_t to_json(const BenchmarkObject& object) {
-    glz::json_t nested;
+glz::generic to_json(const BenchmarkObject& object) {
+    glz::generic nested;
     nested["value"] = object.value.value;
 
-    glz::json_t json;
+    glz::generic json;
     json["x"] = object.x;
     json["name"] = object.name;
     json["enabled"] = object.enabled;
@@ -83,17 +83,17 @@ sprite::Map to_map(const BenchmarkObject& object) {
     map["name"] = object.name;
     map["enabled"] = object.enabled;
 
-    glz::json_t nested;
+    glz::generic nested;
     nested["value"] = object.value.value;
     map["value"] = std::move(nested);
     return map;
 }
 
-glz::json_t make_write_json_object() {
-    glz::json_t nested;
+glz::generic make_write_json_object() {
+    glz::generic nested;
     nested["field"] = 0;
 
-    glz::json_t json;
+    glz::generic json;
     json["number"] = 0;
     json["obj"] = std::move(nested);
     return json;
@@ -103,7 +103,7 @@ sprite::Map make_write_map_object() {
     sprite::Map map;
     map["number"] = double(0);
 
-    glz::json_t nested;
+    glz::generic nested;
     nested["field"] = double(0);
     map["obj"] = std::move(nested);
     return map;
@@ -267,7 +267,7 @@ int main() {
             .value = {.value = 123}
         };
 
-        const glz::json_t json = to_json(sample);
+        const glz::generic json = to_json(sample);
         sprite::Map map = to_map(sample);
 
         const std::vector<PatternCase> patterns{
@@ -318,7 +318,7 @@ int main() {
             "json",
             "[\"number\"]",
             make_write_json_object(),
-            [](glz::json_t& object, double value) -> double {
+            [](glz::generic& object, double value) -> double {
                 object["number"] = value;
                 return object["number"].get_number();
             },
@@ -331,7 +331,7 @@ int main() {
             "json",
             "[\"obj\"][\"field\"]",
             make_write_json_object(),
-            [](glz::json_t& object, double value) -> double {
+            [](glz::generic& object, double value) -> double {
                 object["obj"]["field"] = value;
                 return object["obj"]["field"].get_number();
             },
@@ -358,7 +358,7 @@ int main() {
             "[\"obj\"][\"field\"]",
             make_write_map_object(),
             [](sprite::Map& object, double value) -> double {
-                auto nested = object["obj"].value<glz::json_t>();
+                auto nested = object["obj"].value<glz::generic>();
                 nested["field"] = value;
                 object["obj"] = nested;
                 return nested["field"].get_number();
@@ -368,21 +368,21 @@ int main() {
             timed_iterations,
             sink);
 
-        benchmark_create_backend<glz::json_t>(
+        benchmark_create_backend<glz::generic>(
             "json",
             "cold_object",
-            [](const CreateInputs& input) -> glz::json_t {
-                glz::json_t nested;
+            [](const CreateInputs& input) -> glz::generic {
+                glz::generic nested;
                 nested["field"] = input.nested;
 
-                glz::json_t object;
+                glz::generic object;
                 object["number"] = input.number;
                 object["name"] = std::string(input.name);
                 object["enabled"] = input.enabled;
                 object["obj"] = std::move(nested);
                 return object;
             },
-            [](const glz::json_t& object) -> double {
+            [](const glz::generic& object) -> double {
                 return object["number"].get_number()
                     + object["obj"]["field"].get_number()
                     + static_cast<double>(object["enabled"].get<bool>())
@@ -402,14 +402,14 @@ int main() {
                 object["name"] = std::string(input.name);
                 object["enabled"] = input.enabled;
 
-                glz::json_t nested;
+                glz::generic nested;
                 nested["field"] = input.nested;
                 object["obj"] = std::move(nested);
                 return object;
             },
             [](const sprite::Map& object) -> double {
                 return object.at("number").value<double>()
-                    + object.at("obj").value<glz::json_t>()["field"].get_number()
+                    + object.at("obj").value<glz::generic>()["field"].get_number()
                     + static_cast<double>(object.at("enabled").value<bool>())
                     + static_cast<double>(object.at("name").value<std::string>().size());
             },
@@ -427,7 +427,7 @@ int main() {
         const auto make_json_backend = [&json]() {
             State state;
             Context context{
-                VarFunc("object", [&json](const VarProps&) -> const glz::json_t& { return json; })
+                VarFunc("object", [&json](const VarProps&) -> const glz::generic& { return json; })
             };
             return std::pair{std::move(context), std::move(state)};
         };

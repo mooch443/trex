@@ -1,4 +1,5 @@
 #include "SplitBlob.h"
+#include <processing/Background.h>
 #include <processing/CPULabeling.h>
 #include <tracking/Tracker.h>
 #include <misc/Timer.h>

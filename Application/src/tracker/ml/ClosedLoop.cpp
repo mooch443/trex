@@ -83,7 +83,7 @@ template<typename... Args>
      });
 }
 
-void ClosedLoop::update_loop(std::function<glz::json_t()> frame_info)
+void ClosedLoop::update_loop(std::function<glz::generic()> frame_info)
 {
     retrieve_closed_loop(false);
     

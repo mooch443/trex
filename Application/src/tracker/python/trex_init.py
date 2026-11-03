@@ -1,6 +1,7 @@
 import locale
 import os
 import sys
+import warnings
 
 def enable_utf8() -> None:
     """
@@ -66,7 +67,41 @@ try:
     except Exception as e:
         TRex.log("Error when disabling multi-threading: "+str(e))
     
-    if torch.cuda.is_available():
+    cuda_available = False
+    cuda_problem = None
+    try:
+        with warnings.catch_warnings(record=True) as cuda_warnings:
+            warnings.simplefilter("always")
+            cuda_available = torch.cuda.is_available()
+
+        for warning in cuda_warnings:
+            message = str(warning.message)
+            TRex.warn(message)
+            lowered = message.lower()
+            if cuda_problem is None and (
+                "cuda initialization" in lowered
+                or "nvidia driver" in lowered
+                or "cuda driver version is insufficient" in lowered
+            ):
+                cuda_problem = message
+    except Exception as e:
+        cuda_problem = "The CUDA availability check failed: " + str(e)
+        TRex.warn(cuda_problem)
+
+    if cuda_problem is not None:
+        cuda_runtime = getattr(getattr(torch, "version", None), "cuda", None)
+        version_details = f"PyTorch {torch.__version__}"
+        if cuda_runtime is not None:
+            version_details += f" was built for CUDA {cuda_runtime}"
+
+        TRex.show_runtime_warning(
+            "PyTorch could not initialize CUDA, so TRex will continue using the CPU. "
+            "Machine-learning predictions may be much slower.\n\n"
+            f"{version_details}.\n{cuda_problem}\n\n"
+            "Update the NVIDIA driver or install a PyTorch build compatible with the installed driver."
+        )
+
+    if cuda_available:
         num_gpus = torch.cuda.device_count()
         for i in range(num_gpus):
             TRex.log(f"PyTorch CUDA Device {i}: {torch.cuda.get_device_name(i)}")

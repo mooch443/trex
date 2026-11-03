@@ -64,13 +64,13 @@ ModuleProxy::~ModuleProxy() {
         FormatExcept("Unknown exception when unsetting functions ", set_functions, " in module ", m);
     }
 }
-std::optional<glz::json_t> ModuleProxy::run(const char* name) {
+std::optional<glz::generic> ModuleProxy::run(const char* name) {
     return Python::run(m, name);
 }
-std::optional<glz::json_t> ModuleProxy::run(const char* name, const std::string& parm) {
+std::optional<glz::generic> ModuleProxy::run(const char* name, const std::string& parm) {
     return Python::run(m, name, parm);
 }
-std::optional<glz::json_t> ModuleProxy::run(const char* name, const glz::json_t& parm) {
+std::optional<glz::generic> ModuleProxy::run(const char* name, const glz::generic& parm) {
     return Python::run(m, name, parm);
 }
 void ModuleProxy::unset_function(const char*name) {

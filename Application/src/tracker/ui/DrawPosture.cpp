@@ -1,4 +1,6 @@
 #include "DrawPosture.h"
+#include <data/MotionRecord.h>
+#include <processing/PVBlob.h>
 #include <gui/types/StaticText.h>
 #include <core/TrackingSettings.h>
 #include <tracking/Individual.h>

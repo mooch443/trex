@@ -1,11 +1,17 @@
 #include "ConvertScene.h"
+#include <python/Detection.h>
+#include <core/indicators.h>
+#include <core/TaskPipeline.h>
+#include <core/tomp4.h>
+#include <gui/GuiTypes.h>
+#include <misc/Image.h>
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
 #include <misc/Path.h>
 #include <grabber/misc/Camera.h>
 #include <grabber/misc/Webcam.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/IndividualManager.h>
 #include <misc/ThreadManager.h>
 #include <ui/RecentItems.h>
@@ -16,15 +22,17 @@
 #include <misc/CommandLine.h>
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ParseText.h>
+#include <core/TerminalProgress.h>
 #include <core/TileBuffers.h>
 #include <core/DetectionTypes.h>
 #include <python/OverlayedVideo.h>
 #include <tracking/Individual.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/LockGuard.h>
 #include <ui/Segmenter.h>
 #include <ui/ScreenRecorder.h>
 #include <gui/DynamicGUI.h>
-#include <ui/SettingsInitializer.h>
 #include <python/PythonWrapper.h>
 #include <ui/WorkProgress.h>
 #include <misc/CTCollection.h>
@@ -34,9 +42,15 @@
 #include <tracking/FilterCache.h>
 #include <ui/LabelWrapper.h>
 #include <ui/LabelElement.h>
+#include <ui/Skelett.h>
+#include <ui/Bowl.h>
 #include <ml/ClosedLoop.h>
+#include <core/SettingsPaths.h>
+#include <ui/GuiSettings.h>
+#include <tracking/Tracker.h>
 
 namespace cmn::gui {
+namespace ind = indicators;
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
 
@@ -44,28 +58,28 @@ read_once<bool> ConvertScene::force_start_over;
 
 template<typename T>
     requires has_to_json_method<std::remove_cvref_t<T>>
-glz::json_t to_json(T&& obj) {
+glz::generic to_json(T&& obj) {
     if constexpr (_clean_same<Vec2, T>) {
-        glz::json_t p;
+        glz::generic p;
         p["x"] = obj.x;
         p["y"] = obj.y;
         return p;
     } else if constexpr (_clean_same<Size2, T>) {
-        glz::json_t p;
+        glz::generic p;
         p["x"] = obj.width;
         p["y"] = obj.height;
         return p;
     } else if constexpr(_clean_same<Bounds, T>) {
-        glz::json_t p;
+        glz::generic p;
         p["x"] = obj.x;
         p["y"] = obj.y;
         p["w"] = obj.width;
         p["h"] = obj.height;
         return p;
     } else if constexpr(_clean_same<cmn::blob::Pose, T>) {
-        std::vector<glz::json_t> j;
+        std::vector<glz::generic> j;
         for(size_t i = 0; i < obj.points.size(); ++i) {
-            glz::json_t p;
+            glz::generic p;
             p["x"] = obj.points[i].x;
             p["y"] = obj.points[i].y;
             j.push_back(p);
@@ -105,15 +119,15 @@ struct ConvertScene::Data {
     std::optional<blob::Pose::Skeletons> skelet;
     
     std::mutex _current_json_mutex;
-    glz::json_t _current_json;
+    glz::generic _current_json;
 
     // Individual properties for each object
-    glz::json_t _primary_selection;
+    glz::generic _primary_selection;
     std::vector<Vec2> _zoom_targets;
     std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui;
-    std::map<Idx_t, glz::json_t> _individual_properties;
-    std::vector<glz::json_t> _untracked_properties;
-    std::vector<glz::json_t*> _tracked_properties;
+    std::map<Idx_t, glz::generic> _individual_properties;
+    std::vector<glz::generic> _untracked_properties;
+    std::vector<glz::generic*> _tracked_properties;
     std::unordered_map<pv::bid, Identity> _visible_bdx;
     std::vector<std::vector<Vertex>> _trajectories;
     std::vector<std::tuple<Color, std::vector<Vec2>>> _postures;
@@ -127,37 +141,20 @@ struct ConvertScene::Data {
     
     ScreenRecorder _recorder;
     
-    ind::ProgressBar bar{
-        ind::option::BarWidth{50},
-        ind::option::Start{"["},
-/*#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-//#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Converting video..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    cmn::terminal::progress::ProgressBar bar = cmn::terminal::progress::make_progress_bar({
+        .width = 50,
+        .postfix = "Converting video..."
+    });
 
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{""},
         ind::option::ForegroundColor{ind::Color::white},
-#ifndef _WIN32
-        ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
-#else
-        ind::option::SpinnerStates{std::vector<std::string>{".","..","..."}},
-#endif
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
     double dt = 0;
+    size_t bar_spinner_index = 0;
     std::atomic<double> _time{0};
     std::unique_ptr<Bowl> _bowl;
     
@@ -220,10 +217,13 @@ struct ConvertScene::Data {
     
     dyn::DynamicGUI init_gui(Base* window);
     void check_gui(DrawStructure& graph, Base* window) {
-        if(not dynGUI) {
+        if(not dynGUI && _segmenter) {
             dynGUI = init_gui(window);
             
-            dynGUI.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> const track::PPFrame*
+            dynGUI.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> std::shared_ptr<const track::Tracker>
+            {
+                return _segmenter ? _segmenter->tracker() : nullptr;
+            }, [this]() -> const track::PPFrame*
             {
                 return &_current_frame;
                 
@@ -258,7 +258,7 @@ struct ConvertScene::Data {
     bool retrieve_and_prepare_data();
     void draw_scene(DrawStructure& graph, const detect::yolo::names::map_t& detect_classes, bool dirty);
     
-    glz::json_t frame_info() {
+    glz::generic frame_info() {
         std::unique_lock guard{_current_json_mutex};
         return _current_json;
     }
@@ -270,8 +270,8 @@ Segmenter& ConvertScene::segmenter() const {
     return *_data->_segmenter;
 }
 
-glz::json_t ConvertScene::fish = []() {
-    glz::json_t fish;
+glz::generic ConvertScene::fish = []() {
+    glz::generic fish;
     fish["name"] = std::string("fish0");
     fish["color"] = to_json(Red);
     fish["pos"] = to_json(Vec2(100, 150));
@@ -353,14 +353,15 @@ void ConvertScene::update_progress_callback() {
                 fps = samples > 0 ? fps / samples : 0;
             }
             
+            cmn::terminal::progress::advance_progress_bar_spinner(_data->bar, _data->bar_spinner_index);
             _data->bar.set_progress(percent);
             if(fps > 0) {
                 auto video_length = Meta::toStr(_video_length.load());
                 
-                _data->bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(_data->_actual_frame.load())+"/"+video_length+" @ "+dec<1>(fps).toStr()+"fps..."});
+                _data->bar.set_postfix("Converting "+Meta::toStr(_data->_actual_frame.load())+"/"+video_length+" @ "+dec<1>(fps).toStr()+"fps...");
             }
             
-        } else if(last_tick.elapsed() > 1) {
+        } else if(last_tick.elapsed() > cmn::terminal::progress::interval_seconds()) {
             _data->spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame.load())+")"});
             _data->spinner.tick();
             last_tick.reset();
@@ -447,16 +448,15 @@ void ConvertScene::Data::check_video_info(bool wait, std::set<std::string_view>*
 
 void ConvertScene::open_video() {
     _data->bar.set_progress(0);
-    _data->bar.set_option(ind::option::ShowPercentage{true});
     segmenter().open_video();
     
-    _video_info.resolution = segmenter().size();
+    _video_info = segmenter().overlayed_video()->source()->info();
     _video_info.length = segmenter().video_length();
     _video_length = segmenter().video_length();
 }
 
 void ConvertScene::open_camera() {
-    if(not track::detect::yolo::valid_model(READ_SETTING(detect_model, file::Path)))
+    if(not track::detect::yolo::valid_model(detect::yolo::current_detect_model_path()))
     {
         SETTING(detect_model) = file::Path(track::detect::yolo::default_model());
     }
@@ -471,13 +471,13 @@ void ConvertScene::open_camera() {
     
     segmenter().open_camera();
     
-    _video_info.resolution = segmenter().size();
+    _video_info = segmenter().overlayed_video()->source()->info();
     _video_info.length = segmenter().video_length();
     _video_length = segmenter().video_length();
 }
 
-glz::json_t sprite_map_to_json(const sprite::Map& map) {
-    glz::json_t json;
+glz::generic sprite_map_to_json(const sprite::Map& map) {
+    glz::generic json;
     for(auto& key : map.keys()) {
         auto &prop = map.at(key).get();
         json[key] = prop.to_json();
@@ -501,6 +501,13 @@ void ConvertScene::activate()  {
     auto source = READ_SETTING(source, file::PathArray);
     if(READ_SETTING(filename, file::Path).empty()) {
         SETTING(filename) = default_filename;
+    }
+    
+    auto start_over = force_start_over.read();
+    if(start_over
+       && start_over.value())
+    {
+        segmenter().start_over().set(true);
     }
     
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
@@ -542,7 +549,7 @@ void ConvertScene::activate()  {
     _data->output_size = _data->_segmenter->output_size();
     buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
-    window()->set_title(window_title());
+    window()->set_title(settings::window_title());
     _data->bar.set_progress(0);
     
     SceneManager::enqueue([this](IMGUIBase*, DrawStructure& graph) {
@@ -675,7 +682,7 @@ void ConvertScene::Data::drawBlobs(
     auto selected_ids = READ_SETTING(gui_focus_group, std::vector<Idx_t>);
     const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
     
-    std::vector<glz::json_t> acc_json;
+    std::vector<glz::generic> acc_json;
     _zoom_targets.clear();
 
     for (auto& blob : _object_blobs) {
@@ -743,7 +750,7 @@ void ConvertScene::Data::drawBlobs(
             }
         }();
 
-        glz::json_t* tmp = nullptr;
+        glz::generic* tmp = nullptr;
 
         if (tracked_id.valid()) {
             tmp = &_individual_properties[tracked_id];
@@ -755,7 +762,7 @@ void ConvertScene::Data::drawBlobs(
             }
 
             if (untracked >= _untracked_gui.size())
-                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> const glz::json_t& {
+                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> const glz::generic& {
                     //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                     return _untracked_properties.at(i);
                 }));
@@ -840,7 +847,7 @@ void ConvertScene::Data::drawBlobs(
             _tracked_properties[tracked] = &_individual_properties[id];
 
         if (tracked >= _tracked_gui.size())
-            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> const glz::json_t& {
+            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> const glz::generic& {
                 //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                 return *_tracked_properties.at(i);
             }));
@@ -1032,7 +1039,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("detect_format", [](const VarProps&) {
             return READ_SETTING(detect_format, detect::ObjectDetectionFormat_t);
         }),
-        VarFunc("fish", [](const VarProps&) -> const glz::json_t& {
+        VarFunc("fish", [](const VarProps&) -> const glz::generic& {
             return fish;
         }),
         VarFunc("precomputed_is_caching", [this](const VarProps&) {
@@ -1057,7 +1064,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("actual_frame", [this](const VarProps&) {
             return _actual_frame.load();
         }),
-        VarFunc("video", [](const VarProps&) -> const gui::convert::VideoInfo& {
+        VarFunc("video", [](const VarProps&) -> const cmn::VideoInfo& {
             return _video_info;
         }),
         VarFunc("num_tracked", [this](const VarProps&) -> size_t {
@@ -1082,11 +1089,11 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
             return _untracked_gui;
         }),
-        VarFunc("primary_selection", [this](const VarProps&) -> const glz::json_t& {
+        VarFunc("primary_selection", [this](const VarProps&) -> const glz::generic& {
             return _primary_selection;
         }),
         VarFunc("tiles", [this](const VarProps&) -> std::vector<Bounds> {
-            return _current_data.tiles;
+            return std::vector<Bounds>(_current_data.tiles.begin(), _current_data.tiles.end());
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
             if(_recovered_error.empty())
@@ -1146,7 +1153,9 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
 
     bool dirty = retrieve_and_prepare_data();
     draw_scene(graph, detect_classes, dirty);
-    _bowl->update(_current_data.frame.index(), graph, coords);
+    
+    if(_segmenter && _segmenter->tracker())
+        _bowl->update(_segmenter->tracker()->frames(), _current_data.frame.index(), graph, coords);
     
     check_gui(graph, window);
 }
@@ -1205,7 +1214,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
         Range<Frame_t> tracklet_range;
         
         if(tracklet) {
-            auto filters = constraints::local_midline_length(fish, tracklet->range);
+            auto filters = constraints::local_midline_length(fish, tracklet->range, nullptr);
             filter_cache[fish->identity().ID()] = std::move(filters);
             tracklet_range = tracklet->range;
         }
@@ -1336,7 +1345,7 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
         }
 
         for (auto &box : _current_data.tiles)
-            graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
+            graph.rect(Box(to_bowl(box)), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
         
         ColorWheel wheel;
         size_t pose_index{ 0 };
@@ -1382,7 +1391,7 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
     graph.section("menus", [&](auto&, Section*) {
         // GUI exports: current *pipeline* frame, the *source* decode index used for IO,
         // and the *pipeline* index again for convenience.
-        _video_info.frame = _current_data.frame.index();
+        _video_info.current_frame_index = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
     });

@@ -41,10 +41,28 @@ Layout::Ptr DrawSegmentsElement::_create(dyn::LayoutContext& context) {
     auto font = dyn::parse_font(context.obj);
     
     // Create the DrawSegments widget.
-    auto ptr = Layout::Make<DrawSegments>();
-    ptr.to<DrawSegments>()->set(font);
-    ptr.to<DrawSegments>()->set(attr::Margins{pad});
-    ptr.to<DrawSegments>()->set(attr::SizeLimit{limit});
+    auto ptr = Layout::Make<DrawSegments>{}();
+    ptr->set(font);
+    ptr->set(attr::Margins{pad});
+    ptr->set(attr::SizeLimit{limit});
+    if(auto handler = context.state._current_object_handler.lock();
+        handler)
+    {
+        handler->register_tooltipable(ptr.get_smart());
+        ptr->on_delete([_handler = context.state._current_object_handler, _ptr = std::weak_ptr(ptr.get_smart())]()
+        {
+           auto handler = _handler.lock();
+           if(not handler)
+               return;
+
+           auto lock = _ptr.lock();
+           if(not lock)
+               return;
+
+           handler->unregister_tooltipable(lock);
+        });
+    }
+    
     return ptr;
 }
 

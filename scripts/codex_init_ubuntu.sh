@@ -108,6 +108,7 @@ install_system_deps() {
     ${sudo_cmd} apt-get install -y \
         build-essential \
         cmake \
+        ninja-build \
         pkg-config \
         git \
         make \
@@ -190,12 +191,13 @@ install_post_link_python() {
     numpy_ver="$(${PYTHON_BIN} -c 'import numpy; print(numpy.__version__)' 2>/dev/null || true)"
 
     local packages=(
-        "torch>=2.0.0,<2.9.0"
-        "torchvision>=0.15.1,<0.24.0"
+        "torch>=2.2.0,<2.9.0"
+        "torchvision>=0.17.0,<0.24.0"
         "torchmetrics"
         "tqdm"
         "opencv-python>=4,<5"
-        "ultralytics>=8.3.0,<9"
+        "ultralytics>=8.4.52,<9"
+        "rfdetr==1.8.3"
         "dill"
     )
 
@@ -250,6 +252,7 @@ configure_cmake() {
     local cmake_args=(
         -S "${APP_DIR}"
         -B "${BUILD_DIR}"
+        -G Ninja
         -DPYTHON_INCLUDE_DIR:FILEPATH="${PY_INCLUDE}"
         -DPYTHON_EXECUTABLE:FILEPATH="${PYTHON_BIN}"
         -DCMAKE_BUILD_TYPE=Debug
@@ -272,6 +275,7 @@ configure_cmake() {
 cd "${ROOT_DIR}"
 
 install_system_deps
+require_cmd ninja
 
 echo "[step] sync git submodules"
 git submodule update --init --recursive

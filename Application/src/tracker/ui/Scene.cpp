@@ -7,11 +7,11 @@
 #include <ui/Coordinates.h>
 #include <gui/IMGUIBase.h>
 #include <ui/WorkProgress.h>
+#include <gui/dyn/CTimer.h>
 
 namespace cmn::gui {
 
 IMPLEMENT(SceneManager::_switching_error);
-IMPLEMENT(SceneManager::_displaying_error){false};
 
 Scene::Scene(Base& window,
              const std::string& name,
@@ -206,6 +206,21 @@ void SceneManager::clear() {
 
 void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     //FindCoord::set_screen_size(graph, *window);
+    if(not _registered_graph
+       || not graph.has_event_exception_handler()
+       || ::operator!=(_registered_graph.value(), graph.has_event_exception_handler().value()))
+    {
+        _registered_graph = graph.set_event_exception_handler([](Event e, std::exception_ptr ptr) -> bool{
+            try {
+                if(ptr)
+                    std::rethrow_exception(ptr);
+            } catch(const std::exception& ex) {
+                FormatExcept("Caught an exception for event ", e.toStr(), ": ", ex.what());
+            }
+            return false;
+        }, std::source_location::current());
+    }
+    
     update_queue();
     _gui_queue->processTasks(window, graph);
     
@@ -218,8 +233,10 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     }
     
     try {
-        if (active_scene)
+        if (active_scene) {
+            [[maybe_unused]] CTimer timer{active_scene->name()};
             active_scene->draw(graph);
+        }
     }
     catch (const std::exception& e) {
         static const char* msg = nullptr;
@@ -231,19 +248,13 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
         }
     }
     
-    if (bool expected = false;
-        _displaying_error.compare_exchange_strong(expected, true))
-    {
+    if (not graph.has_open_dialogs()) {
         auto error_str = switching_error().read();
         if (error_str && not error_str->empty()) {
             graph.dialog(
-                [](auto){ _displaying_error = false; },
-                settings::htmlify(*error_str),
+                settings::htmlify(utils::ShortenText(*error_str, 1000)),
                 "Error"
             );
-        } else {
-            // No message to show -> immediately reset the flag
-            _displaying_error = false;
         }
     }
     

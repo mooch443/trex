@@ -10,7 +10,7 @@ Frequently Asked Questions
 I am using Windows and Python cannot be initialized successfully!
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	There is a high likelihood that something went wrong during installation. Make sure you did not first create an environment and then installed |trex| into this environment - also make sure you did not manually add ``pip`` packages that overwrote, for example, ``numpy`` with a different version (it should be ``1.26.4``).
+	There is a high likelihood that something went wrong during installation. Avoid manually adding ``pip`` packages that replace dependencies resolved by the |trex| Conda package, such as ``numpy``. There is no single NumPy version required across all current packages; keep the version selected by Conda for the installed |trex| build.
 		
 Trajectories jump around a lot for no particular reason!
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -55,7 +55,7 @@ class SceneManager {
     SceneManager();
 
     static read_once<std::string> _switching_error;
-    static std::atomic<bool> _displaying_error;
+    std::optional<std::source_location> _registered_graph;
     
 public:
     struct AlwaysAsync {};

@@ -1,5 +1,5 @@
-file(GLOB HDRS *.h)
-file(GLOB SRCS *.cpp)
+file(GLOB HDRS CONFIGURE_DEPENDS *.h)
+file(GLOB SRCS CONFIGURE_DEPENDS *.cpp)
 list(REMOVE_ITEM SRCS "${CMAKE_CURRENT_SOURCE_DIR}/BaslerPylonBridge.cpp")
 list(FILTER SRCS EXCLUDE REGEX "(^|.*/)BaslerPylonBridge\\.cpp$")
 

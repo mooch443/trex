@@ -8,7 +8,7 @@
 
 namespace track {
     namespace tags {
-        std::vector<result_t> prettify_blobs(const std::vector<blob_pixel>& fish, const std::vector<blob_pixel>& noise, const std::vector<blob_pixel>& original, const Image& average)
+        std::vector<result_t> prettify_blobs(const std::vector<blob_pixel>& fish, const std::vector<blob_pixel>& noise, const std::vector<blob_pixel>& original, const Image* average)
         {
             std::vector<result_t> result;
             std::vector<result_t> noise_images;
@@ -71,7 +71,12 @@ namespace track {
 
                 cv::Mat tmp2;
                 cv::Rect outrect = Bounds((parent ? parent->bounds().pos() : blob->bounds().pos()) - crop_offset, Size2(mgrey));
-                average.get()(outrect).copyTo(tmp2);
+                if(average) {
+                    average->get()(outrect).copyTo(tmp2);
+                } else {
+                    assert(mgrey.type() == CV_8UC1);
+                    tmp2 = cv::Mat(outrect.height, outrect.width, CV_8UC1, cv::Scalar::all(0));
+                }
                 mgrey.copyTo(tmp2, mmask);
                 
                 result.emplace_back(result_t{
