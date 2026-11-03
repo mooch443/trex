@@ -321,6 +321,178 @@ TEST(DynamicGUILocalSettings, SetLocalSystemActionUpdatesDeclaredValue) {
     EXPECT_EQ(local_value<int>(gui.context, "local.tab"), 1);
 }
 
+TEST(DynamicGUILocalSettings, ClassEditorAcceptsFirstAndFalseLikeNames) {
+    const auto json = (file::Path(TREX_TEST_FOLDER).remove_filename()
+                       / "src" / "tracker" / "tracking_layout.json").read_file();
+    auto loaded = load(json);
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+    auto [defaults, objects] = std::move(loaded.value());
+
+    std::vector<std::string> actions;
+    std::function<void(const glz::generic&)> visit = [&](const glz::generic& node) {
+        if(node.is_object()) {
+            const auto& fields = node.get_object();
+            if(auto text = fields.find("text"); text != fields.end() && text->second.is_string()
+               && text->second.get_string() == "+")
+            {
+                if(auto action = fields.find("action"); action != fields.end()
+                   && action->second.get_string().starts_with("set:detect_classes:"))
+                    actions.push_back(action->second.get_string());
+            }
+            for(const auto& [key, value] : fields)
+                visit(value);
+        } else if(node.is_array()) {
+            for(const auto& value : node.get_array())
+                visit(value);
+        }
+    };
+    visit(objects);
+    ASSERT_EQ(actions.size(), 1u);
+    const auto action = PreAction::fromStr(actions.front());
+
+    using ClassMap = std::map<uint16_t, std::string>;
+    using Classes = std::optional<ClassMap>;
+    sprite::Map global;
+    Context context{
+        VarFunc("global", [&](const VarProps&) -> sprite::Map& { return global; })
+    };
+    context.apply_local_settings(defaults);
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    for(const auto& initial : std::vector<Classes>{std::nullopt, ClassMap{}, ClassMap{{2, "fish"}, {10, "ray"}}}) {
+        SCOPED_TRACE(Meta::toStr(initial));
+        for(const auto* name : {"", "fish", "0", "false", "null", R"(fish, juvenile: "spotted")"}) {
+            SCOPED_TRACE(name);
+            global["detect_classes"] = initial;
+            context.update_local_setting(handler.get(), "local.new_class_name", [&](sprite::Reference& ref) {
+                ref.get() = std::string(name);
+            });
+            auto expected = initial;
+            if(std::string_view(name) != "") {
+                expected = initial.value_or(ClassMap{});
+                const auto index = expected->empty() ? 0 : expected->rbegin()->first + 1;
+                expected->emplace(index, name);
+            }
+
+            const auto parsed = action.parse(context, state);
+            EXPECT_EQ(parsed.name, "set");
+            ASSERT_EQ(parsed.parameters.size(), 2u);
+            EXPECT_EQ(parsed.parameters.front(), "detect_classes");
+            EXPECT_EQ(Meta::fromStr<Classes>(parsed.parameters.back()), expected);
+        }
+    }
+}
+
+TEST(ListElementTest, GeneratedCommandPreservesMapParameter) {
+    glz::generic obj = glz::generic::object_t{
+        {"type", "list"},
+        {"var", "[0]"},
+        {"template", glz::generic::object_t{
+            {"text", "Class"},
+            {"action", "{if:true:{command}:noop}"}
+        }}
+    };
+
+    std::string value = R"({0:"Fish-School"})";
+    size_t evaluations = 0;
+    std::vector<Action> received_actions;
+    Context context{
+        VarFunc("command", [&](const VarProps&) -> std::string {
+            ++evaluations;
+            return "set:detect_classes:" + value;
+        }),
+        ActionFunc("set", [&](Action action) {
+            received_actions.push_back(std::move(action));
+        })
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<ScrollableList<DetailTooltipItem>>());
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    auto list = root.to<ScrollableList<DetailTooltipItem>>();
+    ASSERT_EQ(list->items().size(), 1u);
+    EXPECT_TRUE(received_actions.empty());
+
+    value = R"({0:"Fish-School",3:"new_class"})";
+    evaluations = 0;
+    ASSERT_NO_THROW(list->select_item(0));
+    ASSERT_EQ(received_actions.size(), 1u);
+    EXPECT_EQ(received_actions[0].name, "set");
+    EXPECT_THAT(received_actions[0].parameters, ::testing::ElementsAre("detect_classes", value));
+    EXPECT_EQ(evaluations, 1u);
+}
+
+TEST(EventBindingTest, ResolvesCommandsOnceAcrossWidgetHandlers) {
+    for(const auto* type : {"button", "checkbox", "rect", "textfield", "list"}) {
+        SCOPED_TRACE(type);
+        for(const auto* source : {"set:detect_classes:{value}", "{if:true:{command}:noop}"}) {
+            SCOPED_TRACE(source);
+            glz::generic obj = glz::generic::object_t{
+                {"type", type},
+                {"size", glz::generic::array_t{160, 40}},
+                {"clickable", true}
+            };
+            if(std::string_view(type) == "list") {
+                obj["items"] = glz::generic::array_t{
+                    glz::generic::object_t{{"text", "Class"}, {"action", source}}
+                };
+            } else {
+                obj[std::string_view(type) == "rect" ? "click" : "action"] = source;
+            }
+
+            std::string value = R"({0:"Fish-School"})";
+            size_t evaluations = 0;
+            std::vector<Action> received_actions;
+            Context context{
+                VarFunc("value", [&](const VarProps&) -> std::string {
+                    ++evaluations;
+                    return value;
+                }),
+                VarFunc("command", [&](const VarProps&) -> std::string {
+                    ++evaluations;
+                    return "set:detect_classes:" + value;
+                }),
+                ActionFunc("set", [&](Action action) {
+                    received_actions.push_back(std::move(action));
+                })
+            };
+            State state;
+            auto handler = std::make_shared<CurrentObjectHandler>();
+            state._current_object_handler = handler;
+            DrawStructure graph(640, 480);
+            auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+            ASSERT_TRUE(root);
+            ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+            EXPECT_TRUE(received_actions.empty());
+
+            value = R"({0:"Fish-School",3:"new_class"})";
+            evaluations = 0;
+            if(std::string_view(type) == "list") {
+                ASSERT_NO_THROW(root.to<ScrollableList<DetailTooltipItem>>()->select_item(0));
+            } else if(std::string_view(type) == "textfield") {
+                ASSERT_NO_THROW(root.to<Textfield>()->enter());
+            } else {
+                graph.wrap_object(*root);
+                const auto target_center = center_of(*root);
+                ASSERT_NO_THROW(graph.mouse_move(target_center.x, target_center.y));
+                ASSERT_NO_THROW(graph.mouse_down(true));
+                ASSERT_NO_THROW(graph.mouse_up(true));
+            }
+
+            ASSERT_EQ(received_actions.size(), 1u);
+            EXPECT_EQ(received_actions[0].name, "set");
+            EXPECT_THAT(received_actions[0].parameters, ::testing::ElementsAre("detect_classes", value));
+            EXPECT_EQ(evaluations, 1u);
+        }
+    }
+}
+
 TEST(DynamicGUIButtonTest, RoutesConditionalActionFromCurrentLocalValue) {
     constexpr std::string_view json = R"json(
 {
@@ -1364,6 +1536,34 @@ TYPED_TEST(ParseAndResolveTest, BasicReplacement)
     };
     auto result = run_parser<TypeParam>("{variable}", ctx, state);
     ASSERT_EQ(result, "mocked_value");
+}
+
+TYPED_TEST(ParseAndResolveTest, CollectionHelpersPreserveStringsAndRejectEmptyMaximum)
+{
+    State state;
+    std::map<std::string, std::string> classes{{"fish", "before"}};
+    const std::string label = R"(fish, juvenile: "spotted")";
+    Context ctx{
+        VarFunc("classes", [&](const VarProps&) { return classes; }),
+        VarFunc("label", [&](const VarProps&) { return label; })
+    };
+
+    for(const auto* key : {"fish", "ray, spotted"}) {
+        SCOPED_TRACE(key);
+        const auto expression = std::string("{insert:") + key + ":{label}:{classes}}";
+        const auto result = run_parser<TypeParam>(expression, ctx, state);
+        classes = Meta::fromStr<decltype(classes)>(result);
+        EXPECT_EQ(classes.at(key), label);
+    }
+    ASSERT_EQ(classes.size(), 2u);
+
+    const auto erased = run_parser<TypeParam>("{erase:fish:{classes}}", ctx, state);
+    classes = Meta::fromStr<decltype(classes)>(erased);
+    ASSERT_EQ(classes.size(), 1u);
+    EXPECT_EQ(classes.at("ray, spotted"), label);
+
+    EXPECT_EQ(run_parser<TypeParam>("{max_element:[-3,2,1]}", ctx, state), "2");
+    EXPECT_THROW(run_parser<TypeParam>("{max_element:[]}", ctx, state), std::exception);
 }
 
 TYPED_TEST(ParseAndResolveTest, IfReplacement)

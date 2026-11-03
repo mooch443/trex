@@ -2,7 +2,8 @@
   "locals":{
     "rightclicked_point": {"type":"int_array","value":[]},
     "clicked_pose_object": {"type":"json","value":null},
-    "change_class_of": {"type":"json","value":null}
+    "change_class_of": {"type":"json","value":null},
+    "new_class_name": {"type":"string","value":""}
   },
 "defaults": {
 "vars":{
@@ -341,7 +342,7 @@
   "var":"{local.change_class_of}",
   "then":{
     "type":"list",
-    "var":"{keys:{global.detect_classes}}",
+    "var":"{if:{global.detect_classes}:{keys:{global.detect_classes}}:[]}",
     "z-index": 5,
     "select_on_show": true,
     "deselect": "set-local:change_class_of:null",
@@ -602,6 +603,62 @@
                   "text":"<c><gray>detect_classes</gray></c>\nwhich classes do you want to annotate?",
                   "font":{"size":0.5},
                   "max_size":"[{-:{infocard_width}:0}, 0]"
+                }
+              ],
+              [
+                {
+                  "type":"vlayout",
+                  "children":[
+                    {
+                      "type":"list",
+                      "var":"{if:{global.detect_classes}:{keys:{global.detect_classes}}:[]}",
+                      "corners":["top"],
+                      "item":{
+                        "font":{"size":0.5},
+                        "fill":"{if:{||:{selected}}:[60,60,60,200]:[50,50,50,250]}",
+                        "pad":[5,3]
+                      },
+                      "list":{
+                        "size":[180,110],
+                        "fill":"{if:{||:{selected}}:[60,60,60,200]:[50,50,50,250]}",
+                        "line":"{if:{||:{selected}}:[100,175,250,230]:[100,100,100,230]}"
+                      },
+                      "template":{
+                        "text":"{at:{i}:{global.detect_classes}}",
+                        "action":"set:detect_classes:{erase:{i}:{global.detect_classes}}",
+                        "tooltip":"Click a class to remove it"
+                      }
+                    }, 
+                    {
+                      "type":"hlayout",
+                      "pad":[0,0,0,0],
+                      "children": [
+                        {
+                          "type": "textfield",
+                          "text": "{local.new_class_name}",
+                          "on_text_changed": "set-local:new_class_name:{text}",
+                          "corners": ["bottomleft"],
+                          "size": [145,35],
+                          "font": {"size": 0.48},
+                          "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,250]}",
+                          "line": [100, 100, 100, 50],
+                          "color": [255, 255, 255],
+                          "placeholder": "New-class"
+                        },
+                        {
+                          "type":"button",
+                          "text":"+",
+                          "deselect":"set-local:new_class_name:''",
+                          "font":{"size":0.5},
+                          "size":[35,35],
+                          "fill": [50, 70, 50, 200],
+                          "line": [100, 100, 100, 50],
+                          "corners": ["bottomright"],
+                          "action":"set:detect_classes:{if:{nequal:{local.new_class_name}:''}:{insert:{if:{global.detect_classes}:{+:1:{max_element:{keys:{global.detect_classes}}}}:0}:{local.new_class_name}:{if:{global.detect_classes}:{global.detect_classes}:'{}'}}:{global.detect_classes}}"
+                        }
+                      ]
+                    }
+                  ]
                 }
               ],
               [
