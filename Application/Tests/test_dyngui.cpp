@@ -166,7 +166,7 @@ static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemLineColor_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemTextClr_t>);
 static_assert(cmn::gui::dyn::takes_attribute<ScrollableList<DetailTooltipItem>, ItemFillClr_t>);
 static_assert(cmn::gui::dyn::takes_attribute<ScrollableList<DetailTooltipItem>, ItemTextClr_t>);
-static_assert(cmn::gui::dyn::takes_attribute<TagList, CornerFlags_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemCornerFlags>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, LabelDims_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ListDims_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, Placeholder_t>);
@@ -805,6 +805,101 @@ TEST(DynamicGUILocalSettings, ExistingGlobalSettingsStillCreateSettingsWidgets) 
     auto root = parse_object(&queue, objects.get_array().front().get_object(), context, state, context.defaults);
     ASSERT_TRUE(root);
     EXPECT_EQ(GlobalSettings::read_value<std::string>("dyngui_test_global_setting").value(), "global");
+}
+
+TEST(DynamicGUISettingsTest, PathFieldRefreshesAfterSettingChanges) {
+    sprite::Map settings;
+    settings["path"] = file::Path("before");
+    GUITaskQueue_t queue;
+    LabeledPath field(&queue, "path", "", file::Path("before"), &settings);
+    ASSERT_EQ(field._dropdown->textfield()->text(), "before");
+
+    settings["path"] = file::Path("after");
+    field.update_ref_in_main_thread();
+    EXPECT_EQ(field._dropdown->textfield()->text(), "after");
+}
+
+TEST(DynamicGUISettingsTest, OptionalCornersReachValueAndResetWithoutImplicitLabelOverride) {
+    SETTING(dyngui_test_optional_corner_text) = std::optional<std::string>{"value"};
+    SETTING(dyngui_test_optional_corner_path) = std::optional<file::Path>{file::Path("value")};
+
+    constexpr std::string_view json = R"json(
+{
+  "objects": [
+    { "type": "settings", "desc": "", "corners": ["top", 6] },
+    { "type": "settings", "desc": "", "corners": ["none"], "label": { "color": [255,255,255] } },
+    { "type": "settings", "desc": "", "corners": ["none"], "label": { "corners": ["right", 4] } }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+    auto [defaults, objects] = std::move(loaded.value());
+    const std::array<CornerFlags, 3> value_corners{
+        CornerFlags(CornerFlags::TopLeft, 6), CornerFlags::Square(), CornerFlags(CornerFlags::None, 4)
+    };
+    const std::array<CornerFlags, 3> reset_corners{
+        CornerFlags(CornerFlags::TopRight, 6), CornerFlags::Square(), CornerFlags::Right(4)
+    };
+
+    for(const auto* name : {"dyngui_test_optional_corner_text", "dyngui_test_optional_corner_path"}) {
+        SCOPED_TRACE(name);
+        for(size_t i = 0; i < objects.get_array().size(); ++i) {
+            SCOPED_TRACE(i);
+            auto object = objects.get_array().at(i);
+            object["var"] = std::string(name);
+
+            GUITaskQueue_t queue;
+            Context context;
+            context.defaults = defaults;
+            State state;
+            auto handler = std::make_shared<CurrentObjectHandler>();
+            state._current_object_handler = handler;
+
+            auto root = parse_object(&queue, object.get_object(), context, state, context.defaults);
+            ASSERT_TRUE(root.is<HorizontalLayout>());
+            const auto& children = root.to<HorizontalLayout>()->objects();
+            ASSERT_EQ(children.size(), 2u);
+            if(children.front().is<Dropdown>()) {
+                EXPECT_EQ(children.front().to<Dropdown>()->textfield()->corner_flags(), value_corners.at(i));
+            } else {
+                ASSERT_TRUE(children.front().is<Textfield>());
+                EXPECT_EQ(children.front().to<Textfield>()->corner_flags(), value_corners.at(i));
+            }
+            ASSERT_TRUE(children.back().is<Button>());
+            EXPECT_EQ(children.back().to<Button>()->corner_flags(), reset_corners.at(i));
+        }
+    }
+}
+
+TEST(DynamicGUISettingsTest, UnsetOptionalPathInComboboxKeepsSharedEdgeSquare) {
+    GlobalSettings::write([](Configuration& config) {
+        config.values["dyngui_test_unset_optional_path"] = std::optional<file::Path>{};
+        config.defaults["dyngui_test_unset_optional_path"] = std::optional<file::Path>{};
+    });
+
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    Combobox combo(&queue, Box(0, 0, 500, 40));
+    combo.set(ParmName{"dyngui_test_unset_optional_path"});
+    graph.wrap_object(combo);
+    graph.collect();
+
+    Entangled* placeholder = nullptr;
+    for(auto* child : combo.children()) {
+        if(auto* layout = dynamic_cast<HorizontalLayout*>(child)) {
+            const auto& objects = layout->objects();
+            ASSERT_EQ(objects.size(), 2u);
+            ASSERT_TRUE(objects.front().is<Dropdown>());
+            ASSERT_TRUE(objects.back().is<Entangled>());
+            ASSERT_FALSE(objects.back().is<Dropdown>());
+            placeholder = objects.back().to<Entangled>();
+        }
+    }
+    ASSERT_NE(placeholder, nullptr);
+    EXPECT_EQ(combo.dropdown()->textfield()->corner_flags(), CornerFlags::Left());
+    EXPECT_EQ(placeholder->corner_flags(), CornerFlags::Right());
 }
 
 TEST(DynamicGUISettingsTest, BooleanSelectionDoesNotLeaveTooltipHovered) {
@@ -4524,6 +4619,60 @@ TEST(DynamicGUIListTest, KeepsItemFillAndTextColorAttributesDistinct) {
     EXPECT_EQ(list->text_color(), item_text);
 }
 
+TEST(ScrollableListTest, DefersRowGeometryUntilDrawing) {
+    for(float padding_y : {0.f, 1.f, 3.f, 5.f}) {
+        SCOPED_TRACE(padding_y);
+        ScrollableList<DetailTooltipItem> list{ListDims_t{180, 110}};
+        list.set_items({DetailTooltipItem{"One"}, DetailTooltipItem{"Two"}});
+        list.before_draw();
+
+        ASSERT_GE(list.children().size(), 2u);
+        auto* row = dynamic_cast<Rect*>(list.children().front());
+        ASSERT_NE(row, nullptr);
+        const auto previous_height = row->height();
+
+        list.set(ItemPadding_t{5, padding_y});
+        list.set(ItemFont_t{Font{0.5f}});
+        list.set(ItemCornerFlags{CornerFlags::Square()});
+        EXPECT_FLOAT_EQ(row->height(), previous_height);
+        EXPECT_FLOAT_EQ(list.line_height(), Base::default_line_spacing(Font{0.5f})
+            + Base::default_line_spacing(Font{0.55f}) + padding_y * 2);
+
+        list.before_draw();
+        EXPECT_FLOAT_EQ(row->height(), list.line_height());
+        EXPECT_EQ((CornerFlags)row->corners(), CornerFlags::Square());
+        auto* text = dynamic_cast<StaticText*>(list.children()[1]);
+        ASSERT_NE(text, nullptr);
+        EXPECT_FLOAT_EQ(text->font().size, 0.5f);
+
+        list.set(ItemFont_t{Font{0.6f}});
+        EXPECT_TRUE(list.content_changed());
+        list.before_draw();
+        EXPECT_FLOAT_EQ(row->height(), list.line_height());
+        EXPECT_FLOAT_EQ(text->font().size, 0.6f);
+    }
+}
+
+TEST(ScrollableListTest, RefreshesPendingRowsBeforeKeyboardHighlight) {
+    ScrollableList<std::string> list{ListDims_t{180, 40}};
+    DrawStructure graph(320, 200);
+    graph.wrap_object(list);
+    list.before_draw();
+
+    list.set_items({"One", "Two", "Three", "Four", "Five"});
+    list.set(ItemPadding_t{5, 3});
+    list.set(ItemFont_t{Font{0.5f}});
+    list.set(ItemCornerFlags{CornerFlags::Square()});
+    list.highlight_item(4);
+
+    ASSERT_EQ(list.highlighted_item(), 4u);
+    auto* row = dynamic_cast<Rect*>(graph.hovered_object());
+    ASSERT_NE(row, nullptr);
+    EXPECT_FLOAT_EQ(row->height(), list.line_height());
+    EXPECT_EQ((CornerFlags)row->corners(), CornerFlags::Square());
+    EXPECT_GT(list.scroll_offset().y, 0);
+}
+
 TEST(ScrollableListTest, ClearingKeyboardHighlightClearsSelectionState) {
     ScrollableList<std::string> list{Box{0, 0, 200, 100}};
     list.set_items({"Alpha", "Beta"});
@@ -4548,7 +4697,7 @@ TEST(TagListTest, StandardAttributesConfigureItemsAndInputThroughSetOverloads) {
         ItemFillClr_t{Color{12, 34, 56, 220}},
         ItemLineColor_t{Color{1, 2, 3, 255}},
         ItemTextClr_t{Color{250, 251, 252, 255}},
-        CornerFlags_t{CornerFlags::Rounded(6)},
+        ItemCornerFlags{CornerFlags::Rounded(6)},
         LabelDims_t{130, 26},
         ListDims_t{200, 140},
         Placeholder_t{"Search tags"},
@@ -4600,7 +4749,7 @@ TEST(TagListTest, StandardAttributesAreAppliedByDynamicAttributeDelegation) {
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(
         ItemTextClr_t{Color{220, 221, 222, 255}}, object));
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(
-        CornerFlags_t{CornerFlags::Rounded(5)}, object));
+        ItemCornerFlags{CornerFlags::Rounded(5)}, object));
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(LabelDims_t{125, 24}, object));
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(ListDims_t{190, 135}, object));
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(

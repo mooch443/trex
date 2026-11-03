@@ -79,6 +79,15 @@ struct DrawAnnotationExportOptions::Data {
     file::Path output_directory() const {
         if(!_output_directory_text.empty())
             return file::Path(_output_directory_text);
+        
+        const auto annotation_export_output_path = READ_SETTING_WITH_DEFAULT(annotation_export_output_path, std::optional<file::Path>{});
+        if(annotation_export_output_path
+           && not annotation_export_output_path->empty())
+        {
+            return annotation_export_output_path->is_absolute()
+                ? *annotation_export_output_path
+                : file::DataLocation::parse("output", *annotation_export_output_path);
+        }
 
         file::Path input = READ_SETTING(filename, file::Path).filename();
         if(input.empty()) {

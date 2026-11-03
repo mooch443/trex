@@ -187,7 +187,7 @@
               },
               {
                 "type": "stext",
-                "text": "<b>Annotation type:</b> <c>{info.detect_format}</c> ({info.selected_count} annotations)\n<gray>Exports only the type selected by <c>detect_format</c>.</gray>",
+                "text": "Exporting only annotations of the type selected in <c>detect_format</c> (<key><c>{global.detect_format}</c></key>).",
                 "font": {"size": 0.5},
                 "pad": [10, 6, 10, 6]
               },

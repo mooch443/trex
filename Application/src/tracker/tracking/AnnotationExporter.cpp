@@ -649,6 +649,14 @@ void export_tag_annotations(TagDatasetConfig config) {
     
     auto data_prefix = READ_SETTING(data_prefix, file::Path);
     auto fishdata = file::DataLocation::parse("output", data_prefix);
+    const auto annotation_export_output_path = READ_SETTING_WITH_DEFAULT(annotation_export_output_path, std::optional<file::Path>{});
+    if(annotation_export_output_path
+       && not annotation_export_output_path->empty())
+    {
+        fishdata = annotation_export_output_path->is_absolute()
+            ? *annotation_export_output_path
+            : file::DataLocation::parse("output", *annotation_export_output_path);
+    }
     if(not fishdata.exists())
         if(not fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
