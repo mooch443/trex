@@ -1040,6 +1040,19 @@ TEST(DynamicGUISettingsTest, UnsetOptionalPathInComboboxKeepsSharedEdgeSquare) {
     EXPECT_EQ(placeholder->corner_flags(), CornerFlags::Right());
 }
 
+TEST(DynamicGUISettingsTest, ComboboxDelegatesLabelAndItemFonts) {
+    GUITaskQueue_t queue;
+    derived_ptr<Combobox> combo{new Combobox(&queue, LabelFont_t{0.65f}, ItemFont_t{0.85f})};
+    combo->dropdown()->list().set(ItemPadding_t{0, 0});
+    EXPECT_FLOAT_EQ(combo->dropdown()->textfield()->font().size, 0.65f);
+    EXPECT_FLOAT_EQ(combo->dropdown()->list().line_height(), Base::default_line_spacing(Font{0.85f}));
+
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(LabelFont_t{0.7f}, combo));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(ItemFont_t{0.9f}, combo));
+    EXPECT_FLOAT_EQ(combo->dropdown()->textfield()->font().size, 0.7f);
+    EXPECT_FLOAT_EQ(combo->dropdown()->list().line_height(), Base::default_line_spacing(Font{0.9f}));
+}
+
 TEST(DynamicGUISettingsTest, BooleanSelectionDoesNotLeaveTooltipHovered) {
     GlobalSettings::write([](Configuration& config) {
         config.values["dyngui_test_hover_bool"] = false;
@@ -3458,7 +3471,7 @@ TEST_F(StaticTextTest, EmptyAnnotationLabelKeepsParenthesizedWordTogether) {
     };
 
     // Resolved label from tracking_layout.json, with room only for " (emp" after the symbol.
-    StaticText label(Str{"<c>Annotate this frame as </c>∅<c> (empty):</c>"}, font);
+    StaticText label(Str{"<c>Annotate this frame as </c>∅<c> (empty):</c>"}, Font_t{font});
     label.set(SizeLimit{Size2{
         width("Annotate this frame as ", mono) + width("∅", font) + width(" (emp", mono)
             + 2 * label.margins().x, 0}});
@@ -3634,7 +3647,7 @@ TEST_F(StaticTextTest, TrailingPeriodStaysWithStyledWord) {
     const auto width = [](std::string_view str, const Font& font) {
         return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
     };
-    StaticText label(Str{"a <i>word</i>."}, font, Margins{0});
+    StaticText label(Str{"a <i>word</i>."}, Font_t{font}, Margins{0});
     // The word fits after "a "; keeping its period attached requires a new line.
     label.set(SizeLimit{Size2{width("a ", font) + width("word", italic) + width(".", font) * 0.5_F, 0}});
 
@@ -3659,8 +3672,8 @@ TEST_F(StaticTextTest, LongAnnotationLabelPreservesWordsStylesAndGeometryOnReflo
         "<small>Use &lt;preview&gt; before saving.</small> "
         "<c>Only then add the </c>∅<c> (empty) annotation and continue to the next frame.</c>";
     const Color color{130, 170, 210, 180};
-    StaticText reference(Str{input}, font, TextClr{color});
-    StaticText label(Str{input}, font, TextClr{color}, Alpha{0.6_F}, Margins{7, 9, 7, 11});
+    StaticText reference(Str{input}, Font_t{font}, TextClr{color});
+    StaticText label(Str{input}, Font_t{font}, TextClr{color}, Alpha{0.6_F}, Margins{7, 9, 7, 11});
     const auto width = [](std::string_view str, const Font& font) {
         return utils::calculate_width(utils::calculate_bounds(str, nullptr, font));
     };
@@ -3949,6 +3962,19 @@ TEST(ScrollableListTest, ClearingKeyboardHighlightClearsSelectionState) {
     EXPECT_FALSE(list.currently_highlighted_item().has_value());
     EXPECT_FALSE(list.last_hovered_item().has_value());
     EXPECT_FALSE(list.highlighted_item().has_value());
+}
+
+TEST(DropdownTest, LabelAndItemFontsRemainSeparate) {
+    auto dropdown = Layout::Make<Dropdown>{
+        LabelFont_t{0.6f}, ItemFont_t{0.9f}, std::vector<std::string>{"One"}
+    }();
+    dropdown->list().set(ItemPadding_t{0, 0});
+
+    EXPECT_FLOAT_EQ(dropdown->textfield()->font().size, 0.6f);
+    EXPECT_FLOAT_EQ(dropdown->list().line_height(), Base::default_line_spacing(Font{0.9f}));
+    dropdown->set(LabelFont_t{0.7f});
+    EXPECT_FLOAT_EQ(dropdown->textfield()->font().size, 0.7f);
+    EXPECT_FLOAT_EQ(dropdown->list().line_height(), Base::default_line_spacing(Font{0.9f}));
 }
 
 TEST(TagListTest, StandardAttributesConfigureItemsAndInputThroughSetOverloads) {

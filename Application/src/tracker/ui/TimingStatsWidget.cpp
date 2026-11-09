@@ -105,7 +105,7 @@ void TimingStatsWidget::update() {
                     Str(label),
                     Loc(x_start, y - 10),
                     TextClr{ Black },
-                    Font(0.5, Align::Right)
+                    Font_t(0.5, Align::Right)
                 );*/
                 
             } else {
@@ -140,7 +140,7 @@ void TimingStatsWidget::update() {
               Str(name.toStr()),
               Loc(0, (0.5 + double((uint32_t)name) - 1.0) * _rowHeight),
               TextClr{Black},
-              Font(0.5),
+              Font_t(0.5),
               Origin(1, 0.5)
             );
         }

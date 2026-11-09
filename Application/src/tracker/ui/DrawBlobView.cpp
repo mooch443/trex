@@ -536,7 +536,7 @@ void BlobView::draw(const DisplayParameters& parm)
                 
                 Scale scale{base.scale().reciprocal()};
                 base.rect(Box(pos, Base::text_dimensions(text, s, Font(0.5)) + Vec2(2, 2)), FillClr{Black.alpha(125)}, LineClr{Transparent}, scale);
-                base.text(Str(text), Loc(pos + Vec2(2)), TextClr(White), Font(0.5), scale);
+                base.text(Str(text), Loc(pos + Vec2(2)), TextClr(White), Font_t(0.5), scale);
             }
             
             if(_last_frame != frame) {
@@ -889,7 +889,7 @@ void BlobView::draw(const DisplayParameters& parm)
                 }
             });
             
-            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, TextClr{225,225,225}, LabelCornerFlags::Top(), ListCornerFlags::Square());
+            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font_t{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, TextClr{225,225,225}, LabelCornerFlags::Top(), ListCornerFlags::Square());
             list->on_select([this, &cache = parm.cache](auto, const Dropdown::TextItem& item) {
                 auto number = uint64_t(item.custom());
                 uint32_t item_id = (number >> 32) & 0xFFFFFFFF;
@@ -1521,7 +1521,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                         Str(Meta::toStr(D)+" px"),
                         Loc(Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
                         TextClr(Cyan.alpha(200)),
-                        font,
+                        Font_t{font},
                         sca,
                         Origin(0.5),
                         Rotation(a));
@@ -1530,7 +1530,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                         Str(Meta::toStr(D * READ_SETTING(cm_per_pixel, Float2_t))+" cm"), 
                         Loc(Vec2(boundary[1] - boundary[0]) * 0.5 + boundary[0] - v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525)),
                         TextClr{Cyan.alpha(200)}, 
-                        font, 
+                        Font_t{font},
                         sca,
                         Origin(0.5),
                         Rotation(a));
@@ -1589,7 +1589,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 bds.width = max(100.f, text_bounds.width) + 10;
                 
                 if(!button) {
-                    button = Layout::Make<Button>{Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}};
+                    button = Layout::Make<Button>{Str(name), Box(Vec2(), bds.size()), Font_t(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}};
                     button->set_scroll_enabled(false);
                     button->on_click([&](auto){
                         clicked_background(base, cache, Vec2(), true, "");
@@ -1614,7 +1614,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     auto create_button = [this](StringLike auto&& name, size_t id) -> derived_ptr<Button> {
                         auto annotation_button = Layout::Make<Button>{
                             Str(name),
-                            Font(0.6, Align::Center),
+                            Font_t(0.6, Align::Center),
                             FillClr{60,60,60,200},
                             LineClr{100,175,250,200},
                             TextClr{225,225,225},
@@ -1814,7 +1814,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
                     auto text = Layout::Make<StaticText>{
                         Str{"<c><b>Annotating ("+Meta::toStr(detect_format)+")</b></c>"},
-                        Font{0.5}
+                        Font_t{0.5}
                     }();
                     
                     derived_ptr<Layout> container = Layout::Make<Layout>{

@@ -31,7 +31,7 @@ public:
     
     // gui elements
     derived_ptr<ExternalImage> _image{new ExternalImage(Image::Make(50,50,1))};
-    derived_ptr<StaticText> _text{new StaticText(Font(0.45))};
+    derived_ptr<StaticText> _text{new StaticText(Font_t(0.45))};
     derived_ptr<Rect> _cat_border{new Rect(Box(50,50))};
     derived_ptr<Entangled> _block;
     
@@ -131,7 +131,7 @@ Cell::Cell() :
         
         auto labels = DataStore::label_names();
         for(auto &c : labels) {
-            auto b = Layout::Make<Button>{Str(c), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}}();
+            auto b = Layout::Make<Button>{Str(c), Font_t(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}}();
             b->set(Size{b.to<Button>()->text_dims().width + 5, 25});
             
             b->on_click([this, c](auto){
@@ -152,7 +152,7 @@ Cell::Cell() :
             add(b);
         }
         
-        auto b = Layout::Make<Button>{Str("Skip"), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}, TextClr{White}}();
+        auto b = Layout::Make<Button>{Str("Skip"), Font_t(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}, TextClr{White}}();
         b->set(Size{b.to<Button>()->text_dims().width + 5, 25});
         b->on_click([this](Event) {
             if(_row) {
@@ -607,7 +607,7 @@ void Interface::init(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::Fi
         stext = Layout::Make<StaticText>{
             Str("<h2>Categorizing types of individuals</h2>\n"
             "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below)."),
-            SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font(0.6)
+            SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font_t(0.6)
             };
 
         std::vector<Layout::Ptr> objects{stext};

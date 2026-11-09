@@ -45,7 +45,7 @@ namespace cmn::gui {
         
         GETTER(track::Idx_t, fdx);
         GETTER(Frame_t, frame);
-        Font _font{0.6};
+        Font_t _font{0.6};
         Margins _margins{0,0,0,0};
         SizeLimit _limits{300,0};
         std::weak_ptr<Text> _selected{};
@@ -59,7 +59,7 @@ namespace cmn::gui {
         
         using Entangled::set;
         void set(track::Idx_t fdx, Frame_t frame, const IllegalArray<ShadowTracklet>& tracklets);
-        void set(Font);
+        void set(Font_t);
         void set(Margins);
         void set(SizeLimit);
         

@@ -111,7 +111,7 @@ namespace cmn::gui {
             //auto rect = new Rect(Bounds(Vec2(width() * 0.5, height() * 0.05), Size2(width() * 0.33, Base::default_line_spacing(Font(0.5, Style::Bold)) + 25)), clr, White.alpha(200));
             //rect->set_origin(Vec2(0.5, 0));
             //rect = advance(rect);
-            add<Text>(Str{_layers.at(_current)._title}, Loc(rect->pos() + Vec2(0, rect->height() * 0.5)), TextClr{White}, Font(0.5, Style::Bold, Align::Center));
+            add<Text>(Str{_layers.at(_current)._title}, Loc(rect->pos() + Vec2(0, rect->height() * 0.5)), TextClr{White}, Font_t(0.5, Style::Bold, Align::Center));
             //advance(new Text(_layers.at(_current)._title, rect->pos() + Vec2(0, rect->height() * 0.5), White, Font(0.5, Style::Bold, Align::Center)));
         }
     }

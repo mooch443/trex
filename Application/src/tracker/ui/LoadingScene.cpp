@@ -238,7 +238,7 @@ void LoadingScene::file_selected(size_t, file::Path p) {
         }
         else {
             if (!_selected_text)
-                _selected_text = new StaticText(Str("Selected: " + _selected_file.str()), SizeLimit(700, 0), Font(0.6f));
+                _selected_text = new StaticText(Str("Selected: " + _selected_file.str()), SizeLimit(700, 0), Font_t(0.6f));
             else
                 _selected_text->set_txt("Selected: " + _selected_file.str());
 

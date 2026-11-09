@@ -57,7 +57,7 @@ void Skelett::update() {
                         name = Meta::toStr(i);
                     
                     texts.emplace_back([this, name = name.value(), bone, sca, hovered](){
-                        add<Text>(Str{ name }, Loc{ (Vec2)bone - Vec2(0,5 + Base::default_line_spacing(font)).mul(sca) }, Origin{ 0.5,1 }, TextClr{ Color::blend(White, _color) }, sca, font, Rotation{0}, Text::Shadow_t{hovered});
+                        add<Text>(Str{ name }, Loc{ (Vec2)bone - Vec2(0,5 + Base::default_line_spacing(font)).mul(sca) }, Origin{ 0.5,1 }, TextClr{ Color::blend(White, _color) }, sca, Font_t{font}, Rotation{0}, Text::Shadow_t{hovered});
                     });
                 }
             }
@@ -87,7 +87,7 @@ void Skelett::update() {
                             add<Text>(Str(c.name),
                                       loc,
                                       TextClr(Cyan.alpha(200)),
-                                      font,
+                                      Font_t{font},
                                       sca,
                                       Origin(0.5),
                                       a);
@@ -114,7 +114,7 @@ void Skelett::update() {
                         name = Meta::toStr(i);
                     
                     texts.emplace_back([this, bone, name = name.value(), sca]() {
-                        add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, sca, font);
+                        add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, sca, Font_t{font});
                     });
                 }
                 

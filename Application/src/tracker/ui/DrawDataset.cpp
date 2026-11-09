@@ -22,7 +22,7 @@ struct DrawDataset::Data {
         attr::Size{30,30},
         Str{"<sym>✕</sym>"},
         FillClr{100,50,50,150},
-        TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
+        TextClr{White}, Font_t{0.55}, Margins{-5,0,0,0}, Origin{1,0}
     };
     
     struct Cache {
@@ -206,7 +206,7 @@ DrawDataset::~DrawDataset() {}
         for (auto& label : labels) {
             cells.push_back(Layout::Make<Layout>{
                  std::vector<Layout::Ptr>{ 
-                Layout::Make<StaticText>{Str{label}, font, Margins{}} 
+                Layout::Make<StaticText>{Str{label}, Font_t{font}, Margins{}}
             }
             });
         }
@@ -279,7 +279,7 @@ DrawDataset::~DrawDataset() {}
                 }
             }
             
-            _data->title.create(Str{"<h3>Current tracklet</h3>\n<c>"+settings::htmlify(Meta::toStr(_current_quality))+"</c>"}, Loc{8,10}, Font(0.6));
+            _data->title.create(Str{"<h3>Current tracklet</h3>\n<c>"+settings::htmlify(Meta::toStr(_current_quality))+"</c>"}, Loc{8,10}, Font_t(0.6));
             advance_wrap(_data->title);
             
             if(_data->rows.empty()) {
@@ -295,7 +295,7 @@ DrawDataset::~DrawDataset() {}
                          "Angle Var.",
                          "Midline Len.",
                          "Outline Len."
-                     }, Font(0.6, Style::Bold))
+                     }, Font_t(0.6, Style::Bold))
                 );
                 
                 _data->layout.set(Clickable{true});

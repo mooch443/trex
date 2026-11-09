@@ -23,7 +23,7 @@ struct DrawUniqueness::Data {
         attr::Size{30,30},
         Str{"<sym>✕</sym>"},
         FillClr{100,50,50,150},
-        TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
+        TextClr{White}, Font_t{0.55}, Margins{-5,0,0,0}, Origin{1,0}
     };
     std::mutex mutex;
     std::map<Frame_t, float> estimated_uniqueness;

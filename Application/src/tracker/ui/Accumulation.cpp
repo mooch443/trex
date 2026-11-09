@@ -2208,7 +2208,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     }
     
     if(!_textarea) {
-        _textarea = new StaticText(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
+        _textarea = new StaticText(SizeLimit{700,180}, TextClr(150,150,150,255), Font_t(0.6));
     }
     
     _textarea->set(SizeLimit{max(700.f, float(screen_dimensions.width - 200.f - 500.f)), 180.f});
@@ -2311,8 +2311,8 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
                 }
                 
                 e.add<Circle>(offset, Radius{5}, LineClr{color}, FillClr{color.multiply_alpha(0.5)});
-                auto text = e.add<Text>(Str(Meta::toStr(i)), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), TextClr(White), font);
-                text = e.add<Text>(Str(dec<2>(d * 100.f).toStr()+"%"), Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), TextClr(Cyan), font);
+                auto text = e.add<Text>(Str(Meta::toStr(i)), Loc(offset + Vec2(0, Base::default_line_spacing(font) + 2)), TextClr(White), Font_t{font});
+                text = e.add<Text>(Str(dec<2>(d * 100.f).toStr()+"%"), Loc(offset + Vec2(0, Base::default_line_spacing(font) * 2 + 4)), TextClr(Cyan), Font_t{font});
                 offset += Vec2(max(15, text->local_bounds().width + 10), 0);
                 
                 ++i;

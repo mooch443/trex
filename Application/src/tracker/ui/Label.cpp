@@ -5,7 +5,7 @@
 namespace cmn::gui {
 
 Label::Label(const std::string& text, const Bounds& source, const Vec2& center)
-: _text(std::make_shared<StaticText>(Str(text), Font(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
+: _text(std::make_shared<StaticText>(Str(text), Font_t(0.5))), _source(source), _center(center), animator("label-animator-" + Meta::toStr((uint64_t)_text.get()))
 {
     _text->set_origin(Vec2(0.5, 1));
     _text->set_clickable(false);

@@ -42,7 +42,7 @@ Layout::Ptr DrawSegmentsElement::_create(dyn::LayoutContext& context) {
     
     // Create the DrawSegments widget.
     auto ptr = Layout::Make<DrawSegments>{}();
-    ptr->set(font);
+    ptr->set(Font_t{font});
     ptr->set(attr::Margins{pad});
     ptr->set(attr::SizeLimit{limit});
     if(auto handler = context.state._current_object_handler.lock();

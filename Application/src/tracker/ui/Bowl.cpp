@@ -347,7 +347,7 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
         
         if(ptr->hovered()) {
             const Font font(0.85 / (1 - ((1 - _cache->zoom_level()) * 0.5)), Align::VerticalCenter);
-            add<Text>(Str("allowing "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
+            add<Text>(Str("allowing "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), Font_t{font}, scale);
         }
     }
     
@@ -356,7 +356,7 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
         
         if(ptr->hovered()) {
             const Font font(0.85 / (1 - ((1 - _cache->zoom_level()) * 0.5)), Align::VerticalCenter);
-            add<Text>(Str("excluding "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
+            add<Text>(Str("excluding "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), Font_t{font}, scale);
         }
     }
     
@@ -365,7 +365,7 @@ void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {
         
         if(ptr->hovered()) {
             const Font font(0.85 / (1 - ((1 - _cache->zoom_level()) * 0.5)), Align::VerticalCenter);
-            add<Text>(Str("excluding "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), font, scale);
+            add<Text>(Str("excluding "+Meta::toStr(rect)), Loc(ptr->pos() + Vec2(5, Base::default_line_spacing(font) + 5)), Font_t{font}, scale);
         }
     }
     

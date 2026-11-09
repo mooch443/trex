@@ -104,7 +104,7 @@ struct WorkProgress::WorkGUIObjects {
     };
     StaticText static_desc{
         Str("description"), 
-        Font(0.6, Align::Center),
+        Font_t(0.6, Align::Center),
         Margins{5,5,5,5}
     };
     //static StaticText static_additional("", Vec2(), Size2(-1), Font(0.7, Align::Center));
@@ -528,7 +528,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         gui->work_progress.update([&](Entangled& base){
             const float margin = 5;
             
-            auto text = base.add<Text>(Str(_item), Loc(offset), TextClr(225,225,225,255), Font(0.8, Style::Bold), Origin(0.5, 0));
+            auto text = base.add<Text>(Str(_item), Loc(offset), TextClr(225,225,225,255), Font_t(0.8, Style::Bold), Origin(0.5, 0));
             offset.y += text->height() + margin;
             width = max(width, text->width());
             
