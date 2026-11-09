@@ -157,7 +157,7 @@ namespace track {
             return foi;
         }
         
-        constexpr FOI() = default;
+        FOI() = default;
 
     private:
         void init(const Range<Frame_t>& frames, std::set<fdx_t> fdx);
