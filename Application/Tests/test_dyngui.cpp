@@ -3927,6 +3927,58 @@ TEST(ScrollableListTest, DefersRowGeometryUntilDrawing) {
     }
 }
 
+TEST(ScrollableListTest, HidesItemTooltipWhenHoveringLabel) {
+    DrawStructure graph(320, 240);
+    graph.set_dialog_window_size(Size2(320, 240));
+    ScrollableList<DetailTooltipItem> list{
+        Loc{20, 20}, Foldable_t{true}, Folded_t{false},
+        LabelDims_t{120, 30}, ListDims_t{120, 80}
+    };
+    list.set_items({DetailTooltipItem{"One", "", "First item"}});
+
+    auto draw = [&]() {
+        {
+            DrawStructure::SectionGuard guard(graph, "root");
+            graph.wrap_object(list);
+            graph.collect();
+        }
+        const auto& children = graph.root().children();
+        return apply_to_objects(children, [](auto* child) {
+            return dynamic_cast<Tooltip*>(child) != nullptr;
+        });
+    };
+    EXPECT_FALSE(draw());
+
+    Rect* row = nullptr;
+    for(auto* child : list.children()) {
+        if(auto* dropdown = dynamic_cast<Entangled*>(child);
+           dropdown && dropdown->scroll_enabled())
+        {
+            for(auto* item : dropdown->children()) {
+                if(auto* rect = dynamic_cast<Rect*>(item);
+                   rect && rect->clickable() && not rect->custom_data("scrollbar"))
+                {
+                    row = rect;
+                    break;
+                }
+            }
+        }
+    }
+    ASSERT_NE(row, nullptr);
+    const auto row_center = center_of(*row);
+    ASSERT_EQ(graph.mouse_move(row_center.x, row_center.y), row);
+    ASSERT_TRUE(draw());
+
+    const auto label_center = center_of(list);
+    graph.mouse_move(label_center.x, label_center.y);
+    ASSERT_TRUE(list.hovered());
+    ASSERT_FALSE(row->hovered());
+    EXPECT_FALSE(draw());
+
+    ASSERT_EQ(graph.mouse_move(row_center.x, row_center.y), row);
+    EXPECT_TRUE(draw());
+}
+
 TEST(ScrollableListTest, RefreshesPendingRowsBeforeKeyboardHighlight) {
     ScrollableList<std::string> list{ListDims_t{180, 40}};
     DrawStructure graph(320, 200);

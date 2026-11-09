@@ -205,6 +205,7 @@ namespace yolo {
 bool is_valid_default_model(const std::string&);
 
 cmn::file::Path current_detect_model_path();
+std::vector<cmn::file::Path> detect_model_candidates(cmn::file::Path detect_model);
 bool valid_model(const cmn::file::Path&, const cmn::file::FilesystemInterface& = cmn::file::RealFilesystem{});
 bool is_default_model(const cmn::file::Path&);
 std::string default_model();

@@ -306,6 +306,30 @@ std::string default_model() {
     return "yolo26n.pt";
 }
 
+std::vector<file::Path> detect_model_candidates(file::Path path) {
+    std::vector<file::Path> result;
+    if(path.is_absolute()) {
+        result.emplace_back(path);
+        return result;
+    }
+
+    if(is_default_model(path) && not path.has_extension())
+        path = path.add_extension("pt");
+
+    auto candidate = path;
+    result.emplace_back(candidate);
+
+    candidate = file::DataLocation::parse("output", candidate);
+    if(auto v = candidate.canonical();
+       v)
+    {
+        result.emplace_back(*v);
+    } else
+        result.emplace_back(candidate);
+
+    return result;
+}
+
 file::Path current_detect_model_path() {
     auto path = READ_SETTING_WITH_DEFAULT(detect_model, file::Path{});
     if(path.empty() || path.is_absolute())

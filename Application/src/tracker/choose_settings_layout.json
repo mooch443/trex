@@ -632,7 +632,8 @@
                         "else":{
                             "type":"button",
                             "text":"{if:{checks_running}:{animation}:<orange><sym>⚠</sym></orange>}",
-                            "tooltip":"{if:{||:{checks_running}:{valid_conversion_source}}:'':'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.'}{if:{&&:{not:{checks_running}}:{machine_learning}:{not:{valid_detection_model}}}: The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.:''}",
+                            "tooltip":"{if:{checks_running}:{animation}:{if:{not:{valid_conversion_source}}:'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.':{if:{&&:{machine_learning}:{not:{valid_detection_model}}}:The detection model (search paths <key><c>{model_search_path}</c></key>) is invalid or does not exist.:''}}}",
+                            "test":"{if:{||:{checks_running}:{valid_conversion_source}}:'-':'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.'}{if:{&&:{not:{checks_running}}:{machine_learning}:{not:{valid_detection_model}}}: The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.:''}",
                             "fill":[40,40,40,120],
                             "line":[100,100,100,150],
                             "color":[100,100,100],

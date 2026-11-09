@@ -890,6 +890,9 @@ struct SettingsScene::Data {
                         
                         return last_update_text;
                     }),
+                    VarFunc("model_search_path", [](const VarProps&) -> std::vector<file::Path> {
+                        return detect::yolo::detect_model_candidates(READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
+                    }),
                     VarFunc("window_size", [](const VarProps&) -> Vec2 {
                         return FindCoord::get().screen_size();
                     }),

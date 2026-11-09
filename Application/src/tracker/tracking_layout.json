@@ -678,6 +678,7 @@
                     "font":{"size":0.5}
                   },
                   "pad":[0,0,-1,-1],
+                  "font":{"size":0.5},
                   "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                   "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
                   "size":[205,30]
@@ -707,6 +708,7 @@
                     "font":{"size":0.5}
                   },
                   "pad":[0,0,-1,-1],
+                  "font":{"size":0.5},
                   "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                   "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
                   "size":[205,30]
@@ -1369,77 +1371,95 @@
   {
     "text": "<{if:{global.gui_show_selections}:white:gray}><sym>◯</sym> Selection Circles</{if:{global.gui_show_selections}:white:gray}>",
     "detail": "<small>Individual hover / selection effects</small>",
+    "tooltip": "Highlight hovered and selected individuals.",
     "action": "set:gui_show_selections:{not:{global.gui_show_selections}}"
   },
   {
     "text": "<{if:{global.gui_show_centroid}:white:gray}><sym>⌖</sym> Centroids</{if:{global.gui_show_centroid}:white:gray}>",
+    "tooltip": "Mark the center of each tracked individual.",
     "action": "set:gui_show_centroid:{not:{global.gui_show_centroid}}"
   },
   {
     "text": "<{if:{global.gui_show_texts}:white:gray}><sym>🏷</sym> Text Labels</{if:{global.gui_show_texts}:white:gray}>",
+    "tooltip": "Show identity labels beside tracked individuals.",
     "action": "set:gui_show_texts:{not:{global.gui_show_texts}}"
   },
   {
     "text": "<{if:{global.gui_show_paths}:white:gray}><sym>⮩</sym> Trajectories</{if:{global.gui_show_paths}:white:gray}>",
+    "tooltip": "Show recent movement paths of tracked individuals.",
     "action": "set:gui_show_paths:{not:{global.gui_show_paths}}"
   },
   {
     "text": "<{if:{global.gui_show_skeletons}:white:gray}><sym>☠</sym> Skeletons</{if:{global.gui_show_skeletons}:white:gray}>",
+    "tooltip": "Show detected keypoints and their skeleton connections.",
     "action": "set:gui_show_skeletons:{not:{global.gui_show_skeletons}}"
   },
   {
     "text": "<{if:{global.gui_show_blobs}:white:gray}><sym>🖼</sym> Blob Images</{if:{global.gui_show_blobs}:white:gray}>",
+    "tooltip": "Show image pixels belonging to detected objects.",
     "action": "set:gui_show_blobs:{not:{global.gui_show_blobs}}"
   },
   {
     "text": "<{if:{global.gui_show_midline}:white:gray}><sym>⚊</sym> Midline</{if:{global.gui_show_midline}:white:gray}>",
+    "tooltip": "Show the body midline estimated from posture analysis.",
     "action": "set:gui_show_midline:{not:{global.gui_show_midline}}"
   },
   {
     "text": "<{if:{global.gui_show_outline}:white:gray}><sym>⬡</sym> Outline</{if:{global.gui_show_outline}:white:gray}>",
+    "tooltip": "Draw the body outline of each tracked individual.",
     "action": "set:gui_show_outline:{not:{global.gui_show_outline}}"
   },
   {
     "text": "<{if:{global.gui_show_visualfield}:white:gray}><sym>👁</sym> Visual Field</{if:{global.gui_show_visualfield}:white:gray}>",
+    "tooltip": "Show rays representing the estimated visual field.",
     "action": "set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
   },
   {
     "text": "<{if:{global.gui_show_video_background}:white:gray}><sym>🎞</sym> Video Background</{if:{global.gui_show_video_background}:white:gray}>",
     "detail": "<small>Display the original video background</small>",
+    "tooltip": "Show the original video behind tracking overlays, when available.",
     "action": "set:gui_show_video_background:{not:{global.gui_show_video_background}}"
   },
   {
     "text": "<{if:{global.gui_show_probabilities}:white:gray}><sym>📊</sym> Probability Distribution</{if:{global.gui_show_probabilities}:white:gray}>",
+    "tooltip": "Show spatial matching probabilities for the selected individual.",
     "action": "set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
   },
   {
     "text": "<{if:{global.gui_highlight_categories}:white:gray}><sym>👽</sym> Categorization</{if:{global.gui_highlight_categories}:white:gray}>",
+    "tooltip": "Color individuals by their assigned category.",
     "action": "set:gui_highlight_categories:{not:{global.gui_highlight_categories}}"
   },
   {
     "text": "<{if:{global.gui_show_uniqueness}:white:gray}><sym>🎭</sym> Uniqueness (VI)</{if:{global.gui_show_uniqueness}:white:gray}>",
     "detail": "<small>(VI needs to be loaded)</small>",
+    "tooltip": "Show identity uniqueness over time using loaded visual identification results.",
     "action": "set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
   },
   {
     "text": "<{if:{global.gui_show_heatmap}:white:gray}><sym>🌡</sym> Heatmap</{if:{global.gui_show_heatmap}:white:gray}>",
+    "tooltip": "Show where each identity spends time as a heatmap.",
     "action": "set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
   },
   {
     "text": "<{if:{global.gui_show_posture}:white:gray}><sym>🐟</sym> Posture Preview</{if:{global.gui_show_posture}:white:gray}>",
+    "tooltip": "Show a separate posture preview for the selected individual.",
     "action": "set:gui_show_posture:{not:{global.gui_show_posture}}"
   },
   {
     "text": "<{if:{global.gui_auto_scale_focus_one}:white:gray}><sym>🔍</sym> Zoom on Selection</{if:{global.gui_auto_scale_focus_one}:white:gray}>",
     "detail": "<small>Zoom in on selected individuals</small>",
+    "tooltip": "Automatically zoom in on selected individuals.",
     "action": "set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
   },
   {
     "text": "<{if:{global.gui_show_dataset}:white:gray}><sym>🗃</sym> Dataset information</{if:{global.gui_show_dataset}:white:gray}>",
+    "tooltip": "Show dataset quality and identity estimates for the current tracklet.",
     "action": "set:gui_show_dataset:{not:{global.gui_show_dataset}}"
   },
   {
     "text": "<{if:{global.gui_show_boundary_crossings}:white:gray}><sym>⭾</sym> Boundary Crossings</{if:{global.gui_show_boundary_crossings}:white:gray}>",
+    "tooltip": "Mark entry into the recognition boundary with an expanding cyan circle.",
     "action": "set:gui_show_boundary_crossings:{not:{global.gui_show_boundary_crossings}}"
   }
 ]
