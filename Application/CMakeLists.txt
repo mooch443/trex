@@ -100,6 +100,7 @@ function(trex_log_selected_options)
         TREX_NO_PYTHON
         TREX_BUILD_DOCS
         TREX_WITH_TESTS
+        TREX_WITH_BENCHMARKS
         TREX_BUILD_TOOLS
         TREX_CONDA_PACKAGE_INSTALL
         TREX_ENABLE_SHARED_INTERNAL_LIBS
@@ -124,6 +125,7 @@ endfunction()
 option(TREX_NO_PYTHON OFF)
 option(TREX_BUILD_DOCS OFF)
 option(TREX_WITH_TESTS OFF)
+option(TREX_WITH_BENCHMARKS "Build standalone benchmark targets" OFF)
 option(TREX_BUILD_TOOLS OFF)
 option(TREX_CONDA_PACKAGE_INSTALL OFF)
 option(TREX_ENABLE_SHARED_INTERNAL_LIBS "Build TRex internal libraries as shared libraries on macOS for dependency hardening." OFF)

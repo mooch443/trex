@@ -15,16 +15,6 @@
 			"clocks":"[🕛,🕐,🕑,🕒,🕓,🕔,🕕,🕖,🕗,🕘,🕙,🕚,🕛]",
 			"animation2":"<sym>{at:{mod:{time}:{array_length:{clocks}}}:{clocks}}</sym>",
 
-			"long_text":"This is a long text that will be animated.",
-			"text_length":"{array_length:'{long_text}'}",
-			"buildup":"{substr:0:{mod:{*:{+:5:{time}}:2}:{+:1:{text_length}}}:{long_text}}",
-
-			"slide_window":10,
-			"spots":"{-:{slide_window}:1}",
-			"text_start":"{mod:{*:{time}:4}:{+:{slide_window}:{text_length}}}",
-			"animation_begin":"{max:0:{-:{spots}:{text_start}}}",
-			"slide":"{pad_string:{animation_begin}:''}{substr:0:{-:{slide_window}:{animation_begin}}:{pad_string:{slide_window}:{substr:{max:0:{-:{-:{text_start}:{spots}}:{animation_begin}}}:{+:{spots}:{text_start}}:{long_text}}}}",
-			"animated_text":"{animation} {animation2}  [<c>{slide}</c>]  <c>{pad_string:{text_length}:{buildup}<sym>❚</sym>}</c>",
 			"mouse_in_bowl": "{2bowl:{mouse}}",
 
 			"infocard_width": 215
@@ -57,7 +47,7 @@
 						"var":"{global.gui_show_texts}",
 						"then":{
 							"type":"label",
-							"text":"<c><b><nr>{i.fdx}</nr></b></c>:{if:{equal:{global.detect_type}:background_subtraction}:' s=<i>{dec:2:{i.px}}</i>':' <c>{i.type}</c> (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",
+							"text":"<c><b><nr>{i.fdx}</nr></b></c>:{if:{equal:{global.detect_type}:background_subtraction}: s=<i>{dec:2:{i.px}}</i>: <c>{i.type}</c> (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)}",
 							"pos":[0,0],
 							"length":80,
 							"line":"{cmap:wheel:{i.fdx}}",
@@ -96,7 +86,7 @@
 						"var":"{&&:{>:{i.num_pixels}:10}:{global.gui_show_texts}}",
 						"then":{
 							"type":"label",
-							"text":"<c><b><gray>noise</gray></b></c>{if:{equal:{global.detect_type}:background_subtraction}:' (<lightgray>s=<i><nr>{dec:2:{i.px}}</nr></i></lightgray>)':': {i.type} (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",
+							"text":"<c><b><gray>noise</gray></b></c>{if:{equal:{global.detect_type}:background_subtraction}: (<lightgray>s=<i><nr>{dec:2:{i.px}}</nr></i></lightgray>):':' {i.type} (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)}",
 							"pos":"{i.pos}",
 							"length":25,
 							"color":[200,200,200,255],
@@ -146,12 +136,12 @@
 					{
 						"name":"desc",
 						"clickable":true,
-						"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.current_frame_index}:{actual_frame}}:'':'(count = {video.current_frame_index}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''} <sym>◦</sym> <cyan>{num_tracked}</cyan> <i>{global.individual_prefix}s</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
+						"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:/{global.video_length}:''}{if:{equal:{video.current_frame_index}:{actual_frame}}:'':(count = {video.current_frame_index}) }</c>{if:{fps}: <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>:''} <sym>◦</sym> <cyan>{num_tracked}</cyan> <i>{global.individual_prefix}s</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
 					},
 					{
 						"type":"stext", 
 						"clickable":true,
-						"text":"{at:0:{video.resolution}} <sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> {if:{hovered}:'<i>video:</i> ':''}<cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> {if:{hovered}:'<i>prepare:</i> ':''}<cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> {if:{hovered}:'<i>model:</i> ':''}<cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {output_size.x}<sym>×</sym>{output_size.y}<i>px</i> <c>[<cyan>{global.meta_encoding}</cyan>]</c>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{average_is_generating}:\n{animation} generating <c>{global.averaging_method}</c> average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
+						"text":"{at:0:{video.resolution}} <sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> {if:{hovered}:'<i>video:</i> ':''}<cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> {if:{hovered}:'<i>prepare:</i> ':''}<cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> :''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> {if:{hovered}:'<i>model:</i> ':''}<cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {output_size.x}<sym>×</sym>{output_size.y}<i>px</i> <c>[<cyan>{global.meta_encoding}</cyan>]</c>{if:{global.save_raw_movie}:\n<sym>⮩</sym> <i>save raw':'</i> {shorten:{global.save_raw_movie_path}:55}:''}{if:{average_is_generating}:\n{animation} generating <c>{global.averaging_method}</c> average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
 						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
 					},
 					{
@@ -198,7 +188,7 @@
 		"pad":[5,5,5,5],
 				"font":{"size":0.5},
 				"clickable":true,
-				"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{equal:{global.detect_type}:yolo}:{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>:'background subtraction'}} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+				"text":"{if:{is_initializing}:{animation} <c>loading</c><sym> 🞙</sym> :{if:{equal:{global.detect_type}:yolo}:{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>:'background subtraction'}} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
 			}
 		]
 	},
@@ -255,7 +245,7 @@
 			"origin":[0,0],
 			"font":{"size":0.5},
 			"color":[255,255,255],
-			"text":"<h4>Preview of the resulting folder structure</h4>\n{if:{||:{same_folder}:{same_parent}}:\"<sym>🗁</sym> {shorten:{folder:{global.source}}:70}{if:{not:{same_folder}}:'\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>':''}\n{indent}\":\"<sym>🗁</sym> {shorten:{folder:{global.source}}:70}\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n\"}{if:{not:{same_folder}}:'{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}} <key>(output_dir)</key>\n':''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>⮡ 🗎</sym> {output_base}.pv\n   {indent}<sym>⮡ 🗎</sym> {output_base}.settings\n   {indent}<sym>⮡ 🗎</sym> {output_base}.results{if:{movie_in_sub}:\n   {indent}<sym>⮡ 🗎</sym> {shorten:{{filename:{global.save_raw_movie_path}}}:55}:''}{if:{same_folder}:'\n   {indent}<sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n':''}{if:{movie_elsewhere}:'\n<sym>🗁</sym> {folder:{global.save_raw_movie_path}}\n   <sym>⮡ 🎞</sym> {filename:{global.save_raw_movie_path}}':''}"
+			"text":"<h4>Preview of the resulting folder structure</h4>\n{if:{||:{same_folder}:{same_parent}}:\"<sym>🗁</sym> {shorten:{folder:{global.source}}:70}{if:{not:{same_folder}}:\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>:''}\n{indent}\":\"<sym>🗁</sym> {shorten:{folder:{global.source}}:70}\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n\"}{if:{not:{same_folder}}:{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}} <key>(output_dir)</key>\n:''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>⮡ 🗎</sym> {output_base}.pv\n   {indent}<sym>⮡ 🗎</sym> {output_base}.settings\n   {indent}<sym>⮡ 🗎</sym> {output_base}.results{if:{movie_in_sub}:\n   {indent}<sym>⮡ 🗎</sym> {shorten:{{filename:{global.save_raw_movie_path}}}:55}:''}{if:{same_folder}:\n   {indent}<sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n:''}{if:{movie_elsewhere}:\n<sym>🗁</sym> {folder:{global.save_raw_movie_path}}\n   <sym>⮡ 🎞</sym> {filename:{global.save_raw_movie_path}}:''}"
 		},
 		"else":{"type":"rect", "size":[0,0]}
 	},
@@ -399,7 +389,7 @@
 													"font": {"size": 0.5},
 													"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
 													"pad":[5,5,5,5],
-													"text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>[no neighbors]</gray>'}</c>"
+													"text":"<c>{if:{primary_selection.has_neighbor}:<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm):'<gray>[no neighbors]</gray>'}</c>"
 												}
 											]
 										]
@@ -582,7 +572,7 @@
 														"type":"stext",
 														"font":{"size":0.5,"style":"mono"},
 														"max_size":"[{infocard_width}, 0]",
-														"text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}"
+														"text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}: t=<cyan>{round:{at:2:{i}}:2}</cyan>:''}"
 													}
 												},
 												{

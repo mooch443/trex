@@ -631,7 +631,7 @@
                     }, 
                     {
                       "type":"hlayout",
-                      "pad":[0,0,0,0],
+                      "pad":[0,0,0,-2],
                       "children": [
                         {
                           "type": "textfield",
@@ -641,18 +641,20 @@
                           "size": [145,35],
                           "font": {"size": 0.48},
                           "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,250]}",
-                          "line": [100, 100, 100, 50],
+                          "line": [100, 100, 100, 230],
                           "color": [255, 255, 255],
-                          "placeholder": "New-class"
+                          "placeholder": "New-class",
+                          "tooltip":"Enter the name of a new class"
                         },
                         {
                           "type":"button",
-                          "text":"+",
+                          "text":"Add",
                           "deselect":"set-local:new_class_name:''",
                           "font":{"size":0.5},
                           "size":[35,35],
-                          "fill": [50, 70, 50, 200],
-                          "line": [100, 100, 100, 50],
+                          "disabled":"{not:{local.new_class_name}}",
+                          "fill": "{if:{not:{local.new_class_name}}:[50,50,50,200]:[60, 100, 60, 200]}",
+                          "line": [100, 100, 100, 230],
                           "corners": ["bottomright"],
                           "action":"set:detect_classes:{if:{nequal:{local.new_class_name}:''}:{insert:{if:{global.detect_classes}:{+:1:{max_element:{keys:{global.detect_classes}}}}:0}:{local.new_class_name}:{if:{global.detect_classes}:{global.detect_classes}:'{}'}}:{global.detect_classes}}"
                         }
@@ -1022,7 +1024,7 @@
                             "font": {"size": 0.5},
                             "max_size": "[{*:0.65:{infocard_width}}, 300]",
                             "pad":[5,5,5,5],
-                            "text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>[no neighbors]</gray>'}</c>"
+                            "text":"<c>{if:{primary_selection.has_neighbor}:<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm):'<gray>[no neighbors]</gray>'}</c>"
                           }
                         ]
                       ]
@@ -1220,7 +1222,7 @@
                               "type":"stext",
                               "font":{"size":0.5,"style":"mono"},
                               "max_size":"[{infocard_width}, 0]",
-                              "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}{if:{>=:{index}:{global.match_topk}}:<gray>:''}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}{if:{>=:{index}:{global.match_topk}}:</gray>:''}"
+                              "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}{if:{>=:{index}:{global.match_topk}}:<gray>:''}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}: t=<cyan>{round:{at:2:{i}}:2}</cyan>:''}{if:{>=:{index}:{global.match_topk}}:</gray>:''}"
                             }
                           }
                         ]
@@ -1603,7 +1605,7 @@
             
             {
               "type": "stext",
-              "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{is_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
+              "text": "{.if:{global.gui_run}:<i>{global.gui_playback_speed}x</i>}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{is_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
               "font":{ "size":0.65 },
               "shadow":0.5,
               "pad":[-5,0,0,7.5]
@@ -1754,7 +1756,6 @@
       "origin":[0,1],
       "outer_pad":[10,10,0,0],
       "children":[
-        
         {
           "type":"settings",
           "var":"",
@@ -1802,7 +1803,7 @@
           "type":"stext",
           "font":{"size":0.52},
           "shadow": 0.5,
-          "text":"{if:{key.system}:{round:{gui_update_ms}:3} ms/update }{if:{is_checking_tracklet_identities}:'{animation} <i>Checking identities...</i>':''}{if:{vi_busy}:'{animation} <i>Applying VI</i> {int:{min:99:{*:{vi_apply_percent}:100}}}<i>% ...</i> ':''}<i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i> <h5><sym>🖰</sym></h5>{if:{status_text}:{status_text}:''}",
+          "text":"{if:{key.system}:{round:{gui_update_ms}:3} ms/update }{if:{is_checking_tracklet_identities}:{animation} <i>Checking identities...</i>:''}{if:{vi_busy}:{animation} <i>Applying VI</i> {int:{min:99:{*:{vi_apply_percent}:100}}}<i>% ...</i> :''}<i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i> <h5><sym>🖰</sym></h5>{if:{status_text}:{status_text}:''}",
           "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
         }
       ]
@@ -1844,7 +1845,7 @@
                   {
                     "type":"stext",
                     "pad":[5,5,5,5],
-                    "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_tracklet:{smart_highlighted}}</b>':'<i>no global tracklet</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
+                    "text":"{if:{is_segment:{smart_highlighted}}:<b>{.get_tracklet:{smart_highlighted}}</b>:'<i>no global tracklet</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
                     "font":{"size":0.6}
                   }
                 ]

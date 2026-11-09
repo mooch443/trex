@@ -808,6 +808,16 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         
         _header.read(*this);
 
+        if(bool(_mode & FileMode::MODIFY) && _header.version < Version::current) {
+            // Rejected modifications must not reach the write-on-close path.
+            DataFormat::close();
+            _open_for_modifying = false;
+            _tried_to_open = false;
+            throw U_EXCEPTION("Cannot modify PV", static_cast<int>(_header.version) + 1,
+                              " file ", _filename, ". Convert it to PV",
+                              static_cast<int>(Version::current) + 1, " first.");
+        }
+
         const auto average_channels = _header.encoding == meta_encoding_t::binary
                                         ? 1u
                                         : required_storage_channels(_header.encoding);
@@ -1015,6 +1025,17 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 map["meta_real_width"] = Float2_t();
                 
                 if(not metadata.empty()) {
+                    if(version <= Version::V_15) {
+                        // Legacy metadata wraps each serialized value in one extra string layer.
+                        const auto values = Meta::fromStr<std::map<std::string, std::string>>(metadata);
+                        metadata = "{";
+                        for(const auto& [key, value] : values) {
+                            if(metadata.size() > 1)
+                                metadata += ",";
+                            metadata += Meta::toStr(key) + ":" + value;
+                        }
+                        metadata += "}";
+                    }
                     GlobalSettings::write([&](Configuration& config) {
                         sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &config.values, {}, {});
                     });
@@ -1034,10 +1055,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 }
                 
                 try {
-                    std::map<std::string, std::string> jsons;
+                    glz::generic jsons = glz::generic::object_t{};
                     for(const auto& key : map.keys()) {
                         try {
-                            jsons.emplace(key, map.at(key).get().valueString());
+                            jsons[key] = map.at(key).get().to_json();
                             
                         } catch(const std::exception& ex) {
                             FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
@@ -1177,10 +1198,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
     }
 
     void File::set_metadata(const sprite::Map &diff) {
-        std::map<std::string, std::string> jsons;
+        glz::generic jsons = glz::generic::object_t{};
+        //std::map<std::string, std::string> jsons;
         for(const auto& key : diff.keys()) {
             try {
-                jsons.emplace(key, diff.at(key).get().valueString());
+                jsons[key] = diff.at(key).get().to_json();
+                //jsons.emplace(key, diff.at(key).get().valueString());
                 
             } catch(const std::exception& ex) {
                 FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");

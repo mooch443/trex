@@ -1038,6 +1038,24 @@ TEST(DetectAnnotationImporter, UsesCsvMappingForArbitraryImageNames) {
     EXPECT_TRUE(preview.annotations.contains(12_f));
 }
 
+TEST(DetectAnnotationImporter, UsesWindowsSeparatorsInCsvMapping) {
+    auto root = make_temp_dataset("csv_windows_separators");
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
+    write_file(root / "images" / "arbitrary_name.jpg");
+    write_file(root / "labels" / "arbitrary_name.txt", "0 0.5 0.5 0.5 0.5\n");
+    write_file(root / "mapping.csv",
+               "image,video_source,source_index\nimages\\arbitrary_name.jpg,current_video.mp4,112\n");
+
+    auto options = default_import_options(root / "data.yaml");
+    options.frame_mapping_csv = root / "mapping.csv";
+    options.current_source_basename = "current_video.mp4";
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
+
+    ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+    EXPECT_EQ(1u, preview.mapped_from_csv);
+    EXPECT_TRUE(preview.annotations.contains(12_f));
+}
+
 TEST(DetectAnnotationImporter, UsesSplitRelativeCsvMappingBeforeBasenameFallback) {
     auto root = make_temp_dataset("csv_split_paths");
     write_file(root / "data.yaml", "path: .\ntrain: train/images\nval: val/images\nnames: [fish]\n");

@@ -41,6 +41,19 @@
 
 using namespace cmn;
 
+namespace track::detect {
+std::ostream& operator<<(std::ostream& os, const track::detect::ObjectDetectionFormat_t& dt)
+{
+    os << dt.toStr();
+    return os;
+}
+std::ostream& operator<<(std::ostream& os, const track::detect::ObjectDetectionFormat::data::values& dt)
+{
+    os << track::detect::ObjectDetectionFormat_t{ dt }.toStr();
+    return os;
+}
+}
+
 namespace {
 
 namespace fs = std::filesystem;

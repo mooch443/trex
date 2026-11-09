@@ -64,9 +64,9 @@ std::string unquote_field(std::string_view input) {
        && ((value.front() == '"' && value.back() == '"')
            || (value.front() == '\'' && value.back() == '\'')))
     {
-        return util::unescape(value.substr(1, value.size() - 2));
+        return value.substr(1, value.size() - 2);
     }
-    return util::unescape(value);
+    return value;
 }
 
 using YamlNode = fkyaml::node;

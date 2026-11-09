@@ -76,6 +76,14 @@ PredictionFilter PredictionFilter::fromStr(std::string_view sv) {
     for(const auto& [id, name] : classes)
         detect_classes.emplace(id, name);
     std::vector<uint16_t> only_detect;
+    std::string decoded;
+    
+    if(utils::contains(sv, '\'') || utils::contains(sv, '"')) {
+        decoded.reserve(sv.size());
+        utils::fast_fromstr(decoded, sv);
+        
+        sv = std::string_view(decoded);
+    }
     
     bool invert = false;
     if(utils::beginsWith(sv, '-')) {

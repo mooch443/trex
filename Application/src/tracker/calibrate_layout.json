@@ -23,7 +23,7 @@
             "size":"{window_size}",
             "fill":[255,0,0,0],
             "clickable":true,
-            "click":"{if:{<:{array_length:{points}}:2}:'add:{divVector:{subVector:{mouse}:{screen_center}}:{bg_scale}}':'clear'}"
+            "click":"{if:{<:{array_length:{points}}:2}:'add:'{divVector:{subVector:{mouse}:{screen_center}}:{bg_scale}}:'clear'}"
         },
         {
             "type":"line",
@@ -90,7 +90,7 @@
                     "children":[
                         {
                             "type":"stext",
-                            "text":"{if:{equal:{array_length:{points}}:2}:Selected distance is <c><nr>{int:{distance:{at:1:{points}}:{at:0:{points}}}}</nr><lightgray>px</lightgray></c> <c>*</c> <c><lightgray>cm_per_pixel</lightgray>[<nr>{global.cm_per_pixel}</nr><lightgray>cm/px</lightgray></c>] = <c><nr>{dec:3:{*:{global.cm_per_pixel}:{distance:{at:1:{points}}:{at:0:{points}}}}}</nr><lightgray>cm</lightgray></c>:'Click on the video to select reference points <sym>🞙</sym> <c><lightgray>cm_per_pixel</lightgray>[<nr>{global.cm_per_pixel}</nr><lightgray>cm/px</lightgray>]</c>'} <sym>🞙</sym> <c><nr>{dec:3:{*:{video_size.x}:{global.cm_per_pixel}}}</nr><lightgray>cm</lightgray></c> estimated arena width",
+                            "text":"{if:{equal:{array_length:{points}}:2}:Selected distance is <c><nr>{int:{distance:{at:1:{points}}:{at:0:{points}}}}</nr><lightgray>px</lightgray></c> <c>*</c> <c><lightgray>cm_per_pixel</lightgray>[<nr>{global.cm_per_pixel}</nr><lightgray>cm/px</lightgray></c>] = <c><nr>{dec:3:{*:{global.cm_per_pixel}:{distance:{at:1:{points}}:{at:0:{points}}}}}</nr><lightgray>cm</lightgray></c>:Click on the video to select reference points <sym>🞙</sym> <c><lightgray>cm_per_pixel</lightgray>[<nr>{global.cm_per_pixel}</nr><lightgray>cm/px</lightgray>]</c>} <sym>🞙</sym> <c><nr>{dec:3:{*:{video_size.x}:{global.cm_per_pixel}}}</nr><lightgray>cm</lightgray></c> estimated arena width",
                             "font":{"size":0.6,"align":"center"}
                         }
                     ]

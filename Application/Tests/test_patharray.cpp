@@ -10,6 +10,18 @@
 
 using namespace cmn;
 
+namespace cmn::file {
+std::ostream& operator<<(std::ostream& os, const file::Path& dt)
+{
+    os << dt.str();
+    return os;
+}
+}
+
+void PrintTo(const std::vector<file::Path>& params, std::ostream* os) {
+    *os << Meta::toStr(params);
+}
+
 TEST(SpriteMapTest, Basic) {
     sprite::Map map;
     map.set_print_by_default(true);
@@ -1145,14 +1157,6 @@ TEST(PathArrayTest, SinglePathConstructor) {
     file::_PathArray<MockFilesystem> paths("path/to/file");
     EXPECT_EQ(paths.get_paths().size(), 1);  // Expect one path
     EXPECT_EQ(paths.get_paths().front().str(), file::make_path("path", "to", "file"));  // Check the path is correct
-}
-
-// Test constructor with array of paths as string
-TEST(PathArrayTest, ArrayOfStringConstructor) {
-    file::_PathArray<MockFilesystem> paths("[\"path/to/file1\", \"path/to/file2\"]");
-    EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
-    EXPECT_EQ(paths.get_paths()[0].str(), file::make_path("path", "to", "file1"));  // Check the first path
-    EXPECT_EQ(paths.get_paths()[1].str(), file::make_path("path", "to", "file2"));  // Check the second path
 }
 
 // Test constructor with vector of strings

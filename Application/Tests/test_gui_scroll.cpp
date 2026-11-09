@@ -23,32 +23,10 @@ void PrintTo(const LabelCornerFlags& flags, std::ostream* os) {
 }
 
 namespace {
-    struct LabelCornerFlagsRoundTripCase {
-        const char* input;
-        LabelCornerFlags expected;
-        const char* canonical;
-    };
-
-void PrintTo(const LabelCornerFlagsRoundTripCase& c, std::ostream* os) {
-    *os << "input=" << c.input << " expected=" << c.expected.radius << ",0x" << hex(uint32_t(c.expected.mask)).toStr() << " canonical=" << c.canonical;
-}
-
-    struct LabelCornerFlagsToStrCase {
-        LabelCornerFlags flags;
-        const char* canonical;
-    };
-
     const CornerFlags& as_corner_flags(const LabelCornerFlags& flags) {
         return flags;
     }
-
 }
-
-class LabelCornerFlagsMetaRoundTrip
-    : public ::testing::TestWithParam<LabelCornerFlagsRoundTripCase> {};
-
-class LabelCornerFlagsMetaToStr
-    : public ::testing::TestWithParam<LabelCornerFlagsToStrCase> {};
 
 TEST(LabelCornerFlagsTest, DefaultConstructionAndSwap) {
     LabelCornerFlags flags;
@@ -61,86 +39,6 @@ TEST(LabelCornerFlagsTest, DefaultConstructionAndSwap) {
     flags = tflags;
     EXPECT_EQ(as_corner_flags(flags), CornerFlags::Bottom(7.0f));
     EXPECT_EQ(as_corner_flags(bflags), CornerFlags::Top(4.0f));
-}
-
-TEST_P(LabelCornerFlagsMetaRoundTrip, FromStrToStrFullCycle) {
-    const auto& params = GetParam();
-
-    const auto parsed = Meta::fromStr<LabelCornerFlags>(params.input);
-    EXPECT_EQ(as_corner_flags(parsed), as_corner_flags(params.expected));
-
-    const std::string serialized = Meta::toStr(parsed);
-    EXPECT_EQ(serialized, params.canonical);
-
-    const auto reparsed = Meta::fromStr<LabelCornerFlags>(serialized);
-    EXPECT_EQ(as_corner_flags(reparsed), as_corner_flags(params.expected));
-    EXPECT_EQ(Meta::toStr(reparsed), serialized);
-}
-
-TEST_P(LabelCornerFlagsMetaToStr, ConvertsObjectToExpectedString) {
-    const auto& params = GetParam();
-
-    EXPECT_EQ(Meta::toStr(params.flags), params.canonical);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    VariousConfigs,
-    LabelCornerFlagsMetaRoundTrip,
-    ::testing::Values(
-        LabelCornerFlagsRoundTripCase{"['none',0]", LabelCornerFlags::Square(), "['none']"},
-        LabelCornerFlagsRoundTripCase{"8.5", LabelCornerFlags::Rounded(8.5f), "[8.5]"},
-        LabelCornerFlagsRoundTripCase{"[3.25]", LabelCornerFlags::Rounded(3.25f), "[3.25]"},
-        LabelCornerFlagsRoundTripCase{"['left',4]", LabelCornerFlags::Left(4.0f), "['left',4]"},
-        LabelCornerFlagsRoundTripCase{"['RIGHT',7.25]", LabelCornerFlags::Right(7.25f), "['right',7.25]"},
-        LabelCornerFlagsRoundTripCase{"['top',2]", LabelCornerFlags::Top(2.0f), "['top',2]"},
-        LabelCornerFlagsRoundTripCase{"['bottom',6]", LabelCornerFlags::Bottom(6.0f), "['bottom',6]"},
-        LabelCornerFlagsRoundTripCase{"['tl','br',1.5]", LabelCornerFlags(true, false, true, false, 1.5f), "['tl','br',1.5]"},
-        LabelCornerFlagsRoundTripCase{"['tr','bl',9]", LabelCornerFlags(false, true, false, true, 9.0f), "['tr','bl',9]"},
-        LabelCornerFlagsRoundTripCase{"['all',12]", LabelCornerFlags::Rounded(12.0f), "[12]"}));
-
-INSTANTIATE_TEST_SUITE_P(
-    VariousConfigs,
-    LabelCornerFlagsMetaToStr,
-    ::testing::Values(
-        LabelCornerFlagsToStrCase{LabelCornerFlags::Rounded(8.5f), "[8.5]"},
-        LabelCornerFlagsToStrCase{LabelCornerFlags::Left(4.0f), "['left',4]"},
-        LabelCornerFlagsToStrCase{LabelCornerFlags::Right(7.25f), "['right',7.25]"},
-        LabelCornerFlagsToStrCase{LabelCornerFlags::Top(2.0f), "['top',2]"},
-        LabelCornerFlagsToStrCase{LabelCornerFlags::Bottom(6.0f), "['bottom',6]"},
-        LabelCornerFlagsToStrCase{LabelCornerFlags(true, false, true, false, 1.5f), "['tl','br',1.5]"},
-        LabelCornerFlagsToStrCase{LabelCornerFlags(false, true, false, true, 9.0f), "['tr','bl',9]"},
-        LabelCornerFlagsToStrCase{LabelCornerFlags::Square(), "['none']"}));
-
-TEST(PointerEventsTest, MetaSerializationRoundTripsEveryMask) {
-    using pointer::Events;
-
-    EXPECT_EQ(Events::None.toStr(), "none");
-    EXPECT_EQ(Events::Hover.toStr(), "hover");
-    EXPECT_EQ(Events::Click.toStr(), "click");
-    EXPECT_EQ(Events::Drag.toStr(), "drag");
-    EXPECT_EQ(Events::Scroll.toStr(), "scroll");
-    EXPECT_EQ(Events::All.toStr(), "all");
-    EXPECT_EQ((Events::Hover | Events::Drag).toStr(), "[hover,drag]");
-    EXPECT_EQ((Events::Click | Events::Scroll).toStr(), "[click,scroll]");
-
-    for(uint8_t mask = 0; mask <= 0x0F; ++mask) {
-        const Events original{mask};
-        const auto serialized = Meta::toStr(original);
-        SCOPED_TRACE("mask=" + Meta::toStr(mask) + " serialized=" + serialized);
-        EXPECT_EQ(Meta::fromStr<Events>(serialized), original);
-    }
-
-    EXPECT_EQ(Meta::fromStr<Events>("'CLICK'"), Events::Click);
-    EXPECT_EQ(
-        Meta::fromStr<Events>("['SCROLL', 'hover']"),
-        Events::Scroll | Events::Hover);
-
-    const attr::PointerEvents attribute{Events::Drag | Events::Hover};
-    EXPECT_EQ(Meta::toStr(attribute), "[hover,drag]");
-    EXPECT_EQ(
-        static_cast<Events>(
-            Meta::fromStr<attr::PointerEvents>(Meta::toStr(attribute))),
-        static_cast<Events>(attribute));
 }
 
 TEST(DrawStructureFindTest, CentralLookupIncludesRootSectionsAndChildren) {

@@ -106,9 +106,12 @@ namespace pv {
             offset input videos.
          */
         V_15,
+
+        /** Metadata stores native JSON values instead of quoted valueString() payloads. */
+        V_16,
         
         //! current
-        current = V_15
+        current = V_16
     };
     
     class Frame {

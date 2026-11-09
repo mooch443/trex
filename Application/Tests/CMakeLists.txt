@@ -1,4 +1,5 @@
-add_executable(benchmark_find_splitting_point EXCLUDE_FROM_ALL
+if(TREX_WITH_BENCHMARKS)
+add_executable(benchmark_find_splitting_point
     ../../tools/benchmark_find_splitting_point.cpp
     ../../tools/benchmark_find_splitting_point_local.cpp
 )
@@ -16,6 +17,59 @@ if(MSVC)
     target_compile_options(benchmark_find_splitting_point PRIVATE /GL-)
 else()
     target_compile_options(benchmark_find_splitting_point PRIVATE -fno-lto)
+endif()
+
+add_executable(bench_dyngui_parser bench_dyngui_parser.cpp
+    parser_benchmark/head.cpp parser_benchmark/older.cpp
+    parser_benchmark/StringDecoding.cpp parser_benchmark/previous_string_decoding.cpp
+    "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(bench_dyngui_parser PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(bench_dyngui_parser PRIVATE ../src/tracker ../src/ProcessedVideo)
+target_link_libraries(bench_dyngui_parser PUBLIC
+        commons
+        pv)
+set_target_properties(bench_dyngui_parser PROPERTIES
+    XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+    INTERPROCEDURAL_OPTIMIZATION FALSE
+)
+if(MSVC)
+    target_compile_options(bench_dyngui_parser PRIVATE /GL-)
+else()
+    target_compile_options(bench_dyngui_parser PRIVATE -fno-lto)
+endif()
+
+if(APPLE AND CMAKE_GENERATOR STREQUAL "Xcode")
+    # Profiling needs symbols from the production parser/decoder libraries as well as the harness.
+    foreach(_trex_parser_profile_target bench_dyngui_parser commons commons_gui commons_misc)
+        if(TARGET ${_trex_parser_profile_target})
+            get_target_property(_trex_parser_profile_type ${_trex_parser_profile_target} TYPE)
+            if(NOT _trex_parser_profile_type STREQUAL "INTERFACE_LIBRARY")
+                target_compile_options(${_trex_parser_profile_target} PRIVATE -g)
+                set_target_properties(${_trex_parser_profile_target} PROPERTIES
+                    XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
+                    XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
+                )
+            endif()
+        endif()
+    endforeach()
+endif()
+
+set(_trex_benchmark_python "${PYTHON_EXECUTABLE}")
+if(NOT _trex_benchmark_python)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(_trex_benchmark_python "${Python3_EXECUTABLE}")
+endif()
+add_custom_target(run_bench_dyngui_parser
+    COMMAND "${_trex_benchmark_python}" "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/run_dyngui_parser_benchmark.py"
+        --executable "$<TARGET_FILE:bench_dyngui_parser>"
+        --configuration "$<CONFIG>"
+        --output-dir "${CMAKE_BINARY_DIR}/benchmarks/dyngui_parser/$<CONFIG>"
+    DEPENDS bench_dyngui_parser
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.."
+    COMMENT "Running DynamicGUI parser and string-decoder benchmarks and saving plots"
+    USES_TERMINAL
+    VERBATIM
+)
 endif()
 
 option(TREX_TEST_TORCH_CHECKPOINT "Build and install embedded PyTorch checkpoint probes" OFF)
@@ -58,7 +112,7 @@ target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CUR
 add_executable(test_commandline test_commandline.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_commandline PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_strings test_strings.cpp test_sprite_map.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_strings test_strings.cpp test_string_patterns.cpp test_string_escaping.cpp test_sprite_map.cpp test_pv_metadata.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_strings PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(WIN32)
@@ -93,9 +147,6 @@ add_executable(test_frame_tags test_frame_tags.cpp test_main.cpp "${CMAKE_BINARY
 target_compile_definitions(test_frame_tags PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(test_bdx_ignore_list test_bdx_ignore_list.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
-
-add_executable(bench_dyngui_parser bench_dyngui_parser.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
-target_compile_definitions(bench_dyngui_parser PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(test_outlines test_outlines.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_outlines PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -360,10 +411,6 @@ target_link_libraries(test_animated_background PUBLIC
 target_link_libraries(test_frame_tags PUBLIC trex_core)
 target_link_libraries(test_bdx_ignore_list PUBLIC trex_core)
 
-target_link_libraries(bench_dyngui_parser PUBLIC
-        commons
-        pv)
-
 target_link_libraries(test_threadpool PUBLIC
         commons
         pv)
@@ -507,7 +554,6 @@ set_target_properties(test_patharray PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH
 set_target_properties(test_dyngui PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_gui_scroll PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_animated_background PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
-set_target_properties(bench_dyngui_parser PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_outlines PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")

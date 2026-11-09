@@ -958,7 +958,7 @@
                                 "type":"stext",
                                 "pad":[0,5,0,0],
                                 "max_size": "[{min:900:{element_w}},65]",
-                                "text": "{if:{precomputed}:'':{if:{machine_learning}:'<b>How does this work?</b>\nIdentified regions are extracted and processed separately by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model (<i>e.g. segmentation, or pose estimation</i>) at full scale. This can help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step (<i>e.g. drone footage</i>). <lightgray>Using multiple models will impact processing speed.</lightgray>':'This threshold is the {if:{global.detect_threshold_is_absolute}:absolute:signed} difference between the background image and a video frame (grayscale). You should fine-tune this value to your video / batch of videos, so that objects are correctly detected and separated - while avoiding to increase it so much that holes in the individuals start to appear.'}}",
+                                "text": "{if:{precomputed}:'':{if:{machine_learning}:'<b>How does this work?</b>\nIdentified regions are extracted and processed separately by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model (<i>e.g. segmentation, or pose estimation</i>) at full scale. This can help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step (<i>e.g. drone footage</i>). <lightgray>Using multiple models will impact processing speed.</lightgray>':This threshold is the {if:{global.detect_threshold_is_absolute}:absolute:signed} difference between the background image and a video frame (grayscale). You should fine-tune this value to your video / batch of videos, so that objects are correctly detected and separated - while avoiding to increase it so much that holes in the individuals start to appear.}}",
                                 "font":{"size":0.5}
                             }
                         ]
@@ -1214,7 +1214,7 @@
                         "else":{
                             "type":"button",
                             "text":"{if:{checks_running}:{animation}:<orange><sym>⚠</sym></orange>}",
-                            "tooltip":"{if:{||:{checks_running}:{valid_conversion_source}}:'':'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.'}{if:{&&:{not:{checks_running}}:{machine_learning}:{not:{valid_detection_model}}}:' The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.':''}",
+                            "tooltip":"{if:{||:{checks_running}:{valid_conversion_source}}:'':'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.'}{if:{&&:{not:{checks_running}}:{machine_learning}:{not:{valid_detection_model}}}: The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.:''}",
                             "fill":[40,40,40,120],
                             "line":[100,100,100,150],
                             "color":[100,100,100],

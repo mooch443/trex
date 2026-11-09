@@ -284,6 +284,8 @@ conda build -c conda-forge .
   incidental cleanup, renaming, refactoring, or extract one-off code into new
   helpers. When staged changes exist, use the staged version as the baseline
   for reviewing the new diff, while preserving all existing worktree changes.
+- Do not change existing test, variable, or function names unless the rename is
+  absolutely vital to the requested change.
 - When creating a new branch, use a concise descriptive name without a
   ``codex/`` or other agent-specific prefix.
 - Do not run builds, CMake configure/generate commands, or CMake build commands.
@@ -310,7 +312,7 @@ conda build -c conda-forge .
 - do not run commands in the build directory and dont delete the existing project files there
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
-- if the task is to add or edit tests, edit tests and only the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). do not edit unrelated production/source files unless the user explicitly asks for that too.
+- If the task is to add or edit tests, change only tests and the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). Do not implement fixes, compatibility branches, format/version changes, or other production changes unless the user explicitly requests implementation. A suggested possible solution is not authorization to implement it. Keep regressions short and focused, reuse existing fixtures or contracts, and report any exposed failure without expanding the task.
 - when fixing a bug, first reproduce the actual failure with a minimal viable test or local repro that matches the real issue. make sure that repro fails before changing production code, then fix the code until that same repro passes.
 - do not add speculative, broad, or low-value tests just to increase coverage. prefer the smallest targeted regression test for a real bug, and skip adding tests when they do not materially validate the reported failure.
 - Never edit `docs/parameters_trex.rst` directly; it is regenerated automatically. Update parameter definitions and descriptions in `Application/src/tracker/core/default_config.cpp` instead.

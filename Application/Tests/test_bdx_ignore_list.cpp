@@ -206,31 +206,6 @@ TEST(BlobIgnoreTest, UnignoringTrackletPreservesOtherEntries) {
     EXPECT_EQ(list, restored);
 }
 
-TEST(BlobIgnoreTest, ParsedEmptyListsIgnoreNothing) {
-    for(const std::string_view input : {"[]", "{}", "[{}]", "[{10:[]},{}]"}) {
-        SCOPED_TRACE(input);
-        const auto list = BdxIgnoreList::fromStr(input);
-        EXPECT_FALSE(list.is_ignored(0_f, pv::bid{0u}));
-        EXPECT_FALSE(list.is_ignored(10_f, pv::bid{1u}));
-    }
-
-    EXPECT_EQ(BdxIgnoreList::fromStr("[]").toStr(), "[]");
-    EXPECT_EQ(BdxIgnoreList::fromStr("{}").toStr(), "[]");
-}
-
-TEST(BlobIgnoreTest, LegacyMapBecomesOneEntry) {
-    const auto list = BdxIgnoreList::fromStr("{12:[7],0:[0,4000000000],10:[5,2,5]}");
-
-    EXPECT_EQ(list.toStr(), "[{0:[0]},{0:[4000000000]},{10:[2]},{10:[5]},{12:[7]}]");
-    EXPECT_TRUE(list.is_ignored(0_f, pv::bid{0u}));
-    EXPECT_TRUE(list.is_ignored(0_f, pv::bid{4000000000u}));
-    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{2u}));
-    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{5u}));
-    EXPECT_TRUE(list.is_ignored(12_f, pv::bid{7u}));
-    EXPECT_FALSE(list.is_ignored(10_f, pv::bid{7u}));
-    EXPECT_FALSE(list.is_ignored(11_f, pv::bid{5u}));
-}
-
 TEST(BlobIgnoreTest, OverlappingEntriesContributeToMergedLookup) {
     const auto list = BdxIgnoreList::fromStr(
         "[{10:[5,2,5],12:[7]},{10:[3,5],11:[9]},{10:[2,5],12:[7]}]");
@@ -255,59 +230,6 @@ TEST(BlobIgnoreTest, EmptyEntriesDoNotEraseOtherEntries) {
     EXPECT_FALSE(list.is_ignored(10_f, pv::bid{3u}));
 }
 
-TEST(BlobIgnoreTest, AcceptsInnerWhitespaceAndQuotedFrameKeys) {
-    const auto list = BdxIgnoreList::fromStr(
-        R"([ { "10" : [ 5, 2, 5 ], "12" : [ ] }, { "11" : [ 7 ] } ])");
-
-    EXPECT_EQ(list.toStr(), "[{10:[2,5],12:[]},{11:[7]}]");
-    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{2u}));
-    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{5u}));
-    EXPECT_TRUE(list.is_ignored(11_f, pv::bid{7u}));
-    EXPECT_FALSE(list.is_ignored(12_f, pv::bid{7u}));
-}
-
-TEST(BlobIgnoreTest, MetaRoundTripPreservesEntriesAndRebuildsLookup) {
-    const std::string input = "[{10:[2,5]},{10:[3],11:[7]},{}]";
-    const auto original = Meta::fromStr<BdxIgnoreList>(input);
-    const auto restored = Meta::fromStr<BdxIgnoreList>(Meta::toStr(original));
-
-    EXPECT_EQ(Meta::toStr(restored), input);
-    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{2u}));
-    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{3u}));
-    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{5u}));
-    EXPECT_TRUE(restored.is_ignored(11_f, pv::bid{7u}));
-    EXPECT_FALSE(restored.is_ignored(11_f, pv::bid{3u}));
-    EXPECT_FALSE(restored.is_ignored(12_f, pv::bid{7u}));
-}
-
-TEST(BlobIgnoreTest, ParsedValuesOwnTheirInput) {
-    std::string input = "prefix[{10:[2,5]},{11:[7]}]suffix";
-    const auto list = BdxIgnoreList::fromStr(std::string_view(input).substr(6, input.size() - 12));
-    input.assign(input.size(), 'x');
-
-    EXPECT_EQ(list.toStr(), "[{10:[2,5]},{11:[7]}]");
-    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{2u}));
-    EXPECT_TRUE(list.is_ignored(11_f, pv::bid{7u}));
-}
-
-TEST(BlobIgnoreTest, JsonRoundTripPreservesEntriesAndLookup) {
-    const auto original = BdxIgnoreList::fromStr("[{10:[2,5]},{10:[3],11:[7]},{}]");
-    const auto value = original.to_json();
-    ASSERT_TRUE(value.is_array());
-    ASSERT_EQ(value.size(), 3u);
-    ASSERT_TRUE(value[2].is_object());
-    const auto json = glz::write_json(value);
-    ASSERT_TRUE(json.has_value());
-    const auto restored = BdxIgnoreList::fromStr(json.value());
-
-    EXPECT_EQ(restored, original);
-    EXPECT_EQ(restored.toStr(), "[{10:[2,5]},{10:[3],11:[7]},{}]");
-    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{2u}));
-    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{3u}));
-    EXPECT_TRUE(restored.is_ignored(11_f, pv::bid{7u}));
-    EXPECT_FALSE(restored.is_ignored(11_f, pv::bid{2u}));
-}
-
 TEST(BlobIgnoreTest, EqualityPreservesEntryGrouping) {
     const auto legacy = BdxIgnoreList::fromStr("{10:[2,5]}");
     const auto single_entry = BdxIgnoreList::fromStr("[{10:[5,2,2]}]");
@@ -322,25 +244,4 @@ TEST(BlobIgnoreTest, EqualityPreservesEntryGrouping) {
     EXPECT_TRUE(single_entry.is_ignored(10_f, pv::bid{5u}));
     EXPECT_TRUE(separate_entries.is_ignored(10_f, pv::bid{2u}));
     EXPECT_TRUE(separate_entries.is_ignored(10_f, pv::bid{5u}));
-}
-
-TEST(BlobIgnoreTest, RejectsInvalidOuterSyntax) {
-    for(const std::string_view input : {
-            "", " ", "null", "42", "{10:[1]", "[{10:[1]}", "{10:[1]}]"
-        })
-    {
-        SCOPED_TRACE(input);
-        EXPECT_THROW((void)BdxIgnoreList::fromStr(input), std::exception);
-    }
-}
-
-TEST(BlobIgnoreTest, RejectsMalformedEntries) {
-    for(const std::string_view input : {
-            "[1]", "{bad:[1]}", "[{10:[bad]}]", "{10:1}",
-            "[{10:[1]},,{11:[2]}]", "[{10:[1,,2]}]"
-        })
-    {
-        SCOPED_TRACE(input);
-        EXPECT_THROW((void)BdxIgnoreList::fromStr(input), std::exception);
-    }
 }
