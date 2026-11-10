@@ -793,11 +793,7 @@ TEST(PathArrayTest, ParsePath_Array) {
 TEST(PathArrayTest, ParsePath_ArrayFormat) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
         std::set<file::Path> find_files(const file::Path& ) const override {
-#if defined(_WIN32)
-            return { file::Path("path\\to\\file1"), file::Path("C:\\other\\path") };
-#else
             return { file::Path("path/to/file1"), file::Path("/other/path") };
-#endif
         }
 
         bool is_folder(const file::Path& ) const override {
@@ -808,20 +804,44 @@ TEST(PathArrayTest, ParsePath_ArrayFormat) {
             return find_files("").count(path) > 0;
         }
     };
+    
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>(R"(["path/to/file1","/other/path"])");
+    EXPECT_EQ(parsed_paths.size(), 2);
+    
 #if defined(_WIN32)
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>("[\"path\\to\\file1\",\"C:\\other\\path\"]");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path\to\file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(\other\path)");
 #else
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>("[\"path/to/file1\",\"/other/path\"]");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path/to/file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(/other/path)");
 #endif
+}
 
+// Test pattern matching with array
+TEST(PathArrayTest, ParsePath_ArrayFormatWindows) {
+    struct LocalMockFilesystem : public file::FilesystemInterface {
+        std::set<file::Path> find_files(const file::Path& ) const override {
+            return { file::Path("path\\to\\file1"), file::Path("C:\\other\\path") };
+        }
+
+        bool is_folder(const file::Path& ) const override {
+            return true;
+        }
+
+        bool exists(const file::Path& path) const override {
+            return find_files("").count(path) > 0;
+        }
+    };
+    
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>(R"(["path\\to\\file1","C:\\other\\path"])");
     EXPECT_EQ(parsed_paths.size(), 2);
 
 #if defined(_WIN32)
-    EXPECT_EQ(parsed_paths[0].str(), "path\\to\\file1");
-    EXPECT_EQ(parsed_paths[1].str(), "C:\\other\\path");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path\to\file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(C:\other\path)");
 #else
-    EXPECT_EQ(parsed_paths[0].str(), "path/to/file1");
-    EXPECT_EQ(parsed_paths[1].str(), "/other/path");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path/to/file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(C:/other/path)");
 #endif
 }
 
