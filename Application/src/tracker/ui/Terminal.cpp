@@ -82,7 +82,7 @@ void open_terminal() {
             }
             else {
                 std::set<std::string> matches;
-                for(auto key : GlobalSettings::keys()) {
+                for(auto&& key : GlobalSettings::keys()) {
                     if(utils::contains(utils::lowercase(key), utils::lowercase(command))) {
                         matches.insert(key);
                     }

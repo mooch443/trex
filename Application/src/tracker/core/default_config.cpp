@@ -656,7 +656,7 @@ file::Path conda_environment_path() {
     }
     
     void warn_deprecated(const file::Path& source, sprite::Map& map) {
-        std::map<std::string, std::string> found;
+        std::map<std::string_view, std::string> found;
         
         for(auto &key : map.keys()) {
             if(is_deprecated(key)) //!TODO: check what this does (toStr)
@@ -666,7 +666,8 @@ file::Path conda_environment_path() {
         warn_deprecated(source, found);
     }
     
-    void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys) {
+    template<typename StringType>
+    void warn_deprecated(const file::Path& source, const std::map<StringType, std::string>& keys) {
         bool found = false;
         for (auto && [key, val] : keys) {
             if(is_deprecated(key)) {
@@ -683,12 +684,15 @@ file::Path conda_environment_path() {
         if(found)
             Print("Found invalid settings in source ",source," (see above).");
     }
+
+template void warn_deprecated(const file::Path& source, const std::map<std::string_view, std::string>& keys);
+template void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
     
-    bool is_deprecated(const std::string& key) {
+    bool is_deprecated(std::string_view key) {
         return deprecated.is_deprecated(key);
     }
     
-    std::string replacement(const std::string& key) {
+    std::string replacement(std::string_view key) {
         if (not is_deprecated(key)) {
             throw U_EXCEPTION("Key ",key," is not deprecated.");
         }
@@ -1566,7 +1570,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             if(utils::beginsWith(key, "meta_")
                && not explicitly_include.contains(key))
             {
-                result.excluded.push_back(key);
+                result.excluded.emplace_back(key);
                 continue;
             }
             
@@ -1586,7 +1590,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {
-                    result[key] = &value.get();
+                    result[(std::string)key] = &value.get();
                     //if(explicitly_include.contains(key))
                         //Print("// saving ", key, " explicitly");
                 } else {

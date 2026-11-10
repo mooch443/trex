@@ -255,7 +255,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 item.modified = timestamp_t::now().get();
                 item.settings = {};
                 for(auto &key : item._options.keys())
-                    item.settings[key] = item._options.at(key).get().to_json();
+                    item.settings[(std::string)key] = item._options.at(key).get().to_json();
                     //config.at(key).get().copy_to(item._options);
                 //config.write_to(item._options);
                 return;
@@ -276,7 +276,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
         config.at(key).get().copy_to(item._options);
     }
     for(auto &key : item._options.keys())
-        item.settings[key] = item._options.at(key).get().to_json();
+        item.settings[(std::string)key] = item._options.at(key).get().to_json();
     //config.write_to(item._options);
     _file.entries.emplace_back(std::move(item));
 }

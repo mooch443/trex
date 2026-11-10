@@ -528,7 +528,7 @@ int main(int argc, char** argv) {
                 }
             }
 
-            SETTING(meta_write_these) = keys;
+            SETTING(meta_write_these) = std::move(keys);
             modified.update_metadata();
         }
 

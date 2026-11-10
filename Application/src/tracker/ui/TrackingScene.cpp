@@ -1152,7 +1152,10 @@ void TrackingScene::deactivate() {
     _data = nullptr;
     _state = nullptr;
     
-    auto keys = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config.keys(); });
+    auto keys = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
+        auto keys = with_config.keys();
+        return std::vector<std::string>{ keys.begin(), keys.end() };
+    });
     for(auto &key : keys) {
         auto value = GlobalSettings::read_value<NoType>(key);
         if(/*contains(config.excluded.toVector(), key)
@@ -2535,7 +2538,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             VarFunc("global_history", [](const VarProps&) {
                 return GlobalSettings::read([](const Configuration& config) {
-                    std::vector<std::map<std::string, std::string>> converted;
+                    std::vector<std::map<std::string_view, std::string>> converted;
                     for(auto &item : config.history) {
                         auto keys = item.values.keys();
                         converted.emplace_back();

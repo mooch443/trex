@@ -1731,15 +1731,17 @@ void File::stop_modifying() {
         copy.set_offsets(file.crop_offsets());
         copy.set_average(file.average());
         
-        auto keys = file.header().metadata.has_value()
-            ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value()).keys()
-            : std::vector<std::string>{};
+        sprite::Map parsed_values = file.header().metadata.has_value()
+                ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value())
+                : sprite::Map{};
+        
+        auto keys = parsed_values.keys();
         if(file.header().metadata.has_value()) {
             GlobalSettings::write([&](Configuration& config) {
                 sprite::parse_values(sprite::MapSource{ file.filename() }, config.values, file.header().metadata.value(), nullptr, {}, {});
             });
         }
-        SETTING(meta_write_these) = keys;
+        SETTING(meta_write_these) = std::vector<std::string>{keys.begin(), keys.end()};
         
         if(file.has_mask())
             copy.set_mask(file.mask());
@@ -1843,7 +1845,8 @@ void File::stop_modifying() {
         sprite::Map map;
         if(header().metadata.has_value())
             sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), nullptr, {}, {});
-        SETTING(meta_write_these) = map.keys();
+        auto keys = map.keys();
+        SETTING(meta_write_these) = std::vector<std::string>{ keys.begin(), keys.end() };
         
         pv::Frame frame;
         for (Frame_t i=0_f; i<length(); ++i) {
