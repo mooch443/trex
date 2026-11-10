@@ -104,9 +104,9 @@ requirements:
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
     - nasm
-    - icu
 
   host:
+    - icu
     - {{ stdlib("c") }} # [linux]
     - pthread-stubs  # [linux]
     - python =3.11 # [osx and arm64]

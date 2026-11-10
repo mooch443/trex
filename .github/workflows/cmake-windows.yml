@@ -187,6 +187,7 @@ jobs:
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         conda run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         $savedErrorPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         $openclOutput = (& conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support 2>&1 | Out-String)
@@ -197,7 +198,9 @@ jobs:
           throw "Minimal OpenCV unexpectedly reports OpenCL support."
         }
         conda run -p $env:TEST_PREFIX python "$env:SHORT_WORKSPACE\conda\validate_minimal.py"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         conda run -p $env:TEST_PREFIX python "$env:SHORT_WORKSPACE\conda\validate_post_link_installation.py"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         $trexCandidates = @(
           (Join-Path $env:TEST_PREFIX "bin\trex.exe")

@@ -211,6 +211,7 @@ cmake .. \
     -DPython_EXECUTABLE:FILEPATH=${PREFIX}/bin/python3 \
     -DPython_ROOT_DIR:FILEPATH=${PREFIX} \
     -DCONDA_PREFIX:PATH=${PREFIX} \
+    -DICU_ROOT:PATH="${PREFIX}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DWITH_GITSHA1=ON \
     -DWITH_FFMPEG=ON \
