@@ -233,9 +233,10 @@ struct G {
             DebugHeader("// LOADING FROM ", s);
     }
     ~G() {
-        //DebugHeader("// LOADED ", s);
-        if(not quiet)
-            Print("");
+        if(not quiet) {
+            DebugHeader("// LOADED ", s);
+            Print();
+        }
     }
 };
 
@@ -1167,11 +1168,14 @@ void LoadContext::estimate_meta_variables() {
 void LoadContext::check_output_dir() {
     auto default_path = file::find_parent( combined.at("source").value<file::PathArray>() ).value_or(file::Path{});
     auto output_prefix = combined.at("output_prefix").value<std::string>();
+    auto source = combined.at("source").value<file::PathArray>();
+    auto paths = source.get_paths();
+    // Relative sources also use output_dir for input lookup; keep their base unchanged.
+    const bool absolute_pv = paths.size() == 1
+        && paths.front().is_absolute() && paths.front().has_extension("pv");
     
-    if(not output_prefix.empty()) {
+    if(not output_prefix.empty() || absolute_pv) {
         /// now we need to force `output_prefix` potentially
-        auto source = combined.at("source").value<file::PathArray>();
-        auto paths = source.get_paths();
         
         auto output_dir = combined.at("output_dir").value<file::Path>();
         //if(default_path.filename() == output_prefix)
@@ -1197,7 +1201,8 @@ void LoadContext::check_output_dir() {
     
     if(auto output_dir = combined.at("output_dir").value<file::Path>();
        output_dir == default_path
-       && output_prefix.empty())
+       && output_prefix.empty()
+       && not absolute_pv)
     {
         combined.values["output_dir"] = file::Path();
     }
@@ -1205,10 +1210,15 @@ void LoadContext::check_output_dir() {
 
 void LoadContext::finalize() {
     /// --------------------------------------
-    G g("FINAL CONFIG", quiet);
+    auto keys = combined.values.keys();
+    G g("FINAL CONFIG", quiet || not contains(keys, "source") || combined.at("source").value<file::PathArray>().empty());
 
-    for(auto &key : combined.values.keys()) {
+    for(auto &key : keys) {
         try {
+            if(key == "source" && deferred_source) {
+                *deferred_source = combined.at(key).value<file::PathArray>();
+                continue;
+            }
             if(auto v = GlobalSettings::read_value<NoType>(key);
                combined._access_level(key) < AccessLevelType::SYSTEM
                && (not v.valid() || v.get() != combined.at(key).get())
@@ -1241,9 +1251,10 @@ void LoadContext::finalize() {
             
         } catch(const std::exception& ex) {
             FormatExcept("Cannot parse setting ", key, " and copy it to GlobalSettings: ", ex.what());
+            if(deferred_source)
+                throw;
         }
     }
-    
 }
 
 bool LoadContext::set_config_if_different(
@@ -1489,6 +1500,7 @@ void load(LoadContext ctx) {
         config.values["track_pause"].get().set_do_print(false);
         config.values["terminate"].get().set_do_print(false);
         config.values["gui_interface_scale"].get().set_do_print(false);
+        config.values["video_info"].get().set_do_print(false);
     });
     
     // Step 15: Reset selected command-line settings to avoid persisting across runs.

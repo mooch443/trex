@@ -382,12 +382,14 @@ void Tracker::init() {
         SETTING(cm_per_pixel) = settings::infer_cm_per_pixel();
     }
     
+#ifndef NDEBUG
     if(GlobalSettings::is_runtime_quiet())
     {
         Print("Initialized with ", _thread_pool.num_threads()," threads.");
     }
+#endif
     
-    Print("* Initializing outputs.");
+    //Print("* Initializing outputs.");
     Output::Library::InitVariables();
     Output::Library::Init(*this);
 }
@@ -408,11 +410,15 @@ Tracker::~Tracker() {
     clear_tracking_ids();
     
     const bool quiet = GlobalSettings::is_runtime_quiet();
+#ifndef NDEBUG
     if(!quiet)
         Print("Waiting for recognition...");
+#endif
     recognition_pool.force_stop();
+#ifndef NDEBUG
     if(!quiet)
         Print("Done waiting.");
+#endif
     
     is_checking_tracklet_identities = false;
     
@@ -2980,17 +2986,18 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             }
         } g;
         
-        Print("Waiting for lock...");
         LockGuard guard(ro_t{}, "check_tracklets_identities_r");
         
         {
             LockGuard w_guard(w_t{}, "check_tracklets_identities_w");
+#ifndef NDEBUG
             Print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
             
             if (source == IdentitySource::QRCodes)
                 Print("Using physical tag information.");
             else
                 Print("Using machine learning data.");
+#endif
             
             std::atomic<size_t> count{0u};
             
@@ -3346,7 +3353,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         }
         
         //auto str = prettify_array(Meta::toStr(still_unassigned));
-        Print("auto_assign is ", auto_correct ? 1 : 0);
+        //Print("auto_assign is ", auto_correct ? 1 : 0);
         if(auto_correct) {
             add_to_queue("", [after_frame, automatic_matches, manual_splits, tmp_assigned_ranges = std::move(tmp_assigned_ranges), self = weak_from_this()]() mutable {
                 auto lock = self.lock();

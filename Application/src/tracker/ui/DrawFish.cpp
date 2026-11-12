@@ -719,9 +719,15 @@ Fish::~Fish() {
                 auto &lines = _basic_stuff->blob.pred.outlines.lines;
                 _buffer_draw_holes.resize(lines.size());
                 
+                const auto outline_holes_approximate = options.outline_holes_approximate;
+                const auto gui_outline_thickness = options.gui_outline_thickness;
+                
                 Line::Vertices_t gline;
                 for(size_t i = 0; i<lines.size(); ++i) {
                     auto line = (std::vector<Vec2>)lines.at(i);
+                    if(outline_holes_approximate > 0) {
+                        Outline::approximate_outline(line, outline_holes_approximate, line);
+                    }
                     
                     gline.clear();
                     gline.reserve(line.size());
@@ -731,9 +737,9 @@ Fish::~Fish() {
                     }
                     
                     if(not _buffer_draw_holes[i]) {
-                        _buffer_draw_holes[i] = Layout::Make<Line>(std::move(gline), Line::Thickness_t{OPTION(gui_outline_thickness)});
+                        _buffer_draw_holes[i] = Layout::Make<Line>(std::move(gline), Line::Thickness_t{gui_outline_thickness});
                     } else {
-                        _buffer_draw_holes[i]->set(Line::Thickness_t{OPTION(gui_outline_thickness)});
+                        _buffer_draw_holes[i]->set(Line::Thickness_t{gui_outline_thickness});
                         _buffer_draw_holes[i]->set(std::move(gline));
                     }
                         

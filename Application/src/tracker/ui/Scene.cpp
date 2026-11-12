@@ -60,8 +60,8 @@ SceneManager::SceneManager()
     _gui_thread_id = std::this_thread::get_id();
 }
 
-void SceneManager::set_active(Scene* scene) {
-    auto fn = [this, scene]() {
+void SceneManager::set_active(Scene* scene, std::function<void()> prepare, std::function<void()> activated) {
+    auto fn = [this, scene, prepare = std::move(prepare), activated = std::move(activated)]() mutable {
         try {
             if(active_scene == scene) return;
 
@@ -76,14 +76,22 @@ void SceneManager::set_active(Scene* scene) {
                 }
             }
             last_active_scene = active_scene;
+            active_scene = nullptr;
+            if(scene)
+                Print("[SceneManager] Switching to ", scene->name());
+            if(prepare)
+                prepare();
             active_scene = scene;
             if (scene) {
-                Print("[SceneManager] Switching to ", scene->name());
                 scene->activate();
             } else
                 Print("[SceneManager] Deactivating.");
+            if(activated)
+                activated();
             
         } catch(const std::exception& e) {
+            prepare = {};
+            activated = {};
             SceneManager::set_switching_error(e.what());
 
             if (SceneManager::getInstance().fallback_scene) {
@@ -94,7 +102,7 @@ void SceneManager::set_active(Scene* scene) {
             }
         }
     };
-    _enqueue(AlwaysAsync{}, fn);
+    _enqueue(AlwaysAsync{}, std::move(fn));
 }
 
 Scene* SceneManager::last_active() const {
@@ -117,11 +125,11 @@ void SceneManager::unregister_scene(Scene* scene) {
     }
 }
 
-void SceneManager::set_active(std::string name) {
+void SceneManager::set_active(std::string name, std::function<void()> prepare, std::function<void()> activated) {
     if (name.empty()) {
         if (std::unique_lock guard{ _mutex };
             active_scene) {
-            set_active(nullptr);
+            set_active(nullptr, std::move(prepare), std::move(activated));
         }
         return;
     }
@@ -136,7 +144,7 @@ void SceneManager::set_active(std::string name) {
 
     if (ptr) {
         if(ptr != active_scene)
-            set_active(ptr);
+            set_active(ptr, std::move(prepare), std::move(activated));
     }
     else {
         throw std::invalid_argument("Cannot find the given Scene name.");

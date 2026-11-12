@@ -601,7 +601,7 @@ void configure_runtime(
         impl.set_runtime_warning_function(std::move(warning_fn));
     }
 
-    Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
+    //Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
 }
 
 void check_correct_thread_id() {

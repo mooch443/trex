@@ -487,6 +487,7 @@ glz::generic sprite_map_to_json(const sprite::Map& map) {
 }
 
 void ConvertScene::activate()  {
+    auto start_over = force_start_over.read();
     _scene_promise = {};
     _scene_active = _scene_promise.get_future().share();
 
@@ -503,7 +504,6 @@ void ConvertScene::activate()  {
         SETTING(filename) = default_filename;
     }
     
-    auto start_over = force_start_over.read();
     if(start_over
        && start_over.value())
     {

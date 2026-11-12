@@ -77,7 +77,9 @@ namespace globals {
         (Frame_t, gui_pose_smoothing),
         (track::detect::KeypointNames, detect_keypoint_names),
         (track::PoseMidlineIndexes, pose_midline_indexes),
-        (Float2_t, track_max_speed)
+        (Float2_t, track_max_speed),
+        (uint8_t, outline_approximate),
+        (uint8_t, outline_holes_approximate)
     )
 
     #define GUIOPTION(NAME) ::cmn::gui::globals::CachedGUIOptions::copy < ::cmn::gui::globals::CachedGUIOptions :: NAME > ()
@@ -132,7 +134,9 @@ namespace globals {
         (std::vector<Vec2>, gui_zoom_polygon),
         (std::string, gui_foi_name),
         (bool, track_pause),
-        (Float2_t, track_max_speed)
+        (Float2_t, track_max_speed),
+        (uint8_t, outline_approximate),
+        (uint8_t, outline_holes_approximate)
     )
 }
 

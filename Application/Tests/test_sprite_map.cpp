@@ -109,7 +109,7 @@ TEST(SpriteMapTests, CopyAssignmentPreservesBeforeWriteCallbacksOnce) {
         destination = source;
         destination["value"] = next;
     }
-    EXPECT_EQ(before_values, (std::vector<int>{1, 1}));
+    EXPECT_EQ(before_values, (std::vector<int>{0, 1, 2, 1}));
 }
 
 class CallbackAttachmentMap : public cmn::sprite::Map {

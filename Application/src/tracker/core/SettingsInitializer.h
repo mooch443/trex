@@ -22,6 +22,8 @@ struct LoadContext {
     ExtendableVector exclude_parameters{};
     cmn::sprite::Map source_map{};
     bool quiet{false};
+    // Receives the resolved source instead of applying it before GUI confirmation.
+    file::PathArray* deferred_source{nullptr};
 
     Configuration combined{};
     sprite::Map current_defaults{};

@@ -182,7 +182,6 @@ TrackingState::~TrackingState() {
             break;
     }
     assert(ptr.lock() == nullptr);
-    Print("Freed.");
 }
 
 bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {

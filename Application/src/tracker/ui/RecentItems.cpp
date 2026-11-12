@@ -258,6 +258,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                     item.settings[(std::string)key] = item._options.at(key).get().to_json();
                     //config.at(key).get().copy_to(item._options);
                 //config.write_to(item._options);
+                prefixed_print("recent", "Updating recent item ", item);
                 return;
             }
         }
@@ -278,6 +279,9 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     for(auto &key : item._options.keys())
         item.settings[(std::string)key] = item._options.at(key).get().to_json();
     //config.write_to(item._options);
+    
+    prefixed_print("recent", "Adding recent item ", item);
+    
     _file.entries.emplace_back(std::move(item));
 }
 
@@ -303,6 +307,7 @@ void RecentItems::write() {
         //Print("Updated recent files: ", dump.c_str());
         
         auto destination = file::DataLocation::parse("app", ".trex_recent_files");
+        prefixed_print("recent", "Saving recent files at ", destination);
         try {
             if(not destination.exists()) {
                 /// do nothing

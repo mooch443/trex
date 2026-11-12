@@ -451,6 +451,39 @@ inline std::tuple<bool, periodic::scalar_t> is_in_periodic_range(size_t period, 
     return {range.contains(x), x};
 }
 
+bool Outline::approximate_outline(const std::vector<Vec2> &points, uint8_t approximate, std::vector<Vec2>& output)
+{
+    if(points.size() < 2)
+        return false;
+
+    Vec2 center;
+    Float2_t perimeter = 0;
+    // periodic::EFT::dt parameterizes the contour by cumulative edge length,
+    // so the Fourier offset (zero-frequency term) is the perimeter mean:
+    // sum(edge_length * edge_midpoint) / perimeter, not the enclosed-area centroid.
+    // A vertex mean agrees for equal spacing, but shifts when extra vertices
+    // are inserted along an edge; this mean preserves the contour's placement.
+    for(size_t i=0; i<points.size(); ++i) {
+        const auto& pt = points[i];
+        const auto& next = points[(i+1) % points.size()];
+        const auto len = length(next - pt);
+        center += (pt + next) * (0.5_F * len);
+        perimeter += len;
+    }
+    center = perimeter > 0
+                ? center / perimeter
+                : points.front();
+
+    auto coeffs = periodic::eft(points, approximate);
+    if(coeffs) {
+        auto pts = std::move(periodic::ieft(*coeffs, coeffs->size(), points.size(), center, false).front());
+        output = std::move(*pts);
+        return true;
+    }
+    
+    return false;
+}
+
 std::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle(const DebugInfo& info) {
     assert(_concluded);
     static constexpr bool use_old_method = false;
@@ -498,17 +531,12 @@ std::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle
             // we have to invert the outline, in order to make it clockwise
             std::reverse(ptr->begin(), ptr->end());
         
-        if(OUTLINE_SETTING(outline_approximate) > 0 && _points && !_points->empty()) {
-            Vec2 center;
-            for(auto &pt : *_points)
-                center += pt;
-            center /= _points->size();
-
-            auto coeffs = periodic::eft(*_points, OUTLINE_SETTING(outline_approximate));
-            if(coeffs) {
-                auto pts = std::move(periodic::ieft(*coeffs, coeffs->size(), _points->size(), center, false).front());
-                _points = std::move(pts);
-                ptr = _points.get();
+        if(OUTLINE_SETTING(outline_approximate) > 0 
+            && _points 
+            && !_points->empty()) 
+        {
+            if(approximate_outline(*_points, OUTLINE_SETTING(outline_approximate), *_points)) {
+                /// pass, we successfully approximated it. otherwise we keep it.
             }
         }
         

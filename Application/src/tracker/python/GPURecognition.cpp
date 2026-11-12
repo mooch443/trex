@@ -1195,7 +1195,7 @@ void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* in
     file::DataLocation::set_instance(instance);
     Python::set_instance(python_wrapper);
     buffers::TileBuffers::set(static_cast<buffers::TileBuffers::Buffers_t*>(tile_buffers));
-    thread_print("setting settings instance to ", hex(obj));
+    //thread_print("setting settings instance to ", hex(obj));
 }
 
 template<typename T>

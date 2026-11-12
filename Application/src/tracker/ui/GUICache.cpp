@@ -636,7 +636,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     if(not video)
                         return; // abort! video does not exist
                     
-                    Print("open for writing: ", video->is_write_mode());
+                    //Print("open for writing: ", video->is_write_mode());
                     if(video->is_read_mode()) {
                         auto percentiles = video->calculate_percentiles({0.05f, 0.95f});
                         
@@ -1420,7 +1420,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 .gui_pose_smoothing = GUIOPTION(gui_pose_smoothing),
                 .gui_max_path_time = GUIOPTION(gui_max_path_time),
                 .pose_midline_indexes = GUIOPTION(pose_midline_indexes),
-                .track_max_speed = GUIOPTION(track_max_speed)
+                .track_max_speed = GUIOPTION(track_max_speed),
+                .outline_approximate = GUIOPTION(outline_approximate),
+                .outline_holes_approximate = GUIOPTION(outline_holes_approximate)
             };
             
             {

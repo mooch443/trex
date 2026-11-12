@@ -199,6 +199,219 @@ TEST(GlobalSettingsTests, HistoryMonitoringCanBeDisabled) {
     });
 }
 
+TEST(SpriteMapTests, CopyAssignmentDefersChangeCallbacks) {
+    sprite::Map values;
+    values["a"] = int(1);
+    values["b"] = int(2);
+    values["removed"] = true;
+    sprite::Map source;
+    source["a"] = int(3);
+    source["b"] = int(4);
+    source["added"] = int(5);
+    source["silent"] = int(6);
+
+    bool copying = false;
+    std::map<std::string, int> changes;
+    values.register_general_callback([&](std::string_view name) {
+        if(copying) {
+            EXPECT_EQ(values.at("a").value<int>(), 3);
+            EXPECT_EQ(values.at("b").value<int>(), 4);
+            ++changes[std::string(name)];
+        }
+    });
+    values["a"].get().registerBeforeWriteCallback([&](auto) {
+        EXPECT_EQ(values.at("a").value<int>(), 1);
+        values["b"] = int(9);
+    });
+    int pending_changes = 0, silent_changes = 0;
+    auto pending = values.register_callbacks({"added"}, [&](auto) {
+        EXPECT_EQ(values.at("b").value<int>(), 4);
+        ++pending_changes;
+    });
+    auto silent = values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
+        {"silent"}, [&](auto) { ++silent_changes; });
+
+    copying = true;
+    values = source;
+    EXPECT_EQ(values.size(), source.size());
+    for(const auto& name : source.keys())
+        EXPECT_EQ(values.at(name).value<int>(), source.at(name).value<int>());
+    EXPECT_EQ(changes, (std::map<std::string, int>{{"a", 1}, {"b", 1}, {"added", 1}, {"silent", 1}}));
+    EXPECT_EQ(pending_changes, 1);
+    EXPECT_EQ(silent_changes, 0);
+    values.unregister_callbacks(std::move(pending));
+    values.unregister_callbacks(std::move(silent));
+}
+
+TEST(SpriteMapTests, CopyAssignmentRestoresCallbacksAfterFailure) {
+    sprite::Map values;
+    values["a"] = int(1);
+    values["b"] = int(2);
+    sprite::Map source;
+    source["a"] = int(3);
+    source["b"] = int(4);
+    int changes = 0;
+    values.register_general_callback([&](auto) { ++changes; });
+    auto before = values["a"].get().registerBeforeWriteCallback([](auto) {
+        throw std::runtime_error("write failed");
+    });
+
+    EXPECT_THROW(values = source, std::runtime_error);
+    values["a"].get().unregisterBeforeWriteCallback(before);
+    changes = 0;
+    values["a"] = int(5);
+    values["b"] = int(6);
+    values["added"] = int(7);
+    EXPECT_EQ(changes, 3);
+}
+
+TEST(SpriteMapTests, CopyAssignmentPreservesCallbacksAcrossTypeChanges) {
+    sprite::Map values;
+    values["value"] = int(1);
+    sprite::Map source;
+    source["value"] = std::string("changed");
+    int before_changes = 0, changes = 0;
+    values["value"].get().registerBeforeWriteCallback([&](auto) { ++before_changes; });
+    auto callback = values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
+        {"value"}, [&](auto) { ++changes; });
+
+    values = source;
+    EXPECT_EQ(values.at("value").value<std::string>(), "changed");
+    EXPECT_EQ(changes, 1);
+    values["value"] = std::string("after copy");
+    EXPECT_EQ(before_changes, 1);
+    EXPECT_EQ(changes, 2);
+    values.unregister_callbacks(std::move(callback));
+    values["value"] = std::string("unregistered");
+    EXPECT_EQ(changes, 2);
+}
+
+TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.values["source"] = file::PathArray("input/recording.pv");
+        config.values["output_dir"] = file::Path("input");
+        config.values["output_prefix"] = std::string("session");
+        config.values["filename"] = file::Path("recording");
+        config.defaults["output_prefix"] = std::string("default");
+        config.examples["output_prefix"] = std::string("example");
+        config.docs["output_prefix"] = "prefix documentation";
+        config.access["output_prefix"] = AccessLevelType::PUBLIC;
+        config.history.push().values["output_prefix"] = std::string("session");
+    });
+    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", std::string("current")});
+    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", std::string("configured")});
+    auto before = GlobalSettings::read([](const Configuration& config) {
+        return GlobalSettings::snapshot(config);
+    });
+
+    int changes = 0;
+    auto callback = GlobalSettings::register_callbacks({"output_prefix"}, [&](auto) { ++changes; });
+    GlobalSettings::write([](Configuration& config) {
+        config.values["source"] = file::PathArray("original/recording.mp4");
+        config.values["output_dir"] = file::Path("original");
+        config.values["output_prefix"] = std::string("changed");
+        config.values["filename"] = file::Path("changed");
+        config.values["snapshot_added_setting"] = true;
+        config.defaults["output_prefix"] = std::string("changed");
+        config.examples.erase("output_prefix");
+        config.docs.clear();
+        config.access.clear();
+        config.history.clear();
+    });
+    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", std::string("changed")});
+    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", std::string("changed")});
+    GlobalSettings::write([&](Configuration& config) { before->rollback(config); });
+
+    GlobalSettings::read([](const Configuration& config) {
+        EXPECT_EQ(config.values.at("source").value<file::PathArray>(), file::PathArray("input/recording.pv"));
+        EXPECT_EQ(config.values.at("output_dir").value<file::Path>(), file::Path("input"));
+        EXPECT_EQ(config.values.at("output_prefix").value<std::string>(), "session");
+        EXPECT_EQ(config.values.at("filename").value<file::Path>(), file::Path("recording"));
+        EXPECT_FALSE(config.values.has("snapshot_added_setting"));
+        EXPECT_EQ(config.defaults.at("output_prefix").value<std::string>(), "default");
+        EXPECT_EQ(config.examples.at("output_prefix").value<std::string>(), "example");
+        EXPECT_EQ(config.docs.at("output_prefix"), "prefix documentation");
+        EXPECT_EQ(config.access.at("output_prefix"), AccessLevelType::PUBLIC);
+        EXPECT_EQ(config.history.last().values.at("output_prefix").value<std::string>(), "session");
+    });
+    GlobalSettings::read([](const sprite::Map& current, const sprite::Map& configured) {
+        EXPECT_EQ(current.at("output_prefix").value<std::string>(), "current");
+        EXPECT_EQ(configured.at("output_prefix").value<std::string>(), "configured");
+    });
+    changes = 0;
+    SETTING(output_prefix) = std::string("after rollback");
+    EXPECT_EQ(changes, 1);
+    GlobalSettings::unregister_callbacks(std::move(callback));
+}
+
+TEST(GlobalSettingsTests, SnapshotRollsBackLastOwnerUnlessCommitted) {
+    for(bool commit : {false, true}) {
+        SCOPED_TRACE(commit);
+        SETTING(output_prefix) = std::string("before");
+        CommandLine::instance().reset_settings({});
+        CommandLine::instance().add_setting("output_prefix", "before");
+        std::shared_ptr<GlobalSettings::Snapshot> pending;
+        {
+            auto before = GlobalSettings::read([](const Configuration& config) {
+                return GlobalSettings::snapshot(config);
+            });
+            pending = before;
+            SETTING(output_prefix) = std::string("changed");
+            CommandLine::instance().reset_settings({});
+            if(commit)
+                before->commit();
+        }
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "changed");
+        EXPECT_TRUE(CommandLine::instance().settings().empty());
+        pending.reset();
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), commit ? "changed" : "before");
+        ASSERT_EQ(CommandLine::instance().settings().size(), commit ? 0u : 1u);
+        if(not commit) {
+            EXPECT_EQ(CommandLine::instance().settings().front().name, "output_prefix");
+            EXPECT_EQ(CommandLine::instance().settings().front().value, std::optional<std::string>("before"));
+        }
+    }
+    CommandLine::instance().reset_settings({});
+}
+
+TEST(GlobalSettingsTests, SnapshotRollsBackDuringExceptionUnwinding) {
+    SETTING(output_dir) = file::Path("before");
+    EXPECT_THROW({
+        auto before = GlobalSettings::read([](const Configuration& config) {
+            return GlobalSettings::snapshot(config);
+        });
+        SETTING(output_dir) = file::Path("changed");
+        throw std::runtime_error("conversion preparation failed");
+    }, std::runtime_error);
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), file::Path("before"));
+}
+
+TEST(GlobalSettingsTests, SnapshotRequiresSecureConfigurationContexts) {
+    Configuration detached;
+    auto* live = GlobalSettings::write([](Configuration& config) { return &config; });
+    EXPECT_THROW(GlobalSettings::snapshot(*live), std::logic_error);
+    auto before = GlobalSettings::read([&](const Configuration& config) {
+        EXPECT_THROW(GlobalSettings::snapshot(detached), std::logic_error);
+        return GlobalSettings::snapshot(config);
+    });
+    EXPECT_THROW(before->rollback(*live), std::logic_error);
+    GlobalSettings::read([&](const Configuration&) {
+        EXPECT_THROW(before->rollback(*live), std::logic_error);
+    });
+    GlobalSettings::read([&](const sprite::Map&, const sprite::Map&) {
+        EXPECT_THROW(GlobalSettings::snapshot(*live), std::logic_error);
+    });
+    GlobalSettings::write([&](sprite::Map&, sprite::Map&) {
+        EXPECT_THROW(GlobalSettings::snapshot(*live), std::logic_error);
+        EXPECT_THROW(before->rollback(*live), std::logic_error);
+    });
+    GlobalSettings::write([&](Configuration& config) {
+        EXPECT_THROW(before->rollback(detached), std::logic_error);
+        EXPECT_NO_THROW(before->rollback(config));
+    });
+}
+
 TEST(GlobalSettingsTests, UnduOperation) {
     /// reset history if any
     GlobalSettings::write([](Configuration& config) {
@@ -2201,6 +2414,20 @@ TEST(FloatDoubleConversionTest, ParsesScientificNotation) {
     EXPECT_DOUBLE_EQ(Meta::fromStr<double>("1E-7"), 1e-7);
     EXPECT_FLOAT_EQ(Meta::fromStr<float>("2.5E+3"), 2500.f);
     EXPECT_DOUBLE_EQ(Meta::fromStr<double>("2.5e+3"), 2500.);
+}
+
+TEST(FloatDoubleConversionTest, RespectsViewBounds) {
+    const std::string input = "1.25";
+    EXPECT_DOUBLE_EQ(_Meta::fromStr<double>(std::string_view(input.data(), 3)), 1.2);
+}
+
+TEST(FloatDoubleConversionTest, RejectsTrailingCharacters) {
+    EXPECT_THROW(Meta::fromStr<float>("1.25junk"), std::runtime_error);
+    EXPECT_THROW(Meta::fromStr<double>("1.25junk"), std::runtime_error);
+}
+
+TEST(FloatDoubleConversionTest, ParsesLongDouble) {
+    EXPECT_EQ(Meta::fromStr<long double>("1.25"), 1.25L);
 }
 
 TEST(IntegerConversionTest, LargeIntegers) {
@@ -4276,6 +4503,17 @@ TEST(ToStringTest, ExceptionCase) {
     EXPECT_EQ(to_string(bigNumber), "inf");
 }
 
+#ifndef trex_use_std_to_chars
+TEST(ToStringTest, FormattedFallbackRespectsBufferBounds) {
+    std::array<char, 1> buffer{'!'};
+    const auto result = cmn::to_chars(buffer.data(), buffer.data() + buffer.size(),
+                                    12.0, cmn::chars_format::fixed);
+    EXPECT_EQ(result.ec, std::errc::value_too_large);
+    EXPECT_EQ(result.ptr, buffer.data());
+    EXPECT_EQ(buffer[0], '!');
+}
+#endif
+
 TEST(ToStringTest, HandleCompileTimeUnsignedInt) {
     // only check using static_assert if not using GCC
 #if defined(__GNUC__)
@@ -4417,6 +4655,7 @@ TEST(ConstexprStringTest, ConstructorFromArray) {
 }
 
 TEST(ConstexprStringTest, ConstructorFromStdArray) {
+    static_assert(!std::is_constructible_v<ConstString_t, std::array<char, 0>>);
     constexpr std::array<char, 6> testArray = {'H', 'e', 'l', 'l', 'o', '\0'};
     constexpr ConstexprString<128> myStr(testArray);
     static_assert(myStr.size() == 5, "Length is incorrect");
@@ -4431,6 +4670,11 @@ TEST(ConstexprStringTest, ConstructorFromAnotherConstexprString) {
     static_assert(myStr.size() == 5, "Length is incorrect");
     EXPECT_EQ(myStr.size(), 5);
     EXPECT_EQ(myStr.view(), "World");
+
+    constexpr auto full = originalStr.fill<'W'>();
+    constexpr ConstexprString<128> full_copy(full, [](char c) { return c; });
+    static_assert(full_copy.size() == 128 && full_copy[127] == 'W');
+    EXPECT_EQ(full_copy.view(), full.view());
 }
 
 TEST(ConstexprStringTest, ConstructorFromArrayWithFunction) {
@@ -4467,6 +4711,17 @@ TEST(ConstexprStringTest, AppendCharArrayMethod) {
     static_assert(result.size() == 10, "Length is incorrect");
     EXPECT_EQ(result.size(), 10);
     EXPECT_EQ(result.view(), "HelloWorld");
+}
+
+TEST(ConstexprStringTest, MixedConcatenationAndDifferentAppendCapacity) {
+    constexpr ConstexprString<4> part("ab");
+    constexpr ConstexprString<16> mixed("<", part, std::string_view("cd"), ">");
+    static_assert(mixed.view() == "<abcd>");
+    constexpr auto appended = ConstexprString<16>("prefix").append(part);
+    static_assert(appended.view() == "prefixab");
+    static_assert(!std::is_constructible_v<ConstString_t, int, const char (&)[2]>);
+    EXPECT_EQ(mixed.view(), "<abcd>");
+    EXPECT_EQ(appended.view(), "prefixab");
 }
 
 TEST(ConstexprStringTest, FillMethod) {
@@ -5287,6 +5542,44 @@ TEST(MetaTest, OptionalSerializesProperly) {
     ASSERT_EQ(Meta::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
 }
 
+TEST(MetaTest, RejectsParsingIntoSpan) {
+    EXPECT_THROW((Meta::fromStr<std::span<const int>>("[1,2]")), std::invalid_argument);
+}
+
+TEST(MetaTest, ParsesVectorWithCustomAllocator) {
+    using Vector = std::vector<int, NoInitializeAllocator<int>>;
+    EXPECT_EQ(Meta::fromStr<Vector>("[1,2,3]"), (Vector{1, 2, 3}));
+}
+
+TEST(MetaTest, ParsesIllegalArray) {
+    const auto values = Meta::fromStr<IllegalArray<int>>("[1,2,3]");
+    ASSERT_EQ(values.size(), 3u);
+    EXPECT_EQ(values[0], 1);
+    EXPECT_EQ(values[1], 2);
+    EXPECT_EQ(values[2], 3);
+    EXPECT_TRUE(Meta::fromStr<IllegalArray<int>>("[]").empty());
+    EXPECT_EQ(Meta::toStr(Meta::fromStr<IllegalArray<bool>>("[true,false]")), "[true,false]");
+}
+
+TEST(MetaTest, RejectsParsingIntoInitializerList) {
+    EXPECT_THROW((Meta::fromStr<std::initializer_list<int>>("[1,2]")), std::invalid_argument);
+}
+
+TEST(MetaTest, StringViewRequiresPersistentInput) {
+    EXPECT_THROW(Meta::fromStr<std::string_view>(std::string("hello")), std::invalid_argument);
+    const std::string input = "hello";
+    const auto view = Meta::fromStr<std::string_view>(input);
+    EXPECT_EQ(view, input);
+    EXPECT_EQ(view.data(), input.data());
+}
+
+TEST(MetaTest, NullPointersSerializeSafely) {
+    EXPECT_EQ(Meta::toStr(static_cast<int*>(nullptr)), "null");
+    EXPECT_EQ(Meta::toStr(static_cast<const char*>(nullptr)), "null");
+    EXPECT_EQ(Meta::toStr(std::optional<const char*>{nullptr}), "null");
+    EXPECT_EQ(_Meta::toStr<file::Path*>(static_cast<file::Path*>(nullptr)), "null");
+}
+
 TEST(MetaTest, FunctionNameSerializesArgumentsAndReturnType) {
     using Function = std::function<int(uint16_t, std::string)>;
 
@@ -5304,7 +5597,7 @@ TEST(MetaTest, FunctionNameSerializesRecursiveTypes) {
 
     ASSERT_EQ(
         utils::get_name(Function{}),
-        "function<optional<map<uint16,string>>(array<int>,pair<uint16,string>,tuple<int,float>)>"
+        "function<optional<map<uint16,string>>(list<int>,pair<uint16,string>,tuple<int,float>)>"
     );
 }
 
@@ -5317,9 +5610,103 @@ TEST(MetaTest, RecursiveTypeNamesSerializeProperly) {
         std::vector<std::pair<uint16_t, std::string>>
     >;
 
-    ASSERT_EQ(Meta::name<VectorOfPairs>(), "array<pair<uint16,string>>");
-    ASSERT_EQ(Meta::name<MapOfVectors>(), "map<uint16,array<string>>");
-    ASSERT_EQ(Meta::name<Tuple>(), "tuple<int,optional<map<uint16,string>>,array<pair<uint16,string>>>");
+    ASSERT_EQ(Meta::name<VectorOfPairs>(), "list<pair<uint16,string>>");
+    ASSERT_EQ(Meta::name<MapOfVectors>(), "map<uint16,list<string>>");
+    ASSERT_EQ(Meta::name<Tuple>(), "tuple<int,optional<map<uint16,string>>,list<pair<uint16,string>>>");
+}
+
+TEST(MetaTest, BasicAndRecursiveNamesAreConstantExpressions) {
+    using Map = std::map<int, std::pair<char, const char*>>;
+    using Pair = std::pair<int, std::pair<char, long double>>;
+    using Function = std::function<void(const Map&)>;
+    static_assert(Meta::name<char>() == "char");
+    static_assert(Meta::name<long double>() == "long double");
+    static_assert(Meta::name<std::tuple<>>() == "tuple<>");
+    static_assert(Meta::name<std::array<int, 0>>() == "array<int,0>");
+    static_assert(Meta::name<std::array<int, 2>>() == "array<int,2>");
+    static_assert(Meta::name<std::array<int, 12>>() == "array<int,12>");
+    static_assert(Meta::name<std::vector<std::array<int, 2>>>() == "list<array<int,2>>");
+    static_assert(Meta::name<Map>() == "map<int,pair<char,c_str>>");
+    static_assert(Meta::name<Pair>() == "pair<int,pair<char,long double>>");
+    static_assert(Meta::name<Function>() == "function<void(map<int,pair<char,c_str>>)>");
+    static_assert(Meta::name<std::function<void()>>() == "function<void()>");
+    EXPECT_EQ(Meta::name<Function>(), utils::get_name(Function{}));
+}
+
+namespace {
+struct MetaNamedOnly {
+    static constexpr std::string_view class_name() { return "named"; }
+};
+
+struct MetaUnnamedSerializable {
+    std::string toStr() const { return "value"; }
+};
+
+struct MetaNamedSerializable : MetaNamedOnly, MetaUnnamedSerializable {};
+
+struct MetaRvalueStringOnly {
+    operator std::string() && { return "value"; }
+};
+
+struct MetaExplicitString {
+    explicit operator std::string() const { return "value"; }
+};
+
+struct MetaStringOnlyParser {
+    std::string value;
+    static MetaStringOnlyParser fromStr(const std::string& str) { return {str}; }
+};
+
+struct MetaOverloadedParser {
+    std::string value;
+    static MetaOverloadedParser fromStr(const std::string& str) { return {str}; }
+    static MetaOverloadedParser fromStr(std::string_view str) { return {std::string(str)}; }
+};
+
+template<typename T>
+concept HasMetaStringConversion = requires(const T& value) { _Meta::toStr(value); };
+
+template<typename T>
+concept HasUtilStringConversion = requires(const T& value) { util::to_string(value); };
+}
+
+TEST(MetaTest, StringConversionConstraintsMatchConstArgument) {
+    static_assert(!HasMetaStringConversion<MetaRvalueStringOnly>);
+    static_assert(!HasUtilStringConversion<MetaRvalueStringOnly>);
+    static_assert(!HasUtilStringConversion<MetaNamedOnly>);
+    EXPECT_EQ(Meta::toStr(MetaExplicitString{}), "\"value\"");
+    EXPECT_EQ(util::to_string(MetaExplicitString{}), "\"value\"");
+}
+
+TEST(MetaTest, CustomParserAdaptsStringLikeInput) {
+    EXPECT_EQ(Meta::fromStr<MetaStringOnlyParser>(std::string_view("value")).value, "value");
+    EXPECT_EQ(Meta::fromStr<MetaOverloadedParser>("value").value, "value");
+}
+
+TEST(MetaTest, OptionalAndReferenceDispatchUsesUnderlyingType) {
+    using Function = std::function<void()>;
+    const std::optional<Function> function{Function{}};
+    EXPECT_EQ(Meta::toStr(function), "function<void()>");
+    EXPECT_EQ(Meta::toStr<const std::optional<Function>&>(function), "function<void()>");
+    static_assert(Meta::name<const std::optional<Function>&>() == "optional<function<void()>>");
+    static_assert(Meta::name<const std::invalid_argument&>() == "invalid_argument");
+    static_assert(Meta::name<std::optional<const char*>>() == "optional<c_str>");
+    static_assert(Meta::name<const char* const&>() == "c_str");
+    const char* text = "value";
+    EXPECT_EQ(Meta::toStr<const char* const&>(text), "\"value\"");
+    const std::atomic<int> number{7};
+    EXPECT_EQ(Meta::toStr<const std::atomic<int>&>(number), "7");
+    EXPECT_EQ(Meta::fromStr<const std::optional<int>&>("7"), std::optional<int>{7});
+    EXPECT_EQ(Meta::fromStr<const std::optional<int>&>("null"), std::nullopt);
+    EXPECT_THROW(Meta::fromStr<std::optional<Function>>(std::string_view("value")), std::runtime_error);
+}
+
+TEST(MetaTest, SmartPointerOverloadsAreDisjointAndComplete) {
+    EXPECT_TRUE(Meta::toStr(std::make_shared<MetaNamedOnly>()).starts_with("ptr<?>0x"));
+    EXPECT_EQ(Meta::toStr(std::make_shared<MetaNamedSerializable>()), "ptr<named>value");
+    EXPECT_EQ(Meta::toStr(std::make_unique<MetaUnnamedSerializable>()), "ptr<?>value");
+    EXPECT_EQ(Meta::toStr(std::shared_ptr<MetaNamedSerializable>{}), "ptr<named>null");
+    EXPECT_EQ(Meta::toStr(std::unique_ptr<MetaUnnamedSerializable>{}), "ptr<?>null");
 }
 
 namespace {

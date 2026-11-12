@@ -729,6 +729,69 @@ int main(int argc, char**argv) {
 #ifdef WIN32
     SetConsoleOutputCP( 65001 );
 #endif
+#ifdef WIN32
+    if (_isatty(_fileno(stdout)))
+#else
+    if (isatty(fileno(stdout)))
+#endif
+    {
+        
+        const int padding = 0;//std::max(0, static_cast<int>(std::max(version.size(), build.size())) + 2 - 13);
+        // ASCII rendering of gfx/TRex_256.png.
+        std::istringstream logo(R"logo(
+         _._
+       :**--+#*-. -####+-
+     .**.   ..:=##==+%@++=-:.
+    +%@*   +@@#  .-*#+=+%@@@@%**+=-.
+  :#@@@@#. -##+  .  .-+%@@@@@+ .%@@%-
+ =%@%@@@@%+:. .-*%*=::-#@@@@@@##@@@@%.
+:@%-=@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@-
+.=:+@@@@%=+%@@@@@@@@@@@@@@@@@@@@@@@@@=
+  +%-*@@* :+-*%@@@@@@@@@@@@@@@@@@@@@%:
+ -#:*@@@* .. =+:=+*####**+++=++=:+-
+   +@@@@* -  .. :%:. +*.  *# :%. -
+   =@@@@%-*. .  .--+ .=    .
+   .%@@@@@#=-#     :=++.:-
+    :%@@@@@@%+. =*    :+*=.-:
+    +%@@@@@@@@@#=:  :    :*#=.=
+     .-*%@@@@@@@@%=== :=  ..=#*.
+         :=*%@@@@@@@*=+=  =-.:+%-
+             .::.=*@@@@%%#%%@@#-
+                   .:=+****+-.
+                        --
+)logo");
+        std::string line;
+        while (std::getline(logo, line))
+            printf("%*s%s\n", padding, "", console_color<FormatColor::GRAY, FormatterType::UNIX>(line).c_str());
+        //printf("%-*s.::.=*@@@@%%%%#%%%%@@#-\n", padding + 13, version.c_str());
+        
+        std::string version = g_GIT_DESCRIBE_TAG[0] ? g_GIT_DESCRIBE_TAG : "unknown";
+        //if (g_GIT_CURRENT_BRANCH[0] && std::string_view(g_GIT_CURRENT_BRANCH) != "main")
+        //    version += "_" + std::string(g_GIT_CURRENT_BRANCH);
+        const std::string build = g_GIT_SHA1[0] ? std::string(g_GIT_SHA1).substr(0, 8) : "null";
+        
+        auto parts = utils::split(version, '-');
+        NoNLPrint(fmt::gray("  TRex "));
+        if(not parts.empty()) {
+            if(not parts.front().empty()
+               && parts.front().front() == 'v')
+            {
+                NoNLPrint("v",fmt::green(parts.at(0).substr(1)));
+            } else {
+                NoNLPrint(fmt::green(parts.at(0)));
+            }
+        }
+        if(parts.size() >= 2) {
+            /// only hash?
+            NoNLPrint("-", fmt::cyan(parts.at(1)));
+        }
+        NoNLPrint("-", fmt::yellow(build));
+        
+        if (g_GIT_CURRENT_BRANCH[0] && std::string_view(g_GIT_CURRENT_BRANCH) != "main")
+            NoNLPrint("_",fmt::cyan(g_GIT_CURRENT_BRANCH));
+        NoNLPrint("\n\n");
+        fflush(stdout);
+    }
     file::DataLocation::create();
     GlobalSettings::create();
     buffers::TileBuffers::create();

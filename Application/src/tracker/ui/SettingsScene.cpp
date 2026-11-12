@@ -38,6 +38,13 @@ void SettingsScene::reset_last_opened_tab() {
 }
 
 namespace {
+thread_local bool restoring_settings = false;
+
+struct SettingsRestoreGuard {
+    bool previous = std::exchange(restoring_settings, true);
+    ~SettingsRestoreGuard() { restoring_settings = previous; }
+};
+
 void set_global_setting_from_path_string(const std::string& parm, const std::string& path) {
     auto ref = GlobalSettings::get(parm);
     auto& setting = ref.get();
@@ -315,6 +322,12 @@ struct SettingsScene::Data {
             if(is_in(name, "detect_type", "detect_model", "region_model", "output_dir", "output_prefix"))
                 ++_model_generation;
 
+            if(restoring_settings && is_in(name, "detect_type", "filename", "source")) {
+                if(name == "detect_type")
+                    _detection_models_changed = true;
+                return;
+            }
+
             if(name == "averaging_method") {
                 SETTING(reset_average) = true;
                 
@@ -536,19 +549,22 @@ struct SettingsScene::Data {
                         auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
                             Print("changed props = ", copy.keys());
                             
-                            auto [before, defaults] = GlobalSettings::read([](const Configuration& config){
-                                return std::make_tuple(config.values, config.defaults);
-                            });
-                            auto defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
-                                return with_config;
+                            auto rollback = GlobalSettings::read([](const Configuration& config){
+                                return std::shared_ptr<GlobalSettings::Snapshot>(
+                                    new GlobalSettings::Snapshot(config),
+                                    [](GlobalSettings::Snapshot* snapshot) {
+                                        const SettingsRestoreGuard guard;
+                                        delete snapshot;
+                                    });
                             });
 
                             /// if we determine that we are actually reconverting a pv file
                             /// we need to load the source settings from the pv file, since we
                             /// cant use the pv file and convert it to itself:
                             auto source = READ_SETTING(source, file::PathArray);
-                            if (source.size() == 1
-                                && source.get_paths().front().has_extension("pv"))
+                            const bool reconverting = source.size() == 1
+                                && source.get_paths().front().has_extension("pv");
+                            if (reconverting)
                             {
                                 auto meta_source_path = READ_SETTING(meta_source_path, std::string);
                                 if (not meta_source_path.empty()) {
@@ -563,8 +579,7 @@ struct SettingsScene::Data {
 
                                     if(READ_SETTING(filename, file::Path).empty())
 										SETTING(filename) = file::Path(basename);
-                                    _initial_source = array;
-                                    SETTING(source) = array;
+                                    source = array;
                                 }
                             }
                             
@@ -575,18 +590,15 @@ struct SettingsScene::Data {
                                 });
                             }
                             settings::load(settings::LoadContext{
-                                .source = SETTING(source).value<file::PathArray>(),
+                                .source = source,
                                 .filename = filename,
                                 .task = default_config::TRexTask_t::convert,
                                 .type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>(),
-                                .source_map = copy
+                                .source_map = copy,
+                                .deferred_source = &source
                             });
                             
-                            SceneManager::enqueue([this,
-                                before = std::move(before),
-                                defaults = std::move(defaults),
-                                defaults_with_config = std::move(defaults_with_config)
-                            ] (auto,DrawStructure& graph) {
+                            SceneManager::enqueue([this, source, rollback = std::move(rollback)] (auto,DrawStructure& graph) mutable {
                                 using namespace track;
                                 if (auto detect_type = READ_SETTING(detect_type, detect::ObjectDetectionType_t);
                                     detect_type && *detect_type == detect::ObjectDetectionType::yolo)
@@ -597,6 +609,10 @@ struct SettingsScene::Data {
                                         /// we have a valid model
                                     }
                                     else {
+                                        GlobalSettings::write([&](Configuration& config) {
+                                            const SettingsRestoreGuard guard;
+                                            rollback->rollback(config);
+                                        });
                                         graph.dialog([this](Dialog::Result) {
                                             if (layout_name != "settings_layout.json") {
                                                 _last_layouts.push(layout_name);
@@ -613,41 +629,36 @@ struct SettingsScene::Data {
                                     }
                                 }
 
-                                auto filename = GlobalSettings::read([](const Configuration& config) {
-                                    return settings::find_output_name(config.values);
+                                auto filename = GlobalSettings::read([&](const Configuration& config) {
+                                    return settings::find_output_name(config.values, source);
                                 });
                                 if(not filename.has_extension() || filename.extension() != "pv")
                                     filename = filename.add_extension("pv");
                                 
                                 if(filename.exists()) {
-                                    graph.dialog([this,
-                                        before = std::move(before),
-                                        defaults = std::move(defaults),
-                                        defaults_with_config = std::move(defaults_with_config)
-                                    ](Dialog::Result result) mutable {
-                                        if(result == Dialog::Result::OKAY) {
-                                            /// continue on to converting!
-                                            bool force_start_over = true;
-                                            ConvertScene::force_start_over.set(force_start_over);
-                                            SceneManager::getInstance().set_active("convert-scene");
-                                        } else if(result == Dialog::Result::SECOND) {
-                                            /// continue but overwrite file:
-
-                                            SceneManager::getInstance().set_active("convert-scene");
-                                            
-                                        } else {
-                                            /// we have to reset settings:
-                                            _initial_source = before.at("source").template value<file::PathArray>();
-                                            GlobalSettings::write([&](Configuration& config){
-                                                config.values = before;
-                                                config.defaults = std::move(defaults);
+                                    graph.dialog([source, rollback = std::move(rollback)](Dialog::Result result) mutable {
+                                        auto pending = std::move(rollback);
+                                        if(not pending)
+                                            return;
+                                        if(result == Dialog::Result::OKAY || result == Dialog::Result::SECOND) {
+                                            SceneManager::getInstance().set_active("convert-scene", [source, result]() {
+                                                SETTING(source) = source;
+                                                if(result == Dialog::Result::OKAY) {
+                                                    bool force_start_over = true;
+                                                    ConvertScene::force_start_over.set(force_start_over);
+                                                }
+                                            }, [pending]() {
+                                                pending->commit();
                                             });
-                                            GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
                                         }
-                                        
                                     }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Start over (overwrite)", "Cancel", "Continue (if possible)");
-                                } else
-                                    SceneManager::getInstance().set_active("convert-scene");
+                                } else {
+                                    SceneManager::getInstance().set_active("convert-scene", [source]() {
+                                        SETTING(source) = source;
+                                    }, [rollback = std::move(rollback)]() {
+                                        rollback->commit();
+                                    });
+                                }
                             });
                         });
                         if(f.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) {
@@ -729,6 +740,7 @@ struct SettingsScene::Data {
                                             open_file();
                                         } else {
                                             GlobalSettings::write([&](Configuration& config){
+                                                const SettingsRestoreGuard guard;
                                                 config.values = before;
                                                 config.defaults = std::move(defaults);
                                             });

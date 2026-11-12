@@ -446,8 +446,8 @@ void TrackingScene::Data::handle_zooming(Event e) {
 TrackingScene::TrackingScene(Base& window)
 : Scene(window, "tracking-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
 {
-    auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
-    Print("window dimensions", window.window_dimensions().mul(dpi));
+    //auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
+    //Print("window dimensions", window.window_dimensions().mul(dpi));
 }
 
 // Utility function to find the appropriate Idx_t based on a given comparator
@@ -881,6 +881,7 @@ void TrackingScene::settings_callback(std::string_view key) {
                 "track_frame_tags",
              "detect_skeleton",
             "gui_pose_smoothing",
+                "outline_holes_approximate",
              "track_include", "track_ignore",
                 "track_detect_annotations"))
     {
@@ -963,6 +964,8 @@ void TrackingScene::activate() {
         "gui_show_graph",
         "gui_pose_smoothing",
         "gui_mode",
+        
+        "outline_holes_approximate",
         
         "gui_foi_name",
         
@@ -1144,84 +1147,85 @@ void TrackingScene::deactivate() {
         GlobalSettings::unregister_callbacks(std::move(_data->_callback));
     
     auto config = default_config::generate_delta_config(AccessLevelType::LOAD, _state ? _state->video.get() : nullptr);
+    /*DebugHeader("committing to with_config");
     for(auto &[key, value] : config.map) {
         Print(" * ", no_quotes(utils::ShortenText(Meta::toStr(*value), 1000)));
     }
-    Print();
+    Print();*/
 
     _data = nullptr;
     _state = nullptr;
     
-    auto keys = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
-        auto keys = with_config.keys();
-        return std::vector<std::string>{ keys.begin(), keys.end() };
-    });
-    for(auto &key : keys) {
-        auto value = GlobalSettings::read_value<NoType>(key);
-        if(/*contains(config.excluded.toVector(), key)
-           && GlobalSettings::access_level(key) < AccessLevelType::LOAD*/
-           value.valid()
-           && is_in(key, "filename", "source", "output_dir", "output_prefix"))
-        {
-            Print(" . ", no_quotes(utils::ShortenText(Meta::toStr(value.get()), 1000)));
-            GlobalSettings::write([&value](sprite::Map&, sprite::Map& with_config){
+    auto current_defaults_with_config = GlobalSettings::write([&config](sprite::Map&, sprite::Map& with_config){
+        //DebugHeader("removing all keys except i/o");
+        
+        for(auto &key : with_config.keys()) {
+            auto value = GlobalSettings::read_value<NoType>(key);
+            if(value.valid()
+               && is_in(key, "filename", "source", "output_dir", "output_prefix"))
+            {
+                //Print(" . ", no_quotes(utils::ShortenText(Meta::toStr(value.get()), 1000)));
                 value.get().copy_to(with_config);
-            });
-            continue;
+                continue;
+            }
+            //Print(" - ", no_quotes(utils::ShortenText(Meta::toStr(value.get()), 1000)));
+            with_config.erase_if(key);
         }
-        //Print(" - ", value.get());
-        GlobalSettings::write([key](sprite::Map&, sprite::Map& with_config) {
-            if(not with_config.has(key))
-                return;
-            with_config.erase(key);
-        });
-    }
-    
-    //GlobalSettings::current_defaults_with_config() = {}
-    GlobalSettings::write([&config](sprite::Map&, sprite::Map& with_config) {
+        
         config.write_to(with_config);
+        return with_config;
     });
     
-    {
-        auto current_defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config; });
-        RecentItems::open(READ_SETTING(source, file::PathArray).source(), current_defaults_with_config);
-    }
+    RecentItems::open(READ_SETTING(source, file::PathArray).source(), std::move(current_defaults_with_config));
     
     SETTING(filename) = file::Path();
     SETTING(source) = file::PathArray();
     
     Configuration combined;
     combined.values.set_print_by_default(false);
-    
     default_config::get(combined);
-    
-    for(auto key : combined.values.keys()) {
-        if(auto level = combined._access_level(key);
-           level > AccessLevelType::LOAD)
-        {
-            //combined.map.at(key)->valueString();
-            //Print(" - Ignoring ", key, " ", no_quotes(combined.map.at(key)->valueString()), " vs. ", no_quotes(GlobalSettings::at(key)->valueString()));
-            continue;
-        }
-        
-        //Print(" * Resetting ", key);
-        GlobalSettings::write([&](Configuration& config){
-            if(config.values.has(key)) {
-                auto p = config.values.at(key).get().do_print();
-                config.values.do_print(key, false);
-                combined.at(key).get().copy_to(config.values);
-                config.values.do_print(key, p);
-            } else {
-                combined.at(key).get().copy_to(config.values);
-            }
-        });
-    }
     
     GlobalSettings::set_current_defaults(combined.values);
     GlobalSettings::set_current_defaults_with_config(combined.values);
     
-    GlobalSettings::write([](Configuration& config){
-        Print("* resetting parameter history");
+    GlobalSettings::write([&combined](Configuration& config) {
+        std::unordered_set<std::string_view> prop_print_by_default;
+        bool print_by_default = config.values.print_by_default();
+        
+        for(auto key : combined.values.keys()) {
+            if(auto level = combined._access_level(key);
+               level > AccessLevelType::LOAD)
+            {
+                if(config.values.has(key))
+                    config.values.at(key).get().copy_to(combined.values);
+                else
+                    combined.values.erase(key);
+            }
+        }
+        
+        /// dont print anything upon insertion and deactivate all `do_prints`
+        config.values.set_print_by_default(false);
+        config.values.apply([&](std::string_view key, auto& value) {
+            if(not value->do_print())
+                return;
+            
+            prop_print_by_default.insert(key);
+            value->set_do_print(false);
+        });
+        
+        /// actually copy the values over
+        config.values = combined.values;
+        
+        /// now reset the print properties
+        config.values.set_print_by_default(print_by_default);
+        config.values.apply([&](std::string_view key, auto& value) {
+            if(prop_print_by_default.contains(key))
+                value->set_do_print(true);
+            else
+                value->set_do_print(print_by_default);
+        });
+        
+        //Print("* resetting parameter history");
         config.history.reset();
     });
 }

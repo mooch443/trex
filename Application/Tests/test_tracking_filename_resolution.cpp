@@ -472,6 +472,9 @@ const OutputSettingsInitializationCase output_settings_initialization_cases[] {
     {"SourcePrefixAndOutputDir", "input/run/f.mov", "run", "output", "output", "run"},
     {"RedundantOutputDir", "input/run/f.mov", {}, "input/run", {}, ""},
     {"RedundantOutputDirWithPrefix", "input/run/f.mov", "run", "input/run", "input/run", "run"},
+    {"PvOnly", "input/run/f.pv", {}, {}, "input/run", ""},
+    {"PvAndOutputDir", "input/run/f.pv", {}, "output", "output", ""},
+    {"PvAndRedundantOutputDir", "input/run/f.pv", {}, "input/run", "input/run", ""},
     {"PvWithinPrefix", "input/run/f.pv", "run", {}, "input/run", "run"},
     {"PvOutsidePrefix", "input/f.pv", "run", {}, "input", "run"},
     {"NoSourcePrefixOrOutputDir", {}, {}, {}, {}, ""},
@@ -490,7 +493,8 @@ class OutputSettingsInitializationTest
 
 // Policy: With an explicitly supplied prefix, an unset output directory uses the source
 // parent without stripping matching directory names. Without a prefix, redundant
-// source-parent directories are cleared. Explicit non-default directories are retained.
+// source-parent directories are cleared except for a single absolute PV source.
+// Explicit non-default directories are retained.
 TEST_P(OutputSettingsInitializationTest, CheckOutputDirectory) {
     const auto& test = GetParam();
     const ScopedCurrentPath current_path(root);
@@ -778,8 +782,8 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
                "excluded from current_defaults_with_config.";
     }
 
-    EXPECT_EQ(READ_SETTING(output_dir, file::Path), file::Path{})
-        << "Opening only the PV must leave output_dir at its empty default.";
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), video_base.remove_filename())
+        << "Opening only the PV must retain its directory for reconversion.";
     EXPECT_EQ(READ_SETTING(output_prefix, std::string), "")
         << "The saved prefix and the PV's folder name must not supply an output_prefix.";
     EXPECT_EQ(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
@@ -811,7 +815,8 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     ASSERT_TRUE(resaved.has("output_csv_decimals"));
     EXPECT_EQ(resaved.at("output_csv_decimals").value<uint8_t>(), uint8_t(4))
         << "Saving must update the same adjacent config.";
-    EXPECT_FALSE(resaved.has("output_dir"));
+    ASSERT_TRUE(resaved.has("output_dir"));
+    EXPECT_EQ(resaved.at("output_dir").value<file::Path>(), video_base.remove_filename());
     EXPECT_FALSE(resaved.has("output_prefix"));
     expect_detector_values(resaved);
     EXPECT_FALSE(fs::exists((video_base.remove_filename() / "run" / "f.settings").str()));
@@ -904,7 +909,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensSettingsAndResultsAfterChangingPrefix
             .task = default_config::TRexTask_t::track,
             .quiet = true
         });
-        ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{});
+        ASSERT_EQ(READ_SETTING(output_dir, file::Path), pv_dir);
         ASSERT_EQ(READ_SETTING(output_prefix, std::string), "");
         ASSERT_EQ(READ_SETTING(track_threshold, int), 37);
         resolve_tracking_filename();
@@ -925,7 +930,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensSettingsAndResultsAfterChangingPrefix
         // GUI edits update settings without rerunning LoadContext::check_output_dir().
         SETTING(output_prefix) = std::string("tmp");
         SETTING(track_threshold) = 61;
-        ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{});
+        ASSERT_EQ(READ_SETTING(output_dir, file::Path), pv_dir);
         ASSERT_EQ(READ_SETTING(filename, file::Path), video_base);
         ASSERT_EQ(file::DataLocation::parse("output_settings"), selected_settings);
         ASSERT_EQ(Output::TrackingResults::expected_filename(), selected_results);
@@ -1060,7 +1065,7 @@ TEST_F(SettingsPrecedenceTest, PvSettingsIgnoreSavedOutputLocation) {
             overrides["output_prefix"] = std::string("chosen");
         const auto expected_dir = use_output_dir
             ? output_dir
-            : (use_output_prefix ? video_base.remove_filename() : file::Path{});
+            : video_base.remove_filename();
         auto export_dir = use_output_dir ? output_dir : video_base.remove_filename();
         if(use_output_prefix)
             export_dir = export_dir / "chosen";
@@ -2497,6 +2502,157 @@ TEST_F(SettingsPrecedenceTest, EmptyModelValuesInSettingsFileOverrideSavedPvValu
     }
 }
 
+TEST_F(SettingsPrecedenceTest, ReconversionDoesNotIgnoreSettingApplicationErrors) {
+    file::PathArray source("recording.mp4");
+    settings::LoadContext context{.deferred_source = &source};
+    context.combined.values["source"] = std::string("invalid property type");
+
+    EXPECT_ANY_THROW(context.finalize());
+    EXPECT_EQ(source, file::PathArray("recording.mp4"));
+}
+
+TEST_F(SettingsPrecedenceTest, ReconversionKeepsPastedPvOutputLocation) {
+    const ScopedCurrentPath current_path(root);
+    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    const auto video_base = input_dir / "fish-schools-debug" / "sem" / "recording";
+    const auto video_path = video_base.add_extension("pv");
+    const track::detect::ObjectDetectionType_t type{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    sprite::Map metadata;
+    metadata["detect_type"] = type;
+    metadata["meta_source_path"] = source.str();
+    write_pv(video_base, source, metadata);
+    write_pv(source.remove_extension(), source, metadata);
+
+    // Pasting a PV uses SettingsScene::Data::load_video_settings's load context.
+    sprite::Map promote;
+    promote["filename"] = video_path;
+    promote["detect_type"] = type;
+    promote["meta_encoding"] = meta_encoding_t::gray;
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{video_path},
+        .filename = video_path,
+        .task = default_config::TRexTask_t::none,
+        .type = type,
+        .exclude_parameters = {"filename", "source", "load", "task"},
+        .source_map = std::move(promote),
+        .quiet = true
+    });
+
+    ASSERT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_path});
+    ASSERT_EQ(READ_SETTING(meta_source_path, std::string), source.str());
+    ASSERT_EQ(READ_SETTING(output_dir, file::Path), video_path.remove_filename());
+    ASSERT_EQ(GlobalSettings::read([](const Configuration& config) {
+                  return settings::find_output_name(config.values);
+              }), video_base);
+
+    // With no output edits, the GUI captures only non-default output options
+    // before preparing the original video as the conversion input.
+    sprite::Map gui_values;
+    if(const auto directory = READ_SETTING(output_dir, file::Path); not directory.empty())
+        gui_values["output_dir"] = directory;
+    if(const auto prefix = READ_SETTING(output_prefix, std::string); not prefix.empty())
+        gui_values["output_prefix"] = prefix;
+
+    auto conversion_source = file::PathArray{READ_SETTING(meta_source_path, std::string)};
+    if(READ_SETTING(filename, file::Path).empty())
+        SETTING(filename) = file::Path(file::find_basename(file::PathArray{video_path}));
+    const auto filename = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_output_name(config.values);
+    });
+    settings::load(settings::LoadContext{
+        .source = conversion_source,
+        .filename = filename,
+        .task = default_config::TRexTask_t::convert,
+        .type = type,
+        .source_map = std::move(gui_values),
+        .quiet = true,
+        .deferred_source = &conversion_source
+    });
+
+    // Settings are loaded for validation while the selected PV remains the active source.
+    EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_path});
+    EXPECT_EQ(conversion_source, file::PathArray{source});
+    const auto overwrite_target = GlobalSettings::read([&](const Configuration& config) {
+        return settings::find_output_name(config.values, conversion_source).add_extension("pv");
+    });
+    EXPECT_EQ(overwrite_target, video_path);
+    EXPECT_NE(overwrite_target, source.remove_extension().add_extension("pv"));
+
+    // Only accepting conversion applies the original-video source.
+    SETTING(source) = conversion_source;
+    EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
+                  return settings::find_output_name(config.values).add_extension("pv");
+              }), overwrite_target);
+}
+
+TEST_F(SettingsPrecedenceTest, ReconversionPreservesExplicitOutputPrefix) {
+    const ScopedCurrentPath current_path(root);
+    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    const auto video_base = input_dir / "sem" / "recording";
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    metadata["meta_source_path"] = source.str();
+    write_pv(video_base, source, metadata);
+
+    for(const auto& directory : {file::Path{}, output_dir}) {
+        SCOPED_TRACE(directory.str());
+        sprite::Map gui_values;
+        gui_values["output_prefix"] = std::string("sem");
+        if(not directory.empty())
+            gui_values["output_dir"] = directory;
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{video_base.add_extension("pv")},
+            .type = track::detect::ObjectDetectionType::background_subtraction,
+            .source_map = gui_values,
+            .quiet = true
+        });
+
+        const auto expected_dir = directory.empty() ? video_base.remove_filename() : directory;
+        EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir);
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "sem");
+        gui_values["output_dir"] = READ_SETTING(output_dir, file::Path);
+        auto conversion_source = file::PathArray{READ_SETTING(meta_source_path, std::string)};
+        settings::load(settings::LoadContext{
+            .source = conversion_source,
+            .filename = video_base,
+            .task = default_config::TRexTask_t::convert,
+            .type = track::detect::ObjectDetectionType::background_subtraction,
+            .source_map = std::move(gui_values),
+            .quiet = true,
+            .deferred_source = &conversion_source
+        });
+        EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_base.add_extension("pv")});
+
+        EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir);
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "sem");
+        EXPECT_EQ(GlobalSettings::read([&](const Configuration& config) {
+                      return settings::find_output_name(config.values, conversion_source);
+                  }), expected_dir / "sem" / "recording");
+        SETTING(source) = conversion_source;
+        EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
+                      return settings::find_output_name(config.values);
+                  }), expected_dir / "sem" / "recording");
+    }
+}
+
+TEST_F(SettingsPrecedenceTest, RelativePvKeepsInputLookupUnchanged) {
+    const ScopedCurrentPath current_path(root);
+    const auto source = create_regular_file(file::Path("input/recording.pv"));
+    settings::LoadContext context{.quiet = true};
+    default_config::get(context.combined);
+    context.combined.values["source"] = file::PathArray{source};
+    context.combined.values["wd"] = file::Path{};
+
+    context.check_output_dir();
+
+    EXPECT_TRUE(context.combined.at("output_dir").value<file::Path>().empty());
+    EXPECT_EQ(file::DataLocation::parse("input", source, &context.combined.values), source);
+}
+
 // Policy: Reconversion uses the new model setup supplied by the GUI, including
 // empty/default values, in place of saved model values. Unrelated settings survive.
 TEST_F(SettingsPrecedenceTest, ReconversionUsesNewModelSetupFromGuiValues) {
@@ -2559,14 +2715,19 @@ TEST_F(SettingsPrecedenceTest, ReconversionUsesNewModelSetupFromGuiValues) {
         gui_values["detect_skeleton"] = skeleton;
         gui_values["detect_keypoint_format"] = keypoint_format;
         gui_values["detect_keypoint_names"] = keypoint_names;
+        SETTING(source) = file::PathArray{video_base.add_extension("pv")};
+        auto conversion_source = file::PathArray{source};
         settings::load(settings::LoadContext{
-            .source = file::PathArray{source},
+            .source = conversion_source,
             .task = default_config::TRexTask_t::convert,
             .type = type,
             .source_map = std::move(gui_values),
-            .quiet = true
+            .quiet = true,
+            .deferred_source = &conversion_source
         });
 
+        EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_base.add_extension("pv")});
+        EXPECT_EQ(conversion_source, file::PathArray{source});
         EXPECT_EQ(READ_SETTING(detect_type, track::detect::ObjectDetectionType_t), type);
         EXPECT_EQ(READ_SETTING(detect_model, file::Path), model);
         EXPECT_EQ(READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t), format);

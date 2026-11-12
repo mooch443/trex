@@ -78,13 +78,14 @@ public:
     static SceneManager& getInstance();
     static void install_dispatcher_instance(attr::Dispatcher* dispatcher);
 
-    void set_active(Scene* scene);
+    // Preparation runs after deactivation; success is reported only after activation returns.
+    void set_active(Scene* scene, std::function<void()> prepare = {}, std::function<void()> activated = {});
     bool is_scene_registered(std::string) const;
 
     void register_scene(Scene* scene);
     void unregister_scene(Scene* scene);
 
-    void set_active(std::string name);
+    void set_active(std::string name, std::function<void()> prepare = {}, std::function<void()> activated = {});
     Scene* last_active() const;
 
     void set_fallback(std::string name);

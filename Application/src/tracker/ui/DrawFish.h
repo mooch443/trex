@@ -59,6 +59,8 @@ struct UpdateSettings {
     float gui_max_path_time;
     track::PoseMidlineIndexes pose_midline_indexes;
     Float2_t track_max_speed;
+    uint8_t outline_approximate;
+    uint8_t outline_holes_approximate;
 };
 
     class Fish {
