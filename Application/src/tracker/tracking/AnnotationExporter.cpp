@@ -73,19 +73,17 @@ constexpr std::string_view kSplitDir = "train";
 constexpr std::string_view kImagesDir = "images";
 constexpr std::string_view kLabelsDir = "labels";
 
-Bounds annotation_bounds(AnnotationType type, const std::vector<Vec2>& points) {
+Bounds annotation_bounds(const Annotation& annotation, const std::vector<Vec2>& points) {
     if(points.empty())
         throw InvalidArgumentException("Annotation has no points.");
 
-    // POSE annotations may carry unlabeled keypoints, stored as invalid (0,0)
-    // placeholders so keypoint indices stay aligned with the skeleton schema.
-    // Those must not stretch the bounding box to the image origin. For boxes and
-    // segmentations every point is meaningful, including a corner at (0,0).
-    const bool skip_invalid = type == AnnotationType::POSE;
+    // Missing pose slots do not contribute to bounds; labeled hidden points do.
+    const bool skip_invalid = annotation.type == AnnotationType::POSE;
 
     std::optional<float> min_x, min_y, max_x, max_y;
-    for(const auto& point : points) {
-        if(skip_invalid && point.x == 0 && point.y == 0)
+    for(size_t i = 0; i < points.size(); ++i) {
+        const auto& point = points.at(i);
+        if(skip_invalid && !annotation.points.at(i).valid())
             continue;
         min_x = min_x ? std::min<float>(*min_x, point.x) : float(point.x);
         min_y = min_y ? std::min<float>(*min_y, point.y) : float(point.y);
@@ -99,8 +97,11 @@ Bounds annotation_bounds(AnnotationType type, const std::vector<Vec2>& points) {
     return Bounds(*min_x, *min_y, *max_x - *min_x, *max_y - *min_y);
 }
 
-void validate_point(const Annotation::Point_t& point, const Size2& image_size) {
-    if(point.x < 0 || point.y < 0 || point.x > image_size.width || point.y > image_size.height)
+void validate_point(const Annotation::Point_t& point, const Size2& image_size, AnnotationType type) {
+    // Pixel locations exclude the outer image boundary; geometric corners may lie on it.
+    const bool pixel = type == AnnotationType::POINT || type == AnnotationType::POSE;
+    if(point.x() > image_size.width || point.y() > image_size.height
+       || (pixel && (point.x() == image_size.width || point.y() == image_size.height)))
         throw InvalidArgumentException("Annotation point ", point, " is out of image bounds ", image_size, ".");
 }
 
@@ -139,7 +140,7 @@ std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& ima
     }
 
     for(const auto& point : annotation.points)
-        validate_point(point, image_size);
+        validate_point(point, image_size, annotation.type);
 
     std::vector<Vec2> points(annotation.points.begin(), annotation.points.end());
     if(annotation.type == AnnotationType::SEGMENTATION || annotation.type == AnnotationType::OBB) {
@@ -208,7 +209,7 @@ std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& ima
         }
     }
 
-    const auto bounds = annotation_bounds(annotation.type, points);
+    const auto bounds = annotation_bounds(annotation, points);
     if(annotation.type == AnnotationType::BOX && (bounds.width <= 0 || bounds.height <= 0))
         throw InvalidArgumentException("BOX annotation needs positive width and height.");
     return points;
@@ -1058,7 +1059,7 @@ std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const An
             return {};
         case AnnotationType::BOX:
         case AnnotationType::POSE:
-            output += " " + yolo_bbox(annotation_bounds(annotation.type, points), image_size);
+            output += " " + yolo_bbox(annotation_bounds(annotation, points), image_size);
             break;
         case AnnotationType::OBB:
             for(const auto& point : points)
@@ -1080,7 +1081,7 @@ std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const An
             // visibility 0 so the slot stays aligned with the schema.
             if(i < annotation.points.size() && annotation.points.at(i).valid()) {
                 const auto& point = annotation.points.at(i);
-                output += " " + Meta::toStr(point.x / image_size.width) + " " + Meta::toStr(point.y / image_size.height) + " 2";
+                output += " " + Meta::toStr(point.x() / image_size.width) + " " + Meta::toStr(point.y() / image_size.height) + (point.visible() ? " 2" : " 1");
             } else {
                 output += " 0 0 0";
             }
@@ -1113,7 +1114,7 @@ glz::generic build_coco_json(const cmn::file::PathArray& source, const Annotatio
             const auto points = export_geometry(annotation, image_size, keypoint_names);
             if(annotation.type == AnnotationType::EMPTY)
                 continue;
-            auto bounds = annotation_bounds(annotation.type, points);
+            auto bounds = annotation_bounds(annotation, points);
             glz::generic::object_t object{
                 {"id", glz::generic(annotation_id++)},
                 {"image_id", glz::generic(frame.get())},
@@ -1141,7 +1142,7 @@ glz::generic build_coco_json(const cmn::file::PathArray& source, const Annotatio
                 point_categories.insert(annotation.clid);
                 const auto& point = annotation.points.front();
                 object["trex_annotation_type"] = std::string("point");
-                object["keypoints"] = glz::generic::array_t{glz::generic(point.x), glz::generic(point.y), glz::generic(2)};
+                object["keypoints"] = glz::generic::array_t{glz::generic(point.x()), glz::generic(point.y()), glz::generic(point.visible() ? 2 : 1)};
                 object["num_keypoints"] = 1;
             }
 
@@ -1150,12 +1151,12 @@ glz::generic build_coco_json(const cmn::file::PathArray& source, const Annotatio
                 keypoints.reserve(keypoint_names.size() * 3);
                 uint64_t num_keypoints = 0;
                 for(size_t i = 0; i < keypoint_names.size(); ++i) {
-                    // COCO visibility: 2 = labeled, 0 = not labeled (x=y=0).
+                    // COCO visibility: 2 = visible, 1 = hidden, 0 = not labeled.
                     // Invalid placeholders stand in for unlabeled keypoints.
                     if(i < annotation.points.size() && annotation.points.at(i).valid()) {
-                        keypoints.emplace_back(annotation.points.at(i).x);
-                        keypoints.emplace_back(annotation.points.at(i).y);
-                        keypoints.emplace_back(2);
+                        keypoints.emplace_back(annotation.points.at(i).x());
+                        keypoints.emplace_back(annotation.points.at(i).y());
+                        keypoints.emplace_back(annotation.points.at(i).visible() ? 2 : 1);
                         ++num_keypoints;
                     } else {
                         keypoints.emplace_back(0);

@@ -560,11 +560,12 @@ TEST(DefaultConfigTest, FindUserDefinedPoseFields)
     resetGlobalSettings();
 
     // Simulate that the user has manually added these fields:
-    // "poseX0", "poseY1", and some other random fields like "X", "SPEED"
+    // "poseX0", "poseY1", "poseV2", and some other random fields like "X", "SPEED"
     std::vector<std::pair<std::string, std::vector<std::string>>> fields = {
         {"poseX0", {}},
         {"X", {"RAW"}},
         {"poseY1", {"RAW"}},
+        {"poseV2", {"RAW"}},
         {"SPEED", {"RAW"}},
         {"poseXabc", {}},   // will fail to parse the index "abc" => gets ignored
         {"poseY255", {}}    // 255 is out of range for a uint8_t cast if desired (but let's assume in range for example)
@@ -577,11 +578,12 @@ TEST(DefaultConfigTest, FindUserDefinedPoseFields)
     auto indexes = find_user_defined_pose_fields(SETTING(output_fields).value<
         std::vector<std::pair<std::string, std::vector<std::string>>>>());
 
-    // We expect to see indexes: 0, 1, and 255 in the set
+    // We expect to see indexes: 0, 1, 2, and 255 in the set
     // (The "poseXabc" fails to parse, so it is ignored.)
-    ASSERT_EQ(indexes.size(), size_t(3));
+    ASSERT_EQ(indexes.size(), size_t(4));
     EXPECT_TRUE(indexes.count(0));
     EXPECT_TRUE(indexes.count(1));
+    EXPECT_TRUE(indexes.count(2));
     EXPECT_TRUE(indexes.count(255));
 }
 
@@ -597,21 +599,24 @@ TEST(DefaultConfigTest, ListAutoPoseFields_Default)
     SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
 
     // Now, list_auto_pose_fields() should generate:
-    // poseX0, poseY0, poseX1, poseY1, poseX2, poseY2 and return indexes {0, 1, 2}.
+    // X/Y/V fields for each joint, with each index repeated three times.
     auto [indexes, result] = list_auto_pose_fields();
 
     // Verify the indexes vector.
-    ASSERT_EQ(indexes.size(), size_t(6));
+    ASSERT_EQ(indexes.size(), size_t(9));
     EXPECT_EQ(indexes[0], 0u);
     EXPECT_EQ(indexes[1], 0u);
-    EXPECT_EQ(indexes[2], 1u);
+    EXPECT_EQ(indexes[2], 0u);
     EXPECT_EQ(indexes[3], 1u);
-    EXPECT_EQ(indexes[4], 2u);
-    EXPECT_EQ(indexes[5], 2u);
+    EXPECT_EQ(indexes[4], 1u);
+    EXPECT_EQ(indexes[5], 1u);
+    EXPECT_EQ(indexes[6], 2u);
+    EXPECT_EQ(indexes[7], 2u);
+    EXPECT_EQ(indexes[8], 2u);
 
     // Verify the auto-generated pose fields.
-    ASSERT_EQ(result.size(), size_t(6));
-    std::set<std::string> expected_fields = {"poseX0", "poseY0", "poseX1", "poseY1", "poseX2", "poseY2"};
+    ASSERT_EQ(result.size(), size_t(9));
+    std::set<std::string> expected_fields = {"poseX0", "poseY0", "poseV0", "poseX1", "poseY1", "poseV1", "poseX2", "poseY2", "poseV2"};
     for (const auto& [field_name, transforms] : result)
     {
         EXPECT_TRUE(expected_fields.count(field_name)) << "Unexpected field: " << field_name;
@@ -633,23 +638,26 @@ TEST(DefaultConfigTest, ListAutoPoseFields_WithPartialNames)
     SETTING(detect_keypoint_names) = KeypointNames{ std::map<size_t, std::string>{{0, "nose"}, {1, "left_eye"}}};
 
     // Expected:
-    // Index 0: "nose_X", "nose_Y"
-    // Index 1: "left_eye_X", "left_eye_Y"
-    // Index 2: default naming "poseX2", "poseY2"
+    // Index 0: "poseX_nose", "poseY_nose", "poseV_nose"
+    // Index 1: "poseX_left_eye", "poseY_left_eye", "poseV_left_eye"
+    // Index 2: default naming "poseX2", "poseY2", "poseV2"
     auto [indexes, result] = list_auto_pose_fields();
 
     // Verify the indexes vector.
-    ASSERT_EQ(indexes.size(), size_t(6));
+    ASSERT_EQ(indexes.size(), size_t(9));
     EXPECT_EQ(indexes[0], 0u);
     EXPECT_EQ(indexes[1], 0u);
-    EXPECT_EQ(indexes[2], 1u);
+    EXPECT_EQ(indexes[2], 0u);
     EXPECT_EQ(indexes[3], 1u);
-    EXPECT_EQ(indexes[4], 2u);
-    EXPECT_EQ(indexes[5], 2u);
+    EXPECT_EQ(indexes[4], 1u);
+    EXPECT_EQ(indexes[5], 1u);
+    EXPECT_EQ(indexes[6], 2u);
+    EXPECT_EQ(indexes[7], 2u);
+    EXPECT_EQ(indexes[8], 2u);
 
     // Verify the auto-generated pose fields.
-    ASSERT_EQ(result.size(), size_t(6));
-    std::set<std::string> expected_fields = {"nose_X", "nose_Y", "left_eye_X", "left_eye_Y", "poseX2", "poseY2"};
+    ASSERT_EQ(result.size(), size_t(9));
+    std::set<std::string> expected_fields = {"poseX_nose", "poseY_nose", "poseV_nose", "poseX_left_eye", "poseY_left_eye", "poseV_left_eye", "poseX2", "poseY2", "poseV2"};
     for (const auto& [field_name, transforms] : result)
     {
         EXPECT_TRUE(expected_fields.count(field_name)) << "Unexpected field: " << field_name;
@@ -666,14 +674,25 @@ TEST(DefaultConfigTest, SparsePoseNamesPreserveIndices) {
     };
 
     const auto [indexes, fields] = list_auto_pose_fields();
-    EXPECT_EQ(indexes, (std::vector<size_t>{0, 0, 1, 1, 2, 2, 3, 3}));
-    ASSERT_EQ(fields.size(), 8u);
+    EXPECT_EQ(indexes, (std::vector<size_t>{0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3}));
+    ASSERT_EQ(fields.size(), 12u);
     EXPECT_EQ(fields.at(0).first, "poseX0");
-    EXPECT_EQ(fields.at(2).first, "head_X");
-    EXPECT_EQ(fields.at(4).first, "poseX2");
-    EXPECT_EQ(fields.at(6).first, "tail_X");
-    EXPECT_EQ(find_user_defined_pose_fields({{"head_X", {}}, {"tail_Y", {}}}),
-              (std::set<uint8_t>{1, 3}));
+    EXPECT_EQ(fields.at(2).first, "poseV0");
+    EXPECT_EQ(fields.at(3).first, "poseX_head");
+    EXPECT_EQ(fields.at(5).first, "poseV_head");
+    EXPECT_EQ(fields.at(6).first, "poseX2");
+    EXPECT_EQ(fields.at(8).first, "poseV2");
+    EXPECT_EQ(fields.at(9).first, "poseX_tail");
+    EXPECT_EQ(fields.at(11).first, "poseV_tail");
+    for(auto format : {KeypointFormat{4, 2}, KeypointFormat{}}) {
+        SETTING(detect_keypoint_format) = format;
+        for(const auto component : {'X', 'Y', 'V'}) {
+            EXPECT_EQ(find_user_defined_pose_fields({
+                {std::string("pose") + component + "_head", {}},
+                {std::string("pose") + component + "_tail", {}}}),
+                (std::set<uint8_t>{1, 3}));
+        }
+    }
 }
 
 // ------------------------------------------------------------
@@ -713,16 +732,18 @@ TEST(DefaultConfigTest, AddMissingPoseFields)
     // Calling add_missing_pose_fields() should generate missing fields for indexes 0 and 2.
     auto new_pose_fields = add_missing_pose_fields();
 
-    // Expect "poseX0", "poseY0", "poseX2", "poseY2" (4 fields total).
-    ASSERT_EQ(new_pose_fields.size(), size_t(4));
+    // Expect X/Y/V fields for indexes 0 and 2 (6 fields total).
+    ASSERT_EQ(new_pose_fields.size(), size_t(6));
 
-    bool foundX0 = false, foundY0 = false, foundX2 = false, foundY2 = false;
+    bool foundX0 = false, foundY0 = false, foundV0 = false, foundX2 = false, foundY2 = false, foundV2 = false;
     for (const auto& [field_name, transforms] : new_pose_fields)
     {
         if (field_name == "poseX0") foundX0 = true;
         if (field_name == "poseY0") foundY0 = true;
+        if (field_name == "poseV0") foundV0 = true;
         if (field_name == "poseX2") foundX2 = true;
         if (field_name == "poseY2") foundY2 = true;
+        if (field_name == "poseV2") foundV2 = true;
         
         ASSERT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
@@ -730,8 +751,10 @@ TEST(DefaultConfigTest, AddMissingPoseFields)
 
     EXPECT_TRUE(foundX0);
     EXPECT_TRUE(foundY0);
+    EXPECT_TRUE(foundV0);
     EXPECT_TRUE(foundX2);
     EXPECT_TRUE(foundY2);
+    EXPECT_TRUE(foundV2);
 }
 
 TEST(TestValidModels, Valid) {

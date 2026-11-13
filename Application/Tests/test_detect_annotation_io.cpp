@@ -29,9 +29,9 @@ Annotation make_annotation(uint8_t clid, AnnotationType type, std::vector<Annota
 
 AnnotationMap mixed_annotations() {
     AnnotationMap annotations;
-    annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 20}, {50, 80}}));
-    annotations[3_f].push_back(make_annotation(1, AnnotationType::SEGMENTATION, {{0, 0}, {100, 0}, {100, 100}}));
-    annotations[5_f].push_back(make_annotation(2, AnnotationType::POSE, {{25, 25}, {75, 75}}));
+    annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 20, true}, {50, 80, true}}));
+    annotations[3_f].push_back(make_annotation(1, AnnotationType::SEGMENTATION, {{0, 0, true}, {100, 0, true}, {100, 100, true}}));
+    annotations[5_f].push_back(make_annotation(2, AnnotationType::POSE, {{25, 25, true}, {75, 75, true}}));
     return annotations;
 }
 
@@ -62,21 +62,39 @@ ImportOptions default_import_options(const file::Path& dataset_file) {
 }
 
 TEST(DetectAnnotationExporter, ConvertsBoxToYolo) {
-    auto annotation = make_annotation(2, AnnotationType::BOX, {{100, 50}, {300, 150}});
+    auto annotation = make_annotation(2, AnnotationType::BOX, {{100, 50, true}, {300, 150, true}});
     
     EXPECT_EQ("2 0.5 0.5 0.5 0.5",
               annotation_to_yolo({}, annotation, Size2(400, 200), {}));
 }
 
+TEST(DetectAnnotationExporter, DistinguishesPixelLocationsFromGeometryBoundaries) {
+    AnnotationMap annotations;
+    annotations[0_f] = {make_annotation(0, AnnotationType::BOX, {{0, 0, true}, {100, 50, true}})};
+    EXPECT_EQ("0 0.5 0.5 1 1", annotation_to_yolo({}, annotations.at(0_f).front(), Size2(100, 50), {}));
+    EXPECT_NO_THROW(build_coco_json({}, annotations, {0_f}, Size2(100, 50), {}));
+
+    for(auto type : {AnnotationType::POINT, AnnotationType::POSE}) {
+        annotations[0_f] = {make_annotation(0, type, {{99, 49, true}})};
+        EXPECT_NO_THROW(annotation_to_yolo({}, annotations.at(0_f).front(), Size2(100, 50), {"point"}, {}, 20.f));
+        EXPECT_NO_THROW(build_coco_json({}, annotations, {0_f}, Size2(100, 50), {"point"}, {}, 20.f));
+        for(auto point : {Annotation::Point_t{100, 49, true}, Annotation::Point_t{99, 50, true}}) {
+            annotations[0_f].front().points = {point};
+            EXPECT_THROW(annotation_to_yolo({}, annotations.at(0_f).front(), Size2(100, 50), {"point"}, {}, 20.f), std::exception);
+            EXPECT_THROW(build_coco_json({}, annotations, {0_f}, Size2(100, 50), {"point"}, {}, 20.f), std::exception);
+        }
+    }
+}
+
 TEST(DetectAnnotationExporter, ConvertsSegmentationToYolo) {
-    auto annotation = make_annotation(1, AnnotationType::SEGMENTATION, {{0, 0}, {400, 0}, {400, 200}});
+    auto annotation = make_annotation(1, AnnotationType::SEGMENTATION, {{0, 0, true}, {400, 0, true}, {400, 200, true}});
 
     EXPECT_EQ("1 0 0 1 0 1 1",
               annotation_to_yolo({}, annotation, Size2(400, 200), {}));
 }
 
 TEST(DetectAnnotationExporter, ConvertsObbToYoloWithoutLosingCornerOrder) {
-    auto annotation = make_annotation(2, static_cast<AnnotationType>(3), {{0, 50}, {50, 0}, {100, 50}, {50, 100}});
+    auto annotation = make_annotation(2, static_cast<AnnotationType>(3), {{0, 50, true}, {50, 0, true}, {100, 50, true}, {50, 100, true}});
 
     EXPECT_EQ("2 0 0.25 0.125 0 0.25 0.25 0.125 0.5",
               annotation_to_yolo({}, annotation, Size2(400, 200), {}));
@@ -84,7 +102,7 @@ TEST(DetectAnnotationExporter, ConvertsObbToYoloWithoutLosingCornerOrder) {
 
 TEST(DetectAnnotationExporter, NormalizesEditedGeometryWithoutChangingAnnotations) {
     for(auto type : {AnnotationType::BOX, AnnotationType::OBB, AnnotationType::SEGMENTATION}) {
-        const auto annotation = make_annotation(0, type, {{20, 20}, {70, 60}, {70, 20}, {20, 60}});
+        const auto annotation = make_annotation(0, type, {{20, 20, true}, {70, 60, true}, {70, 20, true}, {20, 60, true}});
         const auto original = annotation.points;
         AnnotationMap annotations;
         annotations[0_f].push_back(annotation);
@@ -125,7 +143,7 @@ TEST(DetectAnnotationExporter, NormalizesEditedGeometryWithoutChangingAnnotation
 
 TEST(DetectAnnotationExporter, PreservesConcaveSegmentationAndItsArea) {
     const auto annotation = make_annotation(0, AnnotationType::SEGMENTATION,
-                                          {{0, 0}, {100, 0}, {100, 40}, {40, 40}, {40, 100}, {0, 100}});
+                                          {{0, 0, true}, {100, 0, true}, {100, 40, true}, {40, 40, true}, {40, 100, true}, {0, 100, true}});
     EXPECT_EQ("0 0 0 1 0 1 0.4 0.4 0.4 0.4 1 0 1",
               annotation_to_yolo({}, annotation, Size2(100, 100), {}));
     AnnotationMap annotations;
@@ -137,7 +155,7 @@ TEST(DetectAnnotationExporter, PreservesConcaveSegmentationAndItsArea) {
 }
 
 TEST(DetectAnnotationExporter, FitsSkewedObbAtFloatPrecision) {
-    const auto annotation = make_annotation(0, AnnotationType::OBB, {{30, 30}, {71, 50}, {60, 80}, {20, 60}});
+    const auto annotation = make_annotation(0, AnnotationType::OBB, {{30, 30, true}, {71, 50, true}, {60, 80, true}, {20, 60, true}});
     AnnotationMap annotations;
     annotations[0_f].push_back(annotation);
     const auto json = build_coco_json({}, annotations, {0_f}, Size2(100, 100), {});
@@ -167,7 +185,7 @@ TEST(DetectAnnotationExporter, FitsSkewedObbAtFloatPrecision) {
 }
 
 TEST(DetectAnnotationExporter, RejectsObbFitOutsideImage) {
-    const auto annotation = make_annotation(0, AnnotationType::OBB, {{0, 50}, {100, 0}, {200, 50}, {100, 100}});
+    const auto annotation = make_annotation(0, AnnotationType::OBB, {{0, 50, true}, {100, 0, true}, {200, 50, true}, {100, 100, true}});
     Options options;
     options.annotations[0_f].push_back(annotation);
     options.output_directory = file::Path("annotations");
@@ -179,7 +197,7 @@ TEST(DetectAnnotationExporter, RejectsObbFitOutsideImage) {
 
 TEST(DetectAnnotationExporter, RejectsCollapsedGeometryInPreflightAndSerializers) {
     for(auto type : {AnnotationType::BOX, AnnotationType::OBB, AnnotationType::SEGMENTATION}) {
-        const auto annotation = make_annotation(0, type, {{10, 10}, {10, 20}, {10, 30}, {10, 40}});
+        const auto annotation = make_annotation(0, type, {{10, 10, true}, {10, 20, true}, {10, 30, true}, {10, 40, true}});
         Options options;
         options.annotations[0_f].push_back(annotation);
         options.output_directory = file::Path("annotations");
@@ -203,7 +221,7 @@ TEST(DetectAnnotationImporter, ImportsPoloPointAtOrigin) {
     const auto& annotation = preview.annotations.at(10_f).front();
     EXPECT_EQ(static_cast<AnnotationType>(4), annotation.type);
     ASSERT_EQ(1u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(0, 0), annotation.points.front());
+    EXPECT_EQ(Annotation::Point_t(0, 0, true), annotation.points.front());
     EXPECT_EQ(task_t::points, preview.task);
     EXPECT_EQ(ObjectDetectionFormat::points, preview.metadata.imported_detect_format);
     EXPECT_FLOAT_EQ(12.5f, preview.metadata.imported_point_radii.at(0));
@@ -219,8 +237,8 @@ TEST(DetectAnnotationDataset, PreservesTypeIdsAndNewTypesInSettings) {
     EXPECT_EQ(5, int(AnnotationType::EMPTY));
     AnnotationMap annotations;
     annotations[0_f] = {
-        make_annotation(0, AnnotationType::OBB, {{0, 0}, {20, 0}, {20, 10}, {0, 10}}),
-        make_annotation(1, AnnotationType::POINT, {{0, 0}})
+        make_annotation(0, AnnotationType::OBB, {{0, 0, true}, {20, 0, true}, {20, 10, true}, {0, 10, true}}),
+        make_annotation(1, AnnotationType::POINT, {{0, 0, true}})
     };
     annotations[1_f] = {make_annotation(0, AnnotationType::EMPTY, {})};
     auto restored = AnnotationMap::fromStr(annotations.toStr());
@@ -274,7 +292,7 @@ TEST(DetectAnnotationDataset, PreservesEmptyFrameInJsonAndTypeFilters) {
 TEST(DetectAnnotationDataset, ObjectAnnotationsReplaceFrameWideEmptyMarkers) {
     AnnotationMap annotations;
     const auto empty = make_annotation(0, AnnotationType::EMPTY, {});
-    const auto box = make_annotation(1, AnnotationType::BOX, {{10, 10}, {20, 20}});
+    const auto box = make_annotation(1, AnnotationType::BOX, {{10, 10, true}, {20, 20, true}});
     annotations[0_f] = {empty, box, empty};
     annotations[1_f] = {empty, empty};
     const auto restored = AnnotationMap::fromStr(annotations.toStr());
@@ -305,7 +323,7 @@ TEST(DetectAnnotationExporter, EmptyFrameHasNoObjectGeometryOrCategory) {
     EXPECT_EQ(1u, json.get_object().at("images").get_array().size());
     EXPECT_TRUE(json.get_object().at("annotations").get_array().empty());
     EXPECT_TRUE(json.get_object().at("categories").get_array().empty());
-    annotations[1_f].push_back(make_annotation(2, AnnotationType::BOX, {{10, 10}, {20, 20}}));
+    annotations[1_f].push_back(make_annotation(2, AnnotationType::BOX, {{10, 10, true}, {20, 20, true}}));
     const auto mixed = build_coco_json({}, annotations, {1_f}, Size2(100, 100), {});
     ASSERT_EQ(1u, mixed.get_object().at("annotations").get_array().size());
     EXPECT_EQ(2, mixed.get_object().at("annotations").get_array().front().get_object().at("category_id").get_number());
@@ -322,7 +340,7 @@ TEST(DetectAnnotationExporter, EmptyFrameHasNoObjectGeometryOrCategory) {
     EXPECT_EQ(1u, summary.total_images);
     EXPECT_EQ(1u, summary.counts.empties);
 
-    empty.points = {{10, 10}};
+    empty.points = {{10, 10, true}};
     EXPECT_THROW(annotation_to_yolo({}, empty, Size2(100, 100), {}), std::exception);
     annotations[1_f] = {empty};
     EXPECT_THROW(build_coco_json({}, annotations, {1_f}, Size2(100, 100), {}), std::exception);
@@ -335,7 +353,7 @@ TEST(DetectAnnotationExporter, EmptyFramesDoNotChangePointCategoryMetadata) {
     (void)track::detect::yolo::names::get_map();
     SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t(blob::ObjectClass_t{{0, "fish"}, {1, "other"}});
     AnnotationMap annotations;
-    annotations[0_f] = {make_annotation(0, AnnotationType::POINT, {{10, 10}})};
+    annotations[0_f] = {make_annotation(0, AnnotationType::POINT, {{10, 10, true}})};
     annotations[1_f] = {make_annotation(255, AnnotationType::EMPTY, {})};
     const auto json = build_coco_json({}, annotations, {0_f, 1_f}, Size2(100, 100), {}, {}, 20.f);
     const auto& categories = json.get_object().at("categories").get_array();
@@ -348,7 +366,7 @@ TEST(DetectAnnotationExporter, EmptyFramesDoNotChangePointCategoryMetadata) {
 }
 
 TEST(DetectAnnotationExporter, UsesClassRadiusBeforeImageSizeFallback) {
-    auto point = make_annotation(2, AnnotationType::POINT, {{100, 50}});
+    auto point = make_annotation(2, AnnotationType::POINT, {{100, 50, true}});
     const Size2 individual_image_size(80, 120);
     const float fallback = 0.5f * std::max(individual_image_size.width, individual_image_size.height);
     EXPECT_EQ("2 60 0.25 0.25", annotation_to_yolo({}, point, Size2(400, 200), {}, {}, fallback));
@@ -360,18 +378,18 @@ TEST(DetectAnnotationExporter, UsesClassRadiusBeforeImageSizeFallback) {
 
 TEST(DetectAnnotationExporter, RejectsMalformedObbAndPointGeometry) {
     for(auto type : {AnnotationType::OBB, AnnotationType::POINT}) {
-        auto annotation = make_annotation(0, type, {{10, 10}, {20, 20}});
+        auto annotation = make_annotation(0, type, {{10, 10, true}, {20, 20, true}});
         EXPECT_THROW(annotation_to_yolo({}, annotation, Size2(100, 100), {}, {}, 20.f), std::exception);
     }
-    auto outside = make_annotation(0, AnnotationType::POINT, {{101, 0}});
+    auto outside = make_annotation(0, AnnotationType::POINT, {{101, 0, true}});
     EXPECT_THROW(annotation_to_yolo({}, outside, Size2(100, 100), {}, {}, 20.f), std::exception);
 }
 
 TEST(DetectAnnotationExporter, SelectsOnlyDetectFormatForBothDatasets) {
     Options options;
     options.annotations = mixed_annotations();
-    options.annotations[6_f].push_back(make_annotation(3, AnnotationType::OBB, {{0, 0}, {20, 0}, {20, 10}, {0, 10}}));
-    options.annotations[7_f].push_back(make_annotation(4, AnnotationType::POINT, {{0, 0}}));
+    options.annotations[6_f].push_back(make_annotation(3, AnnotationType::OBB, {{0, 0, true}, {20, 0, true}, {20, 10, true}, {0, 10, true}}));
+    options.annotations[7_f].push_back(make_annotation(4, AnnotationType::POINT, {{0, 0, true}}));
     options.output_directory = file::Path("annotations");
     options.keypoint_names = {"nose", "tail"};
     options.fallback_point_radius = 60.f;
@@ -420,7 +438,7 @@ TEST(DetectAnnotationImporter, DistinguishesObbFromPolygonUsingTaskMetadataOrOve
         ASSERT_TRUE(obb.can_import());
         EXPECT_EQ(AnnotationType::OBB, obb.annotations.at(10_f).front().type);
         EXPECT_EQ(ObjectDetectionFormat::obb, obb.metadata.imported_detect_format);
-        EXPECT_EQ(Annotation::Point_t(0, 0), obb.annotations.at(10_f).front().points.front());
+        EXPECT_EQ(Annotation::Point_t(0, 0, true), obb.annotations.at(10_f).front().points.front());
         options.task = task_t::segmentation;
         auto polygon = preview_yolo_import(options, import_scope_t::all_videos);
         ASSERT_TRUE(polygon.can_import());
@@ -468,13 +486,13 @@ TEST(DetectAnnotationImporter, ValidatesPoloRadiusMetadataAgainstRows) {
 
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: locate\nradii: {0: 0.0000001}\n");
     write_file(root / "labels" / "frame_000110.txt",
-               annotation_to_yolo({}, make_annotation(0, AnnotationType::POINT, {{0, 0}}), Size2(200, 100), {}, {{0, 1e-7f}}) + "\n");
+               annotation_to_yolo({}, make_annotation(0, AnnotationType::POINT, {{0, 0, true}}), Size2(200, 100), {}, {{0, 1e-7f}}) + "\n");
     EXPECT_TRUE(preview_yolo_import(options, import_scope_t::all_videos).can_import());
 }
 
 TEST(DetectAnnotationExporter, StoresCocoObbAreaAndVisibleOriginPoint) {
     AnnotationMap annotations;
-    annotations[0_f].push_back(make_annotation(0, AnnotationType::OBB, {{0, 50}, {50, 0}, {100, 50}, {50, 100}}));
+    annotations[0_f].push_back(make_annotation(0, AnnotationType::OBB, {{0, 50, true}, {50, 0, true}, {100, 50, true}, {50, 100, true}}));
     auto obb_json = build_coco_json({}, annotations, {0_f}, Size2(200, 100), {});
     const auto& obb = obb_json.get_object().at("annotations").get_array().front().get_object();
     ASSERT_TRUE(obb.at("trex_annotation_type").is_string());
@@ -483,7 +501,7 @@ TEST(DetectAnnotationExporter, StoresCocoObbAreaAndVisibleOriginPoint) {
     EXPECT_DOUBLE_EQ(100, obb.at("bbox").get_array()[2].get_number());
     EXPECT_DOUBLE_EQ(100, obb.at("bbox").get_array()[3].get_number());
 
-    annotations[0_f] = {make_annotation(0, AnnotationType::POINT, {{0, 0}})};
+    annotations[0_f] = {make_annotation(0, AnnotationType::POINT, {{0, 0, true}})};
     auto point_json = build_coco_json({}, annotations, {0_f}, Size2(200, 100), {}, {}, 60.f);
     const auto& point = point_json.get_object().at("annotations").get_array().front().get_object();
     ASSERT_TRUE(point.at("trex_annotation_type").is_string());
@@ -555,10 +573,10 @@ TEST(DetectAnnotationExporter, RoundTripsObbAndPointDatasetsAndExcludesOtherType
             options.point_radii = {{0, 12.5f}};
             options.keypoint_names = {"unrelated_pose_keypoint"};
             const auto annotation = type == AnnotationType::OBB
-                ? make_annotation(0, type, {{0, 50}, {50, 0}, {100, 50}, {50, 100}})
-                : make_annotation(0, type, {{0, 0}});
+                ? make_annotation(0, type, {{0, 50, true}, {50, 0, true}, {100, 50, true}, {50, 100, true}})
+                : make_annotation(0, type, {{0, 0, true}});
             options.annotations[0_f].push_back(annotation);
-            options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {20, 20}}));
+            options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10, true}, {20, 20, true}}));
 
             auto summary = export_dataset(options);
             EXPECT_EQ(1u, summary.annotated_frames);
@@ -680,7 +698,7 @@ TEST(DetectAnnotationImporter, ImportsOnlyExistingEmptyYoloLabelsAsEmptyFrames) 
 
 TEST(DetectAnnotationImporter, ObjectAnnotationsWinOverEmptyFramesInBothMergeOrders) {
     const auto empty = make_annotation(0, AnnotationType::EMPTY, {});
-    const auto box = make_annotation(1, AnnotationType::BOX, {{10, 10}, {20, 20}});
+    const auto box = make_annotation(1, AnnotationType::BOX, {{10, 10, true}, {20, 20, true}});
     for(bool incoming_empty : {false, true}) {
         ImportPreview preview;
         preview.annotations[0_f] = {incoming_empty ? empty : box};
@@ -697,7 +715,7 @@ TEST(DetectAnnotationImporter, ObjectAnnotationsWinOverEmptyFramesInBothMergeOrd
 }
 
 TEST(DetectAnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
-    auto annotation = make_annotation(3, AnnotationType::POSE, {{100, 50}, {300, 150}});
+    auto annotation = make_annotation(3, AnnotationType::POSE, {{100, 50, true}, {300, 150, true}});
     std::vector<std::string> keypoints{"nose", "tail", "left"};
 
     EXPECT_EQ("3 0.5 0.5 0.5 0.5 0.25 0.25 2 0.75 0.75 2 0 0 0",
@@ -706,7 +724,7 @@ TEST(DetectAnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
 
 TEST(DetectAnnotationExporter, PreservesSparseConfiguredKeypointIndices) {
     AnnotationMap annotations;
-    annotations[0_f].push_back(make_annotation(0, AnnotationType::POSE, {{10, 10}, {20, 20}, {30, 30}, {40, 40}}));
+    annotations[0_f].push_back(make_annotation(0, AnnotationType::POSE, {{10, 10, true}, {20, 20, true}, {30, 30, true}, {40, 40, true}}));
 
     const auto names = default_keypoint_names(annotations, {{1, "head"}, {3, "tail"}});
     EXPECT_EQ(names, (std::vector<std::string>{"kp_0", "head", "kp_2", "tail"}));
@@ -742,7 +760,7 @@ TEST(DetectAnnotationImporter, AnnotationMapAcceptsFlatAndSourceNestedText) {
     EXPECT_FALSE(flat.has_sources());
 
     AnnotationMap nested;
-    nested.sources()["current_video.mp4"][100_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {20, 20}}));
+    nested.sources()["current_video.mp4"][100_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10, true}, {20, 20, true}}));
     auto reparsed = AnnotationMap::fromStr(nested.toStr());
     ASSERT_TRUE(reparsed.has_sources());
     ASSERT_TRUE(reparsed.sources().contains("current_video.mp4"));
@@ -778,7 +796,7 @@ TEST(DetectAnnotationExporter, ExportsUnlabeledPoseKeypointsAsZeroVisibility) {
     // Index 1 is an unlabeled keypoint, stored as an invalid (0,0) placeholder
     // (as produced by COCO/YOLO import of a keypoint with visibility 0).
     AnnotationMap annotations;
-    annotations[1_f].push_back(make_annotation(0, AnnotationType::POSE, {{100, 50}, {0, 0}, {300, 150}}));
+    annotations[1_f].push_back(make_annotation(0, AnnotationType::POSE, {{100, 50, true}, {0, 0, true}, {300, 150, true}}));
     const std::vector<std::string> keypoints{"a", "b", "c"};
 
     // YOLO: the unlabeled keypoint serializes as "0 0 0" and must not drag the
@@ -847,7 +865,7 @@ TEST(DetectAnnotationExporter, SamplesBackgroundFramesDeterministicallyAndExclud
 TEST(DetectAnnotationExporter, RejectsInvalidKeypointNamesAndTooManyPosePoints) {
     Options options;
     options.detect_format = ObjectDetectionFormat::poses;
-    options.annotations[1_f].push_back(make_annotation(0, AnnotationType::POSE, {{10, 10}, {20, 20}, {30, 30}}));
+    options.annotations[1_f].push_back(make_annotation(0, AnnotationType::POSE, {{10, 10, true}, {20, 20, true}, {30, 30, true}}));
     options.keypoint_names = {"nose", "nose"};
     options.output_directory = file::Path("annotations");
 
@@ -867,7 +885,7 @@ TEST(DetectAnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
 
     Options out_of_bounds;
     out_of_bounds.detect_format = ObjectDetectionFormat::boxes;
-    out_of_bounds.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {200, 200}}));
+    out_of_bounds.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10, true}, {200, 200, true}}));
     out_of_bounds.output_directory = file::Path("annotations");
     EXPECT_FALSE(summarize(out_of_bounds, 10_f, Size2(100, 100)).can_export());
 }
@@ -875,7 +893,7 @@ TEST(DetectAnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
 TEST(DetectAnnotationExporter, FailsPredictablyForMissingSource) {
     Options options;
     options.detect_format = ObjectDetectionFormat::boxes;
-    options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {20, 20}}));
+    options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10, true}, {20, 20, true}}));
     options.output_directory = file::Path("annotations");
     options.source = file::PathArray("/tmp/trex_missing_annotation_source.mp4");
 
@@ -926,8 +944,8 @@ TEST(DetectAnnotationImporter, ImportsBoxesAndMapsSourceIndexThroughConversionSt
     const auto& annotation = preview.annotations.at(10_f).front();
     EXPECT_EQ(AnnotationType::BOX, annotation.type);
     ASSERT_EQ(4u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(50, 25), annotation.points.at(0));
-    EXPECT_EQ(Annotation::Point_t(150, 75), annotation.points.at(2));
+    EXPECT_EQ(Annotation::Point_t(50, 25, true), annotation.points.at(0));
+    EXPECT_EQ(Annotation::Point_t(150, 75, true), annotation.points.at(2));
 }
 
 TEST(DetectAnnotationImporter, ImportsSegmentationPolygons) {
@@ -944,7 +962,7 @@ TEST(DetectAnnotationImporter, ImportsSegmentationPolygons) {
     const auto& annotation = preview.annotations.at(1_f).front();
     EXPECT_EQ(AnnotationType::SEGMENTATION, annotation.type);
     ASSERT_EQ(4u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(200, 100), annotation.points.at(2));
+    EXPECT_EQ(Annotation::Point_t(200, 100, true), annotation.points.at(2));
 }
 
 TEST(DetectAnnotationImporter, DoesNotSuggestDetectFormatForMixedImportedTypes) {
@@ -980,7 +998,7 @@ TEST(DetectAnnotationImporter, ImportsPoseWithKeypointMetadata) {
     const auto& annotation = preview.annotations.at(2_f).front();
     EXPECT_EQ(AnnotationType::POSE, annotation.type);
     ASSERT_EQ(2u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(20, 20), annotation.points.at(0));
+    EXPECT_EQ(Annotation::Point_t(20, 20, true), annotation.points.at(0));
     EXPECT_FALSE(annotation.points.at(1).valid());
 }
 
@@ -1079,8 +1097,8 @@ TEST(DetectAnnotationImporter, UsesSplitRelativeCsvMappingBeforeBasenameFallback
     EXPECT_EQ(2u, preview.mapped_from_csv);
     EXPECT_TRUE(preview.annotations.contains(12_f));
     EXPECT_TRUE(preview.annotations.contains(13_f));
-    EXPECT_EQ(Annotation::Point_t(30, 15), preview.annotations.at(12_f).front().points.at(0));
-    EXPECT_EQ(Annotation::Point_t(130, 65), preview.annotations.at(13_f).front().points.at(0));
+    EXPECT_EQ(Annotation::Point_t(30, 15, true), preview.annotations.at(12_f).front().points.at(0));
+    EXPECT_EQ(Annotation::Point_t(130, 65, true), preview.annotations.at(13_f).front().points.at(0));
 }
 
 TEST(DetectAnnotationImporter, UsesAbsoluteImagePathInCsvMapping) {
@@ -1295,7 +1313,7 @@ TEST(DetectAnnotationImporter, AppliesAddAndReplaceModesWithRenumberedUids) {
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
 
     AnnotationMap existing;
-    existing[10_f].push_back(make_annotation(1, AnnotationType::BOX, {{0, 0}, {10, 0}, {10, 10}, {0, 10}}));
+    existing[10_f].push_back(make_annotation(1, AnnotationType::BOX, {{0, 0, true}, {10, 0, true}, {10, 10, true}, {0, 10, true}}));
 
     auto added = apply_dataset_import(preview, existing, merge_mode_t::add);
     ASSERT_EQ(2u, added.at(10_f).size());
@@ -1310,12 +1328,12 @@ TEST(DetectAnnotationImporter, AppliesAddAndReplaceModesWithRenumberedUids) {
 
 TEST(DetectAnnotationImporter, AppliesSourceAnnotationsInsideAnnotationMapWithRenumberedUids) {
     ImportPreview preview;
-    preview.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{0, 0}, {10, 10}}));
-    preview.source_annotations["current_video.mp4"][101_f].push_back(make_annotation(0, AnnotationType::BOX, {{0, 0}, {10, 10}}));
-    preview.source_annotations["other_video.mp4"][202_f].push_back(make_annotation(1, AnnotationType::BOX, {{5, 5}, {15, 15}}));
+    preview.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{0, 0, true}, {10, 10, true}}));
+    preview.source_annotations["current_video.mp4"][101_f].push_back(make_annotation(0, AnnotationType::BOX, {{0, 0, true}, {10, 10, true}}));
+    preview.source_annotations["other_video.mp4"][202_f].push_back(make_annotation(1, AnnotationType::BOX, {{5, 5, true}, {15, 15, true}}));
 
     AnnotationMap existing;
-    existing.sources()["other_video.mp4"][202_f].push_back(make_annotation(2, AnnotationType::BOX, {{1, 1}, {2, 2}}));
+    existing.sources()["other_video.mp4"][202_f].push_back(make_annotation(2, AnnotationType::BOX, {{1, 1, true}, {2, 2, true}}));
 
     auto added = apply_dataset_import(preview, existing, merge_mode_t::add);
     ASSERT_EQ(2u, added.sources().at("other_video.mp4").at(202_f).size());
@@ -1361,8 +1379,8 @@ TEST(DetectAnnotationImporter, ImportsCocoBoundingBoxes) {
     const auto& annotation = preview.annotations.at(10_f).front();
     EXPECT_EQ(AnnotationType::BOX, annotation.type);
     ASSERT_EQ(4u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(50, 25), annotation.points.at(0));
-    EXPECT_EQ(Annotation::Point_t(150, 75), annotation.points.at(2));
+    EXPECT_EQ(Annotation::Point_t(50, 25, true), annotation.points.at(0));
+    EXPECT_EQ(Annotation::Point_t(150, 75, true), annotation.points.at(2));
     EXPECT_TRUE(preview.metadata.class_names_changed);
 }
 
@@ -1493,13 +1511,13 @@ TEST(DetectAnnotationImporter, ImportsCocoPoseKeypointsAsAbsoluteXyvPixels) {
     const auto& annotation = preview.annotations.at(4_f).front();
     EXPECT_EQ(AnnotationType::POSE, annotation.type);
     ASSERT_EQ(7u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(2542, 1649), annotation.points.at(0));
-    EXPECT_EQ(Annotation::Point_t(2550, 1689), annotation.points.at(1));
-    EXPECT_EQ(Annotation::Point_t(2583, 1685), annotation.points.at(2));
-    EXPECT_EQ(Annotation::Point_t(2526, 1711), annotation.points.at(3));
-    EXPECT_EQ(Annotation::Point_t(2426, 1797), annotation.points.at(4));
-    EXPECT_EQ(Annotation::Point_t(2472, 1743), annotation.points.at(5));
-    EXPECT_EQ(Annotation::Point_t(2485, 1769), annotation.points.at(6));
+    EXPECT_EQ(Annotation::Point_t(2542, 1649, true), annotation.points.at(0));
+    EXPECT_EQ(Annotation::Point_t(2550, 1689, true), annotation.points.at(1));
+    EXPECT_EQ(Annotation::Point_t(2583, 1685, true), annotation.points.at(2));
+    EXPECT_EQ(Annotation::Point_t(2526, 1711, true), annotation.points.at(3));
+    EXPECT_EQ(Annotation::Point_t(2426, 1797, true), annotation.points.at(4));
+    EXPECT_EQ(Annotation::Point_t(2472, 1743, true), annotation.points.at(5));
+    EXPECT_EQ(Annotation::Point_t(2485, 1769, true), annotation.points.at(6));
 
     options.video_size = Size2(2048, 1500);
     auto unchanged = preview_coco_import(options);
@@ -1507,8 +1525,8 @@ TEST(DetectAnnotationImporter, ImportsCocoPoseKeypointsAsAbsoluteXyvPixels) {
     ASSERT_TRUE(unchanged.can_import()) << Meta::toStr(unchanged.errors);
     const auto& unchanged_annotation = unchanged.annotations.at(4_f).front();
     ASSERT_EQ(7u, unchanged_annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(2542, 1649), unchanged_annotation.points.at(0));
-    EXPECT_EQ(Annotation::Point_t(2426, 1797), unchanged_annotation.points.at(4));
+    EXPECT_EQ(Annotation::Point_t(2542, 1649, true), unchanged_annotation.points.at(0));
+    EXPECT_EQ(Annotation::Point_t(2426, 1797, true), unchanged_annotation.points.at(4));
 
     ASSERT_TRUE(preview.metadata.imported_skeletons);
     auto skeleton = preview.metadata.imported_skeletons->get("Locusta");
@@ -1537,7 +1555,7 @@ TEST(DetectAnnotationImporter, ImportsCocoSegmentationPolygons) {
     const auto& annotation = preview.annotations.at(1_f).front();
     EXPECT_EQ(AnnotationType::SEGMENTATION, annotation.type);
     ASSERT_EQ(4u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(200, 100), annotation.points.at(2));
+    EXPECT_EQ(Annotation::Point_t(200, 100, true), annotation.points.at(2));
 }
 
 TEST(DetectAnnotationImporter, ImportsCocoPoseAndKeypointMetadata) {
@@ -1559,7 +1577,7 @@ TEST(DetectAnnotationImporter, ImportsCocoPoseAndKeypointMetadata) {
     const auto& annotation = preview.annotations.at(2_f).front();
     EXPECT_EQ(AnnotationType::POSE, annotation.type);
     ASSERT_EQ(2u, annotation.points.size());
-    EXPECT_EQ(Annotation::Point_t(20, 20), annotation.points.at(0));
+    EXPECT_EQ(Annotation::Point_t(20, 20, true), annotation.points.at(0));
     EXPECT_FALSE(annotation.points.at(1).valid());
 }
 
@@ -1622,6 +1640,130 @@ TEST(DetectAnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
     EXPECT_EQ(50, bbox.at(1).get_number());
 }
 
+TEST(DetectAnnotationImporter, RejectsYoloPixelLocationsAtOuterImageBoundary) {
+    auto root = make_temp_dataset("yolo_pixel_boundary");
+    write_file(root / "images" / "frame_000100.jpg");
+    for(auto type : {AnnotationType::POINT, AnnotationType::POSE}) {
+        write_file(root / "data.yaml", std::string("path: .\ntrain: images\nnames: [fish]\n")
+                   + (type == AnnotationType::POINT ? "task: locate\nradii: {0: 5}\n" : "kpt_shape: [1, 3]\n"));
+        for(const auto xy : {"0.995 0.99", "1 0.99", "0.995 1", "0.999 0.99", "0.995 0.999"}) {
+            SCOPED_TRACE(xy);
+            write_file(root / "labels" / "frame_000100.txt",
+                       type == AnnotationType::POINT ? std::string("0 5 ") + xy + "\n"
+                       : std::string("0 0.5 0.5 0.5 0.5 ") + xy + " 2\n");
+            const auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
+            if(std::string_view(xy) == "0.995 0.99") {
+                ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+                const auto& annotation = preview.annotations.at(0_f).front();
+                EXPECT_EQ(type, annotation.type);
+                EXPECT_EQ(Annotation::Point_t(199, 99, true), annotation.points.front());
+                EXPECT_NO_THROW(annotation_to_yolo({}, annotation, Size2(200, 100), {"tip"}, {}, 5.f));
+            } else {
+                EXPECT_FALSE(preview.can_import());
+                EXPECT_TRUE(preview.annotations.empty());
+            }
+        }
+    }
+}
+
+TEST(DetectAnnotationImporter, RejectsCocoPixelLocationsAtOuterImageBoundary) {
+    auto root = make_temp_dataset("coco_pixel_boundary");
+    for(auto type : {AnnotationType::POINT, AnnotationType::POSE}) {
+        for(const auto xy : {"199,99", "200,99", "199,100", "199.9,99", "199,99.9"}) {
+            SCOPED_TRACE(xy);
+            write_file(root / "_annotations.coco.json",
+                       std::string(R"({"images":[{"id":1,"file_name":"frame_000100.jpg","width":200,"height":100}],"annotations":[{"id":1,"image_id":1,"category_id":0,)")
+                       + (type == AnnotationType::POINT ? R"("trex_annotation_type":"point",)" : "")
+                       + R"("keypoints":[)" + xy + R"(,2],"num_keypoints":1}],"categories":[{"id":0,"name":"fish","keypoints":["tip"]}]})");
+            const auto preview = preview_coco_import(default_import_options(root / "_annotations.coco.json"));
+            if(std::string_view(xy) == "199,99") {
+                ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+                const auto& annotation = preview.annotations.at(0_f).front();
+                EXPECT_EQ(type, annotation.type);
+                EXPECT_EQ(Annotation::Point_t(199, 99, true), annotation.points.front());
+                EXPECT_NO_THROW(build_coco_json({}, preview.annotations, {0_f}, Size2(200, 100), {"tip"}, {}, 5.f));
+            } else {
+                EXPECT_FALSE(preview.can_import());
+                EXPECT_TRUE(preview.annotations.empty());
+            }
+        }
+    }
+}
+
+TEST(DetectAnnotationImporter, RoundTripsPoseVisibility) {
+    const std::vector<std::string> names{"a", "b", "c", "d"};
+    for(bool visible : {false, true}) {
+        const Annotation::Point_t point{100, 50, visible};
+        EXPECT_EQ(visible ? "[100,50,1]" : "[100,50,0]", point.toStr());
+        const auto point_json = point.to_json();
+        ASSERT_TRUE(point_json.is_array());
+        ASSERT_EQ(3u, point_json.get_array().size());
+        ASSERT_TRUE(point_json.get_array().at(2).is_number());
+        EXPECT_EQ(visible ? 1 : 0, point_json.get_array().at(2).get_number());
+        EXPECT_EQ(point, Annotation::Point_t::fromStr(visible ? "[100,50,1]" : "[100,50,0]"));
+        EXPECT_EQ(point, Annotation::Point_t::fromStr(point.toStr()));
+        EXPECT_EQ(Vec2(100, 50), Meta::fromStr<Vec2>(point.toStr()));
+
+        AnnotationMap annotations;
+        annotations[3_f] = {make_annotation(0, AnnotationType::POSE,
+            {{100, 50, visible}, {300, 150, false}, {}, {0, 25, false}})};
+        const auto& expected = annotations.at(3_f).front();
+        EXPECT_EQ(expected.points, AnnotationMap::fromStr(annotations.toStr()).at(3_f).front().points);
+        EXPECT_EQ(expected.points, AnnotationMap::fromStr(glz::write_json(annotations.to_json()).value()).at(3_f).front().points);
+
+        const auto yolo = annotation_to_yolo({}, expected, Size2(400, 200), names);
+        EXPECT_EQ(std::string("0 0.375 0.4375 0.75 0.625 0.25 0.25 ")
+                  + (visible ? "2" : "1") + " 0.75 0.75 1 0 0 0 0 0.125 1", yolo);
+        const auto coco = build_coco_json({}, annotations, {3_f}, Size2(400, 200), names);
+        const auto& object = coco.get_object().at("annotations").get_array().front().get_object();
+        const auto& points = object.at("keypoints").get_array();
+        EXPECT_EQ(visible ? 2 : 1, points.at(2).get_number());
+        EXPECT_EQ(1, points.at(5).get_number());
+        EXPECT_EQ(0, points.at(8).get_number());
+        EXPECT_EQ(1, points.at(11).get_number());
+        EXPECT_EQ(3, object.at("num_keypoints").get_number());
+        EXPECT_EQ(0, object.at("bbox").get_array().at(0).get_number());
+        EXPECT_EQ(25, object.at("bbox").get_array().at(1).get_number());
+        EXPECT_EQ(300, object.at("bbox").get_array().at(2).get_number());
+        EXPECT_EQ(125, object.at("bbox").get_array().at(3).get_number());
+
+        auto root = make_temp_dataset("pose_visibility");
+        write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\nkpt_shape: [4, 3]\n");
+        write_file(root / "images" / "source_index_000003.jpg");
+        write_file(root / "labels" / "source_index_000003.txt", yolo + "\n");
+        write_file(root / "_annotations.coco.json", glz::write_json(coco).value());
+        for(auto format : {annotation_dataset::format_t::yolo, annotation_dataset::format_t::coco}) {
+            auto options = default_import_options(root / (format == annotation_dataset::format_t::yolo
+                ? "data.yaml" : "_annotations.coco.json"));
+            options.format = format;
+            options.video_size = Size2(400, 200);
+            options.source_start = 0_f;
+            options.source_end = 10_f;
+            const auto preview = format == annotation_dataset::format_t::yolo
+                ? preview_yolo_import(options, import_scope_t::all_videos) : preview_coco_import(options);
+            ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+            const auto& imported = preview.annotations.at(3_f).front();
+            EXPECT_EQ(AnnotationType::POSE, imported.type);
+            EXPECT_EQ(expected.points, imported.points);
+        }
+
+        annotations[3_f] = {make_annotation(0, AnnotationType::POINT, {{0, 0, visible}})};
+        const auto point_coco = build_coco_json({}, annotations, {3_f}, Size2(400, 200), {}, {}, 20.f);
+        EXPECT_EQ(visible ? 2 : 1, point_coco.get_object().at("annotations").get_array().front()
+                  .get_object().at("keypoints").get_array().at(2).get_number());
+        write_file(root / "_annotations.coco.json", glz::write_json(point_coco).value());
+        auto options = default_import_options(root / "_annotations.coco.json");
+        options.source_start = 0_f;
+        options.source_end = 10_f;
+        const auto preview = preview_coco_import(options);
+        ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+        EXPECT_EQ(AnnotationType::POINT, preview.annotations.at(3_f).front().type);
+        EXPECT_EQ(annotations.at(3_f).front().points, preview.annotations.at(3_f).front().points);
+    }
+    EXPECT_EQ(Annotation::Point_t(100, 50, true), Annotation::Point_t::fromStr("[100,50]"));
+    EXPECT_EQ(Annotation::Point_t{}, Annotation::Point_t::invalid());
+}
+
 TEST(DetectAnnotationImporter, MalformedRowDropsImageAtomicallyKeepingSourceAndFrameConsistent) {
     // A label file with a valid row followed by a malformed one must contribute
     // nothing: previously the valid row was kept in source_annotations while the
@@ -1681,7 +1823,7 @@ TEST(DetectAnnotationExporter, CocoExportsAllDetectClassesEvenWhenAbsentFromData
     };
 
     AnnotationMap annotations;
-    annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 20}, {50, 80}})); // only class 0 is used
+    annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 20, true}, {50, 80, true}})); // only class 0 is used
 
     auto json = build_coco_json({}, annotations, {1_f}, Size2(100, 100), {});
 

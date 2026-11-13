@@ -16,6 +16,7 @@
 #include <tracking/TrackletInformation.h>
 #include <gui/Graph.h>
 #include <tracking/Tracker.h>
+#include <core/DetectionTypes.h>
 
 #define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \
 { auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
@@ -92,6 +93,7 @@ namespace Output {
         if(utils::beginsWith(name, "bone")
            || utils::beginsWith(name, "poseX")
            || utils::beginsWith(name, "poseY")
+           || utils::beginsWith(name, "poseV")
            || utils::beginsWith(name, "detection_"))
         {
             return true;
@@ -1271,12 +1273,14 @@ cached_output_fields_t Library::get_cached_fields() {
             return GlobalSettings::invalid();
         
         auto& pt = pose.point(index);
-        if(pt.x == 0 && pt.y == 0)
+        if(not pt.valid())
             return GlobalSettings::invalid();
         
         if(component == 0)
-            return pt.x;
-        return pt.y;
+            return pt.x();
+        if(component == 1)
+            return pt.y();
+        return pt.visible() ? 1 : 0;
     }
     
     double Library::get(std::string_view name, LibInfo info, Frame_t frame) {
@@ -1289,10 +1293,21 @@ cached_output_fields_t Library::get_cached_fields() {
            _cache_func.count(name) == 0)
         {
             if(utils::beginsWith(name, "poseX")
-               || utils::beginsWith(name, "poseY"))
+               || utils::beginsWith(name, "poseY")
+                || utils::beginsWith(name, "poseV"))
             {
-                auto component = name.at(4) == 'X' ? 0 : 1;
+                auto component = name.at(4) == 'X' ? 0 : (name.at(4) == 'Y' ? 1 : 2);
                 try {
+                    if(name.size() > 5 && name.at(5) == '_') {
+                        const auto keypoint_names = READ_SETTING_WITH_DEFAULT(detect_keypoint_names, track::detect::KeypointNames{});
+                        if(keypoint_names.names) {
+                            for(const auto& [index, keypoint_name] : *keypoint_names.names) {
+                                if(keypoint_name == name.substr(6) && index <= std::numeric_limits<uint8_t>::max())
+                                    return pose(static_cast<uint8_t>(index), component, info, frame);
+                            }
+                        }
+                        return GlobalSettings::invalid();
+                    }
                     auto index = Meta::fromStr<uint8_t>(name.substr(5));
                     return pose(index, component, info, frame);
                 } catch(...) {

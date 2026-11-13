@@ -393,9 +393,9 @@ static inline const Deprecations deprecated = Deprecations({
 
 /**
  * Finds all user-defined pose indexes from output fields.
- * This function accepts both the numeric style ("poseX##"/"poseY##") and,
- * if keypoint names are provided, the name style (e.g. "<keypoint_name>_X" / "<keypoint_name>_Y").
- * The numeric style is always checked for backward compatibility.
+ * This function accepts the numeric style ("poseX0", "poseY0", "poseV0") and,
+ * if keypoint names are provided, the name style (e.g. "poseX_head", "poseY_head", "poseV_head").
+ * Numeric fields are recognized regardless of configured keypoint names.
  *
  * @param output_fields The list of existing fields (from SETTING(output_fields)).
  * @return A set of keypoint indexes that the user has defined.
@@ -413,7 +413,10 @@ std::set<uint8_t> find_user_defined_pose_fields(
     
     // Always check for numeric style fields.
     for (const auto& [field_name, transforms] : output_fields) {
-        if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY")) {
+        if (utils::beginsWith(field_name, "poseX") 
+            || utils::beginsWith(field_name, "poseY")
+            || utils::beginsWith(field_name, "poseV")) 
+        {
 #ifndef NDEBUG
             Print("Debug: Processing numeric style field: ", field_name);
 #endif
@@ -439,9 +442,10 @@ std::set<uint8_t> find_user_defined_pose_fields(
             if(detect_keypoint_format.n_points > 0) {
                 for (size_t i = 0; i < detect_keypoint_format.n_points; ++i) {
                     std::string name = names.contains(i) ? names.at(i) : Meta::toStr(i);
-                    std::string expectedX = name + "_X";
-                    std::string expectedY = name + "_Y";
-                    if (field_name == expectedX || field_name == expectedY) {
+                    std::string expectedX = "poseX_" + name;
+                    std::string expectedY = "poseY_" + name;
+                    std::string expectedV = "poseV_" + name;
+                    if (field_name == expectedX || field_name == expectedY || field_name == expectedV) {
 #ifndef NDEBUG
                         Print("Debug: Found user-defined field ", field_name, " corresponding to index ", i);
 #endif
@@ -450,9 +454,10 @@ std::set<uint8_t> find_user_defined_pose_fields(
                 }
             } else {
                 for (auto &[i, name] : names) {
-                    std::string expectedX = name + "_X";
-                    std::string expectedY = name + "_Y";
-                    if (field_name == expectedX || field_name == expectedY) {
+                    std::string expectedX = "poseX_" + name;
+                    std::string expectedY = "poseY_" + name;
+                    std::string expectedV = "poseV_" + name;
+                    if (field_name == expectedX || field_name == expectedY || field_name == expectedV) {
 #ifndef NDEBUG
                         Print("Debug: Found user-defined field ", field_name, " corresponding to index ", i);
 #endif
@@ -469,8 +474,8 @@ std::set<uint8_t> find_user_defined_pose_fields(
 }
 
 /**
- * Generates all auto-detected pose fields using either the provided keypoint names (if any)
- * for the first N keypoints, and default naming ("poseX#/poseY#") for the remaining keypoints.
+ * Generates X/Y/V pose fields using "poseX_<name>", "poseY_<name>", "poseV_<name>"
+ * for named keypoints, and "poseX<index>", "poseY<index>", "poseV<index>" for unnamed keypoints.
  *
  * @return A vector of all possible pose fields.
  */
@@ -505,18 +510,20 @@ std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<s
     
     // For each keypoint index, if a name is provided for that index, use it; otherwise, use default naming.
     for (size_t i = 0; i < detect_keypoint_format.n_points; ++i) {
-        std::string x_field, y_field;
+        std::string x_field, y_field, v_field;
         if (auto name = detect_keypoint_names.name(i);
             name.has_value())
         {
-            x_field = *name + "_X";
-            y_field = *name + "_Y";
+            x_field = "poseX_" + *name;
+            y_field = "poseY_" + *name;
+            v_field = "poseV_" + *name;
 #ifndef NDEBUG
             Print("Debug: Adding auto pose fields for keypoint: ", *name);
 #endif
         } else {
             x_field = "poseX" + Meta::toStr(i);
             y_field = "poseY" + Meta::toStr(i);
+            v_field = "poseV" + Meta::toStr(i);
 #ifndef NDEBUG
             Print("Debug: Adding auto pose fields for index: ", i);
 #endif
@@ -524,6 +531,8 @@ std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<s
         auto_pose_fields.emplace_back(x_field, std::vector<std::string>{"RAW"});
         indexes.push_back(i);
         auto_pose_fields.emplace_back(y_field, std::vector<std::string>{"RAW"});
+        indexes.push_back(i);
+        auto_pose_fields.emplace_back(v_field, std::vector<std::string>{"RAW"});
         indexes.push_back(i);
     }
 
@@ -1112,7 +1121,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you. An explicit absolute `filename` overrides this value.", INIT);
-        CONFIG("output_auto_pose", true, "If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the `output_fields` based on what the keypoint model reports. You can still manually add them if you like.");
+        CONFIG("output_auto_pose", true, "Automatically adds pose coordinate (X/Y) and visibility (V) fields to `output_fields` based on what the keypoint model reports. Generated fields use `poseX_<name>`, `poseY_<name>`, and `poseV_<name>` for named keypoints, or `poseX0`, `poseY0`, and `poseV0` for an unnamed keypoint at index 0 (and similarly for other indices). Set this to false to disable automatic field generation; fields can still be added manually.");
         CONFIG("output_auto_detection_fields", true, "If set to true then this will automatically add fields like `detection_p` to the output files saved by TRex. You can also set this to false and add them manually if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV or NPZ, or shown in the graph. `[['X',[option], ...]]` Exact duplicate field, modifier, and calculation selections are used once; modifier order does not make an otherwise identical selection distinct. CSV always contains exactly one leading `frame` column, regardless of whether `frame` is listed here. NPZ contains one `frame` array when it is configured.");
         CONFIG("tracklet_force_normal_color", true, "If set to true (default) then all images are saved as they appear in the original video. Otherwise, all images are exported according to the individual image settings (as seen in the image settings when an individual is selected) - in which case the background may have been subtracted from the original image and a threshold may have been applied (if `track_threshold` > 0 and `track_background_subtraction` is true).");

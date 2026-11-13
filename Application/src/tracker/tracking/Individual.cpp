@@ -992,8 +992,11 @@ blob::Pose Individual::pose_window(Frame_t start, Frame_t end, Frame_t ref) cons
         auto& ref_pose = collection.at(ref_index);
         for(size_t i=0; i<ref_pose->size(); ++i) {
             auto & pt = ref_pose->point(i);
-            if(not pt.valid())
+            if(not pt.valid()
+               || not pt.visible())
+            {
                 empty_indexes.push_back(i);
+            }
         }
     }
     

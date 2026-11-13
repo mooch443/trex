@@ -363,6 +363,11 @@ struct DrawExportOptions::Data {
                 .short_description = "YOLO keypoint Y coord",
                 .long_description = "This represents the Y-component of a keypoint provided by a YOLO (or similar) network. You can manually add these `poseY[n]` points, or let TRex automatically add them based on network output."
             };
+        } else if(utils::beginsWith(param, "poseV")) {
+            return doc_strings::Description{
+                .short_description = "YOLO keypoint visibility",
+                .long_description = "This represents the visibility of a keypoint provided by a YOLO (or similar) network. You can manually add these `poseV[n]` points, or let TRex automatically add them based on network output."
+            };
         }
         
         return std::nullopt;

@@ -451,9 +451,9 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
                 mask.emplace_back(y, 20 + i, 31 + i);
             blob::Prediction prediction{.clid = 0, .p = 255};
             prediction.pose.points = {
-                {uint16_t(22 + i), 19},
-                {uint16_t(26 + i), 21},
-                {uint16_t(30 + i), 24}
+                {uint16_t(22 + i), 19, true},
+                {uint16_t(26 + i), 21, false},
+                {uint16_t(30 + i), 24, i != 1}
             };
             expected_poses.push_back(prediction.pose);
             PixelArray_t pixels(96);
@@ -556,6 +556,9 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
 
         const auto data_dir = workspace.root / "output" / std::string(load_mode) / kOutputPrefix / "data";
         const auto output_name = "pose_export_" + fish->identity().name();
+        SETTING(detect_keypoint_names) = track::detect::KeypointNames{
+            .names = std::map<size_t, std::string>{{1, "left_eye"}}
+        };
         for(const auto format : {default_config::output_format_t::npz, default_config::output_format_t::csv}) {
             SCOPED_TRACE(format.str());
             SETTING(output_format) = format;
@@ -570,8 +573,8 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
                 ASSERT_TRUE(arrays.contains("frame"));
                 EXPECT_EQ(arrays.at("frame").as_vec<float>(), (std::vector<float>{0, 1, 2}));
                 for(size_t joint = 0; joint < keypoint_format.n_points; ++joint) {
-                    for(const auto component : {'X', 'Y'}) {
-                        const auto field = std::string("pose") + component + std::to_string(joint);
+                    for(const auto component : {'X', 'Y', 'V'}) {
+                        const auto field = std::string("pose") + component + (joint == 1 ? "_left_eye" : std::to_string(joint));
                         SCOPED_TRACE(field);
                         ASSERT_TRUE(arrays.contains(field));
                         const auto& array = arrays.at(field);
@@ -580,7 +583,7 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
                         const auto values = array.as_vec<float>();
                         for(size_t i = 0; i < frame_count; ++i) {
                             const auto& point = expected_poses[i].points[joint];
-                            EXPECT_FLOAT_EQ(values[i], component == 'X' ? point.x : point.y);
+                            EXPECT_FLOAT_EQ(values[i], component == 'X' ? point.x() : (component == 'Y' ? point.y() : point.visible()));
                         }
                     }
                 }
@@ -593,8 +596,8 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
                 ASSERT_EQ(header.front(), "frame");
                 std::vector<size_t> pose_columns;
                 for(size_t joint = 0; joint < keypoint_format.n_points; ++joint) {
-                    for(const auto component : {'X', 'Y'}) {
-                        const auto field = std::string("pose") + component + std::to_string(joint);
+                    for(const auto component : {'X', 'Y', 'V'}) {
+                        const auto field = std::string("pose") + component + (joint == 1 ? "_left_eye" : std::to_string(joint));
                         ASSERT_EQ(std::count(header.begin(), header.end(), field), 1) << field;
                         pose_columns.push_back(std::distance(header.begin(), std::find(header.begin(), header.end(), field)));
                     }
@@ -606,8 +609,9 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
                     EXPECT_EQ(parse_number(row.front()), std::optional<double>(i));
                     for(size_t joint = 0; joint < keypoint_format.n_points; ++joint) {
                         const auto& point = expected_poses[i].points[joint];
-                        EXPECT_EQ(parse_number(row[pose_columns[joint * 2]]), std::optional<double>(point.x));
-                        EXPECT_EQ(parse_number(row[pose_columns[joint * 2 + 1]]), std::optional<double>(point.y));
+                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3]]), std::optional<double>(point.x()));
+                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3 + 1]]), std::optional<double>(point.y()));
+                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3 + 2]]), std::optional<double>(point.visible() ? 1 : 0));
                     }
                 }
                 while(std::getline(input, line))

@@ -234,7 +234,8 @@ namespace tags {
 
     void write(Data& data) {
         std::shared_lock guard(grid_mutex);
-        Print("Writing ", assignments.size(), " tags to file...");
+        if(assignments.size() > 0)
+            prefixed_print("results", "Writing ", assignments.size(), " tags to file...");
 
         uint64_t counter = sizeof(uint32_t);
         for(const auto &[id, tag] : assignments) {
@@ -242,7 +243,7 @@ namespace tags {
                 + tag.detections.size() * (sizeof(uint32_t) * 2 + sizeof(float));
         }
         
-        Print("tags take up ", FileSize{counter});
+        //Print("tags take up ", FileSize{counter});
         
         DataPackage package(counter);
         package.write<uint32_t>(narrow_cast<uint32_t>(assignments.size()));
@@ -288,7 +289,7 @@ namespace tags {
         }
         
         if(N>0)
-            Print("Read ", N, " tags.");
+            prefixed_print("results", "Read ", N, " tags.");
     }
 
     Assignment find(Frame_t frame, pv::bid bdx) {

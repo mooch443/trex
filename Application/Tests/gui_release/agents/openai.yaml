@@ -1,0 +1,4 @@
+interface:
+  display_name: "TRex GUI release tests"
+  short_description: "Test a prepared TRex build through its real window"
+  default_prompt: "Use $trex-gui-release-tests to run the real-window release suite against the Conda-built TRex executable I provide."

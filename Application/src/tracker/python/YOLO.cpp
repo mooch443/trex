@@ -218,11 +218,15 @@ void YOLO::deinit() {
         {
             std::unique_lock guard(running_mutex);
             if(running_prediction.valid()) {
+#ifndef NDEBUG
                 Print("[shutdown-trace] YOLO::deinit entering active-prediction wait. python_initialized=",
                       Python::python_initialized());
                 Print("Still have an active prediction running, waiting...");
+#endif
                 running_prediction.get();
+#ifndef NDEBUG
                 Print("Got it.");
+#endif
             }
             running_promise = {};
             running_prediction = {};

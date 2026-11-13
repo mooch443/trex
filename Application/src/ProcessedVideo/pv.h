@@ -419,7 +419,7 @@ namespace pv {
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
         std::string get_info(bool full = true);
         std::string get_info_rich_text(bool full = true);
-        void print_info() { Print(get_info().c_str()); }
+        void print_info() { NoNLPrint(get_info().c_str(),"\n"); }
         
         virtual CropOffsets crop_offsets() const override {
             std::unique_lock lock(_lock);

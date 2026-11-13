@@ -25,15 +25,15 @@ std::string convertBoxToYoloFormat(const Annotation& anno, const Size2& imgSize)
     assert(imgSize.width > 0 && imgSize.height > 0 && "Image size must be positive");
 
     // Exception for user error (invalid data)
-    if (anno.points[0].x < 0 || anno.points[0].y < 0 || anno.points[1].x > imgSize.width || anno.points[1].y > imgSize.height) {
+    if (anno.points[1].x() > imgSize.width || anno.points[1].y() > imgSize.height) {
         throw InvalidArgumentException("Box coordinates out of image bounds");
     }
 
     // Normalizing points to range [0, 1]
-    float cx = (anno.points[0].x + anno.points[1].x) / 2 / imgSize.width;
-    float cy = (anno.points[0].y + anno.points[1].y) / 2 / imgSize.height;
-    float width = std::abs(anno.points[1].x - anno.points[0].x) / imgSize.width;
-    float height = std::abs(anno.points[1].y - anno.points[0].y) / imgSize.height;
+    float cx = (anno.points[0].x() + anno.points[1].x()) / 2 / imgSize.width;
+    float cy = (anno.points[0].y() + anno.points[1].y()) / 2 / imgSize.height;
+    float width = std::abs(anno.points[1].x() - anno.points[0].x()) / imgSize.width;
+    float height = std::abs(anno.points[1].y() - anno.points[0].y()) / imgSize.height;
 
     return Meta::toStr(anno.clid) + " " + Meta::toStr(cx) + " " + Meta::toStr(cy) + " " + Meta::toStr(width) + " " + Meta::toStr(height);
 }
@@ -45,16 +45,16 @@ std::string convertPoseToYoloFormat(const Annotation& anno, const Size2& imgSize
     assert(imgSize.width > 0 && imgSize.height > 0 && "Image size must be positive");
 
     // Calculate bounding box
-    uint16_t minX = anno.points[0].x, maxX = anno.points[0].x;
-    uint16_t minY = anno.points[0].y, maxY = anno.points[0].y;
+    uint16_t minX = anno.points[0].x(), maxX = anno.points[0].x();
+    uint16_t minY = anno.points[0].y(), maxY = anno.points[0].y();
     for (const auto& point : anno.points) {
-        minX = std::min(minX, point.x);
-        maxX = std::max(maxX, point.x);
-        minY = std::min(minY, point.y);
-        maxY = std::max(maxY, point.y);
+        minX = std::min(minX, point.x());
+        maxX = std::max(maxX, point.x());
+        minY = std::min(minY, point.y());
+        maxY = std::max(maxY, point.y());
 
         // Exception for user error (invalid data)
-        if (point.x < 0 || point.x > imgSize.width || point.y < 0 || point.y > imgSize.height) {
+        if (point.x() >= imgSize.width || point.y() >= imgSize.height) {
             throw InvalidArgumentException("Pose point out of image bounds");
         }
     }
@@ -66,9 +66,10 @@ std::string convertPoseToYoloFormat(const Annotation& anno, const Size2& imgSize
 
     std::string output = Meta::toStr(anno.clid) + " " + Meta::toStr(cx) + " " + Meta::toStr(cy) + " " + Meta::toStr(width) + " " + Meta::toStr(height);
     for (const auto& point : anno.points) {
-        float normalized_x = point.x / imgSize.width;
-        float normalized_y = point.y / imgSize.height;
-        output += " " + Meta::toStr(normalized_x) + " " + Meta::toStr(normalized_y);
+        float normalized_x = point.x() / imgSize.width;
+        float normalized_y = point.y() / imgSize.height;
+        output += " " + Meta::toStr(normalized_x) + " " + Meta::toStr(normalized_y)
+                + (point.valid() ? (point.visible() ? " 2" : " 1") : " 0");
     }
     return output;
 }
@@ -84,12 +85,12 @@ std::string convertSegmentationToYoloFormat(const Annotation& anno, const Size2&
     // Iterate through points to construct the bounding polygon
     for (const auto& point : anno.points) {
         // Exception for user error (invalid data)
-        if (point.x < 0 || point.x > imgSize.width || point.y < 0 || point.y > imgSize.height) {
+        if (point.x() > imgSize.width || point.y() > imgSize.height) {
             throw InvalidArgumentException("Segmentation point out of image bounds");
         }
 
-        float normalized_x = point.x / imgSize.width;
-        float normalized_y = point.y / imgSize.height;
+        float normalized_x = point.x() / imgSize.width;
+        float normalized_y = point.y() / imgSize.height;
         output += " " + Meta::toStr(normalized_x) + " " + Meta::toStr(normalized_y);
     }
 
@@ -381,7 +382,7 @@ void DetectAnnotationScene::_draw(DrawStructure& graph) {
                                     map["index"] = index;
                                     map["type"] = (int)ann.type;
                                     
-                                    std::vector<Vec2> pts(ann.points.begin(), ann.points.end());
+                                    std::vector<Pose::Point> pts(ann.points.begin(), ann.points.end());
                                     map["points"] = pts;
                                     if(anns.size() < data.size())
                                         anns.emplace_back(new Variable([index, &data](const VarProps&) -> auto& {
@@ -432,7 +433,8 @@ void DetectAnnotationScene::_draw(DrawStructure& graph) {
                 
                 auto coords = FindCoord::get();
                 for(auto &pt : points)
-                    pt = coords.convert(BowlCoord(pt));
+                    if(pt.valid())
+                        pt = Pose::Point(coords.convert(BowlCoord(pt)), pt.visible());
                 
                 Pose pose{
                     .points = std::move(points)
@@ -511,7 +513,8 @@ void DetectAnnotationScene::_draw(DrawStructure& graph) {
                     
                     auto coords = FindCoord::get();
                     for(auto &pt : points)
-                        pt = coords.convert(BowlCoord(pt));
+                        if(pt.valid())
+                            pt = Pose::Point(coords.convert(BowlCoord(pt)), pt.visible());
                     
                     Print("Setting skelett to ", points);
                     Pose pose{

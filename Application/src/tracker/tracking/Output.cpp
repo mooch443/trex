@@ -96,11 +96,12 @@ void Output::ResultsFormat::read_prediction(Data& ref, blob::Prediction& pred) c
     /// read pose
     pred.pose = {};
     ref.read<uint8_t>(N);
+    pred.pose.points.reserve(N);
     for(uint8_t i = 0; i<N; ++i) {
         uint16_t x, y;
         ref.read<uint16_t>(x);
         ref.read<uint16_t>(y);
-        pred.pose.points.emplace_back(x, y);
+        pred.pose.points.push_back(blob::Pose::Point::from_raw(x,y));
     }
     
     /// read outlines
@@ -142,8 +143,8 @@ uint64_t write_prediction(Data& ref, const blob::Prediction& pred) {
     
     ref.write<uint8_t>(narrow_cast<uint8_t>(pred.pose.points.size(), tag::fail_on_error{}));
     for(auto &pt : pred.pose.points) {
-        ref.write<uint16_t>(pt.x);
-        ref.write<uint16_t>(pt.y);
+        ref.write<uint16_t>(pt._x);
+        ref.write<uint16_t>(pt._y);
     }
     
     if(pred.outlines.lines.size() >= 255) {
@@ -1208,7 +1209,7 @@ uint64_t Data::write(const Individual& val) {
             auto before = Meta::toStr(FileSize(in_len));
             auto after = Meta::toStr(FileSize(size));
             
-            Print("Saved ", dec<2>(double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100),"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
+            prefixed_print("results", "Saved ", dec<2>(double(ptr->_N_written.load() + 1) / double(ptr->_expected_individuals.load()) * 100),"%... (individual ", val.identity().ID()," compressed from ", before.c_str()," to ", after.c_str(),").");
         }
     
     } else {
@@ -1355,8 +1356,8 @@ namespace Output {
         
         if(!GlobalSettings::is_runtime_quiet()) {
             DebugHeader("READING PROGRAM STATE");
-            Print("Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time.to_date_string()," has_categories:", _header.has_categories, " recognition:", _header.rec_data.size(), ")");
-            Print("Generated with command-line: ",_header.cmd_line);
+            prefixed_print("results", "Read head of ",filename()," (version:V_",(int)_header.version+1," gui_frame:",_header.gui_frame," analysis_range:",_header.analysis_range.start,"-",_header.analysis_range.end," created at ",_header.creation_time.to_date_string()," has_categories:", _header.has_categories, " recognition:", _header.rec_data.size(), ")");
+            prefixed_print("results", "Generated with command-line: ",_header.cmd_line);
         }
     }
     
@@ -1366,10 +1367,6 @@ namespace Output {
         
         std::string version_string = "TRACK"+std::to_string((int)Versions::current);
         write<std::string>(version_string);
-        if(!GlobalSettings::is_runtime_quiet()) {
-            Print("Writing version string ",version_string);
-            Print("Writing frame ", _header.gui_frame);
-        }
         write<uint64_t>(_header.gui_frame);
         auto consecutive = _tracker->frames().read([](auto data){ return data.consec; });
         write<uint32_t>((uint32_t)consecutive.size());
@@ -1476,7 +1473,7 @@ namespace Output {
         
         const bool quiet = GlobalSettings::is_runtime_quiet();
         if(!quiet) {
-            Print("Estimating ", FileSize(estimated_size)," for the whole file.");
+            prefixed_print("results", "Estimating ", FileSize(estimated_size)," for the whole file.");
         }
         
         start_writing(true);
@@ -1484,7 +1481,7 @@ namespace Output {
         // write frame properties
         write<uint64_t>(frames.size());
         if(!quiet)
-            Print("Writing ", frames.size()," frames");
+            prefixed_print("results", "Writing ", frames.size()," frames");
         frames.read([this](auto access){
             for (auto &p : access.raw)
                 write<track::FrameProperties>(*p);
@@ -1572,7 +1569,7 @@ namespace Output {
         bytes_per_second = samples = percent_read = 0;
         
         if(!GlobalSettings::is_runtime_quiet())
-            Print("Trying to open results ",filename.str()," (retrieve header only)");
+            prefixed_print("results", "Trying to open results ",filename.str()," (retrieve header only)");
         ResultsFormat file(nullptr, filename.str(), [](const auto&, auto, const auto&){});
         file.start_reading();
         /// we will for sure read this sequentially
@@ -1673,13 +1670,13 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
                 FormatWarning("Not loading from the output folder, but from the input folder because ", filename," could not be found, but ",file," could.");
                 filename = file;
             } else
-                Print("Searched at ",file,", but also couldnt be found.");
+                prefixed_print("results", "Searched at ",file,", but also couldnt be found.");
         }
         
         bytes_per_second = samples = percent_read = 0;
         
         if(!GlobalSettings::is_runtime_quiet())
-            Print("Trying to open results ",filename.str());
+            prefixed_print("results", "Trying to open results ",filename.str());
         ResultsFormat file(_tracker, filename.str(), update_progress);
         
         clean_up();
@@ -1876,7 +1873,7 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             _tracker->_add_frame_callbacks.callAll(_tracker->frames().end_frame());
         
         if(!GlobalSettings::is_runtime_quiet()) {
-            Print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",_tracker->frames().start_frame(),"u end:",_tracker->frames().end_frame(),"u)");
+            prefixed_print("results", "Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",_tracker->frames().start_frame(),"u end:",_tracker->frames().end_frame(),"u)");
         
             DurationUS duration{uint64_t(loading_timer.elapsed() * 1000 * 1000)};
             DebugHeader("FINISHED READING PROGRAM STATE IN ", duration);

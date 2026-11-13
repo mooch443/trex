@@ -111,7 +111,8 @@ namespace default_config {
     using TRexTask = TRexTask_t::Class;
 
 /**
- * Finds all numeric pose indexes from user-defined "poseX##" / "poseY##" fields in the given output fields.
+ * Finds keypoint indexes from user-defined X/Y/V pose fields, using numeric names
+ * ("poseX0", "poseY0", "poseV0") or configured names ("poseX_head", "poseY_head", "poseV_head").
  *
  * @param output_fields The list of existing fields, e.g. from SETTING(output_fields).
  * @return A set of numeric indexes that the user has added.
@@ -119,19 +120,18 @@ namespace default_config {
 std::set<uint8_t> find_user_defined_pose_fields(const std::vector<std::pair<std::string, std::vector<std::string>>>& output_fields);
 
 /**
- * Generates all auto-detected pose fields using either the provided keypoint names (if any)
- * for the first N keypoints, and default naming ("poseX#/poseY#") for the remaining keypoints.
+ * Generates X/Y/V pose fields using "poseX_<name>", "poseY_<name>", "poseV_<name>"
+ * for named keypoints, and "poseX<index>", "poseY<index>", "poseV<index>" for unnamed keypoints.
  *
  * @return A vector of all possible pose fields.
  */
 std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<std::string>>>> list_auto_pose_fields();
 
 /**
- * Given a list of user-defined pose indexes (e.g. from find_user_defined_pose_fields()),
- * returns only the "missing" fields that the user has NOT defined, from the full
- * list of automatically generated fields (from list_auto_pose_fields()).
+ * Returns auto-generated pose fields for keypoint indexes that have no manually
+ * defined pose component in the current output_fields setting.
  *
- * @return A vector of newly needed poseX/poseY fields.
+ * @return A vector of newly needed X/Y/V pose fields.
  */
 std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_fields();
 

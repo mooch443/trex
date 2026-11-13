@@ -737,12 +737,16 @@ std::optional<Frame_t> to_annotation_frame(Frame_t source, const ImportOptions& 
     return frame;
 }
 
-Annotation::Point_t point_from_normalized(double x, double y, const Size2& size) {
+Annotation::Point_t point_from_normalized(double x, double y, const Size2& size, bool visible = true, bool pixel = false) {
     if(round(x * size.width) <= -1 || round(y * size.height) <= -1 || round(x * size.width) > size.width || round(y * size.height) > size.height)
         FormatWarning("Normalized point [", round(x * size.width), ", ", round(y * size.height), "] is outside ", size,".");
     const auto px = saturate(std::round(x * size.width), 0.0, (double)size.width);
     const auto py = saturate(std::round(y * size.height), 0.0, (double)size.height);
-    return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py));
+    if(pixel && (px >= size.width || py >= size.height))
+        throw InvalidArgumentException("Pixel point [", px, ", ", py, "] is outside ", size, ".");
+    if(px > 0x7FFF)
+        throw InvalidArgumentException("Annotation x coordinate ", px, " exceeds the supported range 0-32767.");
+    return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py), visible);
 }
 
 Annotation parse_label_row(const std::string& row, const DatasetConfig& config, const Size2& video_size, Task& row_task, std::map<int, float>& point_radii) {
@@ -775,7 +779,7 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
             throw InvalidArgumentException("POINT coordinates must be normalized to [0,1].");
         add_point_radius(point_radii, annotation.clid, values[1]);
         annotation.type = AnnotationType::POINT;
-        annotation.points = {point_from_normalized(values[2], values[3], video_size)};
+        annotation.points = {point_from_normalized(values[2], values[3], video_size, true, true)};
         row_task = task_t::points;
         return annotation;
     }
@@ -807,7 +811,7 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
             const double x = values.at(offset);
             const double y = values.at(offset + 1);
             const double v = pose_dims == 3 ? values.at(offset + 2) : 2.0;
-            annotation.points.push_back(v <= 0 ? Annotation::Point_t{} : point_from_normalized(x, y, video_size));
+            annotation.points.push_back(v <= 0 ? Annotation::Point_t{} : point_from_normalized(x, y, video_size, v > 1, true));
             offset += pose_dims;
         }
         return annotation;
@@ -964,7 +968,7 @@ std::vector<blob::Pose::Skeleton::Connection> coco_skeleton_connections(const gl
     return connections;
 }
 
-Annotation::Point_t point_from_coco_absolute(double x, double y, const Size2& image_size) {
+Annotation::Point_t point_from_coco_absolute(double x, double y, const Size2& image_size, bool visible = true, bool pixel = false) {
     if(!std::isfinite(image_size.width) || !std::isfinite(image_size.height)
        || image_size.width <= 0 || image_size.height <= 0)
         throw InvalidArgumentException("COCO image size must be positive, got ", image_size, ".");
@@ -975,7 +979,11 @@ Annotation::Point_t point_from_coco_absolute(double x, double y, const Size2& im
     // COCO stores keypoints, segmentations, and bboxes as absolute pixels.
     const auto px = saturate(std::round(x), 0.0, double(std::numeric_limits<uint16_t>::max()));
     const auto py = saturate(std::round(y), 0.0, double(std::numeric_limits<uint16_t>::max()));
-    return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py));
+    if(pixel && (px >= image_size.width || py >= image_size.height))
+        throw InvalidArgumentException("COCO pixel point [", px, ", ", py, "] is outside ", image_size, ".");
+    if(px > 0x7FFF)
+        throw InvalidArgumentException("Annotation x coordinate ", px, " exceeds the supported range 0-32767.");
+    return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py), visible);
 }
 
 Annotation coco_bbox_annotation(uint8_t clid, const std::vector<double>& bbox, const Size2& image_size) {
@@ -1042,7 +1050,7 @@ std::optional<std::vector<Annotation::Point_t>> coco_keypoints(const glz::generi
     for(size_t i = 0; i + 2 < values.size(); i += 3) {
         const double v = values.at(i + 2);
         has_visible = has_visible || v > 0;
-        points.push_back(v <= 0 ? Annotation::Point_t{} : point_from_coco_absolute(values.at(i), values.at(i + 1), image_size));
+        points.push_back(v <= 0 ? Annotation::Point_t{} : point_from_coco_absolute(values.at(i), values.at(i + 1), image_size, v > 1, true));
     }
     if(!has_visible)
         return std::nullopt;
@@ -1430,12 +1438,12 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
                     } else if(type == "point") {
                         auto keypoints = object_value(object, "keypoints");
                         if(!keypoints)
-                            throw InvalidArgumentException(context, " POINT requires one visible keypoint.");
+                            throw InvalidArgumentException(context, " POINT requires one labeled keypoint.");
                         auto values = json_number_array(*keypoints, context + " POINT keypoints");
                         if(values.size() != 3 || !std::isfinite(values[2]) || (values[2] != 1 && values[2] != 2))
-                            throw InvalidArgumentException(context, " POINT requires exactly one visible x/y/visibility triple.");
+                            throw InvalidArgumentException(context, " POINT requires exactly one labeled x/y/visibility triple.");
                         annotation.type = AnnotationType::POINT;
-                        annotation.points = {point_from_coco_absolute(values[0], values[1], image_size)};
+                        annotation.points = {point_from_coco_absolute(values[0], values[1], image_size, values[2] > 1, true)};
                         preview.task = combine_task(preview.task, task_t::points);
                     } else {
                         throw InvalidArgumentException(context, " has unsupported trex_annotation_type ", type, ".");

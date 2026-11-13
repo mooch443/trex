@@ -147,7 +147,6 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
 }
 
 TrackingState::~TrackingState() {
-    Print("Preparing for shutdown...");
 #if !COMMONS_NO_PYTHON
     CheckUpdates::cleanup();
     Categorize::terminate();
@@ -177,7 +176,7 @@ TrackingState::~TrackingState() {
         if(auto count = ptr.use_count();
            count > 0)
         {
-            Print("Still waiting for ", count, " token uses...");
+            FormatWarning("Still waiting for ", count, " token uses...");
         } else
             break;
     }
@@ -212,7 +211,7 @@ bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
         ptr->set_loading_time(timer.elapsed());
     }
     catch (const std::exception& e) {
-        Print("Error while preprocessing frame ", idx, ": ", e.what());
+        FormatError("Error while preprocessing frame ", idx, ": ", e.what());
         return false;
     }
 

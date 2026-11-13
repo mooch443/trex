@@ -32,23 +32,41 @@ void Skelett::update() {
             auto& bone = _pose.points.at(i);
             auto& circle = _circles.at(i);
             
-            if (bone.valid()) {
-                if(not circle)
-                    circle = new Circle{};
+            if (bone.valid())
+            {
+                bool hovered{false};
                 
-                circle->create(Loc{ bone },
-                               LineClr{ _color },
-                               Radius{ 5 },
-                               FillClr{ _color.alpha(75) },
-                               min(Scale{1}, sca),
-                               PointerEvents{pointer::Events::Hover},
-                               Clickable{false});
-                advance_wrap(*circle);
-                
-                auto hovered = circle->hovered();
-                if(hovered) {
-                    circle->set(FillClr{_color.alpha(150)});
-                    circle->set(LineClr{White.alpha(150)});
+                if(bone.visible()) {
+                    if(not circle)
+                        circle = new Circle{};
+                    
+                    circle->create(Loc{ bone },
+                                   LineClr{ _color },
+                                   Radius{ 5 },
+                                   FillClr{ _color.alpha(75) },
+                                   min(Scale{1}, sca),
+                                   PointerEvents{pointer::Events::Hover},
+                                   Clickable{false});
+                    advance_wrap(*circle);
+                    
+                    hovered = circle->hovered();
+                    if(hovered) {
+                        circle->set(FillClr{_color.alpha(150)});
+                        circle->set(LineClr{White.alpha(150)});
+                    }
+                    
+                } else {
+                    if(not circle)
+                        circle = new Circle{};
+                    
+                    circle->create(Loc{ bone },
+                                   LineClr{ _color },
+                                   Radius{ 5 },
+                                   FillClr{ Gray.alpha(75) },
+                                   min(Scale{1}, sca),
+                                   //PointerEvents{pointer::Events::Hover},
+                                   Clickable{false});
+                    advance_wrap(*circle);
                 }
                 
                 if(_show_text || hovered) {

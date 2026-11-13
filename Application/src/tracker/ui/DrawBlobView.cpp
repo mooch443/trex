@@ -1644,10 +1644,10 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                     auto get_bounds_of = [](auto&& points) -> std::optional<Bounds> {
                                         Bounds bds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
                                         for(auto& pt : points) {
-                                            if(pt.x < bds.x) bds.x = pt.x;
-                                            if(pt.y < bds.y) bds.y = pt.y;
-                                            if(pt.x > bds.width) bds.width = pt.x;
-                                            if(pt.y > bds.height) bds.height = pt.y;
+                                            if(pt.x() < bds.x) bds.x = pt.x();
+                                            if(pt.y() < bds.y) bds.y = pt.y();
+                                            if(pt.x() > bds.width) bds.width = pt.x();
+                                            if(pt.y() > bds.height) bds.height = pt.y();
                                         }
                                         if(bds.x == FLT_MAX)
                                             return std::nullopt;
@@ -1655,11 +1655,15 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                     };
                                     
                                     auto box = get_bounds_of(points);
+                                    if(not box) {
+                                        FormatWarning("Empty points array.");
+                                        return;
+                                    }
                                     points = {
-                                        Point(clamp_cast<uint16_t>(box->x), clamp_cast<uint16_t>(box->y)),
-                                        Point(clamp_cast<uint16_t>(box->x + box->width), clamp_cast<uint16_t>(box->y)),
-                                        Point(clamp_cast<uint16_t>(box->x + box->width), clamp_cast<uint16_t>(box->y + box->height)),
-                                        Point(clamp_cast<uint16_t>(box->x), clamp_cast<uint16_t>(box->y + box->height))
+                                        Point(clamp_cast<uint16_t>(box->x), clamp_cast<uint16_t>(box->y), true),
+                                        Point(clamp_cast<uint16_t>(box->x + box->width), clamp_cast<uint16_t>(box->y), true),
+                                        Point(clamp_cast<uint16_t>(box->x + box->width), clamp_cast<uint16_t>(box->y + box->height), true),
+                                        Point(clamp_cast<uint16_t>(box->x), clamp_cast<uint16_t>(box->y + box->height), true)
                                     };
                                     
                                     Annotation annotation{
@@ -1709,28 +1713,33 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                     
                                 } else if(is_in(format, ObjectDetectionFormat::obb)) {
                                     std::vector<cv::Point2f> converted;
-                                    for(auto &pt : points)
-                                        converted.emplace_back(pt.x, pt.y);
+                                    for(auto &pt : points) {
+                                        converted.emplace_back(pt.x(), pt.y());
+                                    }
                                     
-                                    auto rotated_rect = cv::minAreaRect(converted);
-                                    cv::Point2f vertices[4];
-                                    rotated_rect.points(vertices);
-                                    
-                                    points = {
-                                        Point(clamp_cast<uint16_t>(vertices[0].x), clamp_cast<uint16_t>(vertices[0].y)),
-                                        Point(clamp_cast<uint16_t>(vertices[1].x), clamp_cast<uint16_t>(vertices[1].y)),
-                                        Point(clamp_cast<uint16_t>(vertices[2].x), clamp_cast<uint16_t>(vertices[2].y)),
-                                        Point(clamp_cast<uint16_t>(vertices[3].x), clamp_cast<uint16_t>(vertices[3].y))
-                                    };
-                                    
-                                    Annotation annotation{
-                                        .uid = uint8_t(field.size()),
-                                        .clid = uint8_t(id),
-                                        .type = AnnotationType::OBB,
-                                        .points = std::move(points)
-                                    };
-                                    Print("Adding points ", _current_boundary, " to ", format," annotations of type ",id," => ", annotation);
-                                    field.push_back(std::move(annotation));
+                                    if(not converted.empty()) {
+                                        auto rotated_rect = cv::minAreaRect(converted);
+                                        cv::Point2f vertices[4];
+                                        rotated_rect.points(vertices);
+                                        
+                                        points = {
+                                            Point(clamp_cast<uint16_t>(vertices[0].x), clamp_cast<uint16_t>(vertices[0].y), true),
+                                            Point(clamp_cast<uint16_t>(vertices[1].x), clamp_cast<uint16_t>(vertices[1].y), true),
+                                            Point(clamp_cast<uint16_t>(vertices[2].x), clamp_cast<uint16_t>(vertices[2].y), true),
+                                            Point(clamp_cast<uint16_t>(vertices[3].x), clamp_cast<uint16_t>(vertices[3].y), true)
+                                        };
+                                        
+                                        Annotation annotation{
+                                            .uid = uint8_t(field.size()),
+                                            .clid = uint8_t(id),
+                                            .type = AnnotationType::OBB,
+                                            .points = std::move(points)
+                                        };
+                                        Print("Adding points ", _current_boundary, " to ", format," annotations of type ",id," => ", annotation);
+                                        field.push_back(std::move(annotation));
+                                    } else {
+                                        FormatWarning("Empty points array.");
+                                    }
                                     
                                 } else {
                                     Annotation annotation{

@@ -680,8 +680,6 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("track", [this](auto){
-                        DebugHeader("Tracking ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
-                        
                         WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() mutable
                         {
                             auto [before, defaults] = GlobalSettings::read([](const Configuration& config){
@@ -732,6 +730,9 @@ struct SettingsScene::Data {
                                 SceneManager::enqueue([open_file, fname, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](auto,DrawStructure& graph)
                                                                     {
                                     graph.dialog([open_file, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](Dialog::Result result) mutable {
+                                        if(is_in(result, Dialog::Result::OKAY, Dialog::Result::SECOND)) {
+                                            DebugHeader("Tracking ", no_quotes(utils::ShortenText(READ_SETTING_WITH_DEFAULT(source, file::PathArray{}).toStr(), 1000)));
+                                        }
                                         if(result == Dialog::Result::OKAY) {
                                             /// load results
                                             TrackingScene::request_load();

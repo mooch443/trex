@@ -722,7 +722,9 @@ void ConvertScene::Data::drawBlobs(
                 };
                 if (pred.pose.size() > 0) {
                     auto& pt = pred.pose.point(0);
-                    if(pt.x > 0 || pt.y > 0) {
+                    if(pt.valid()
+                        && pt.visible()) 
+                    {
                         first_pose = coords.convert(BowlCoord(pt));
                     }
                     

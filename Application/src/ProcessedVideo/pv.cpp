@@ -30,8 +30,8 @@ template<> void Data::read(blob::Prediction& pred) {
         //Print("pose::N = ", N / 2u);
         pred.pose.points.resize(N / 2u);
         for(size_t i=0; i<N / 2u; i++) {
-            read<uint16_t>(pred.pose.points[i].x);
-            read<uint16_t>(pred.pose.points[i].y);
+            read<uint16_t>(pred.pose.points[i]._x);
+            read<uint16_t>(pred.pose.points[i]._y);
         }
         
         if(version >= pv::Version::V_11) {
@@ -78,8 +78,8 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
     
     write<uint8_t>(narrow_cast<uint8_t>(val.pose.size() * 2, tag::fail_on_error{}));
     for(auto &pt : val.pose.points) {
-        write<uint16_t>(pt.x);
-        write<uint16_t>(pt.y);
+        write<uint16_t>(pt._x);
+        write<uint16_t>(pt._y);
     }
     
     write<uint8_t>(val.outlines.lines.size());
@@ -782,7 +782,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
 
             }
             else {
-                Print("Compression of ",pack.size()," bytes failed.");
+                FormatWarning("Compression of ",pack.size()," bytes failed.");
             }
         }
     }
@@ -1050,7 +1050,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                         meta_real_width = 30;
                     
                     Float2_t cm_per_pixel = meta_real_width / resolution.width;
-                    Print("Missing the `cm_per_pixel` key, adding it based on ", meta_real_width, " and ", resolution, " => ", cm_per_pixel);
+                    prefixed_print("pv", "Missing the `cm_per_pixel` key, adding it based on ", meta_real_width, " and ", resolution, " => ", cm_per_pixel);
                     map["cm_per_pixel"] = cm_per_pixel;
                 }
                 
@@ -1190,7 +1190,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         if(mask) {
             ref.write(uint64_t(mask->size()));
             ref.write_data(mask->size(), (char*)mask->data());
-            Print("Written mask with ", mask->cols,"x",mask->rows);
+            prefixed_print("pv", "Written mask with ", mask->cols,"x",mask->rows);
         }
         else {
             ref.write(uint64_t(0));
@@ -1222,7 +1222,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         assert(index_offset == ref.tell());
         
         if(not READ_SETTING_WITH_DEFAULT(quiet, false))
-            Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
+            prefixed_print("pv", "Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
         //Print("Index table (",index_table.size(),"): ", index_table);
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
@@ -1255,7 +1255,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         }
         
         if(not READ_SETTING_WITH_DEFAULT(quiet, false))
-            Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+            prefixed_print("pv", "Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
         
         ref.truncate();
     }
@@ -1302,6 +1302,8 @@ Frame_t File::length() const {
         auto str = get_info_rich_text(full);
         str = utils::find_replace(str, "<b>", "");
         str = utils::find_replace(str, "</b>", "");
+        str = utils::find_replace(str, "<str>", "");
+        str = utils::find_replace(str, "</str>", "");
         return str;
     }
     
@@ -1382,12 +1384,13 @@ Frame_t File::length() const {
             ss << "N/A" << std::endl;
         }
 
-        ss << "<b>Video source:</b> ";
+        ss << "<b>Video source:</b> <str>";
         if (_header.source.has_value()) {
             ss << utils::ShortenText(_header.source.value(), 1000) << std::endl;
         } else {
             ss << "unknown" << std::endl;
         }
+        ss << "</str>";
         
         ss << "<b>Framerate:</b> " << std::setw(0) << framerate() << "fps (" << float(_header.average_tdelta) / 1000.f << "ms)";
         
@@ -1721,7 +1724,7 @@ void File::stop_modifying() {
     }
 
     void fix_file(File& file) {
-        Print("Starting file copy and fix (",file.filename(),")...");
+        prefixed_print("pv", "Starting file copy and fix (",file.filename(),")...");
         
         auto copy = File::Write<FileMode::WRITE | FileMode::OVERWRITE>(
             (std::string)file.filename()+"_fix",
@@ -1759,11 +1762,11 @@ void File::stop_modifying() {
                 try {
                     frame.read_from(file, idx, file.header().encoding);
                 } catch(...) {
-                    Print("Could not read past ", idx,".");
+                    prefixed_print("pv", "Could not read past ", idx,".");
                     break;
                 }
                 
-                Print(frame);
+                //Print(frame);
                 
                 if (raw_prev_timestamp.valid()
                     && frame.timestamp() < raw_prev_timestamp)
@@ -1787,7 +1790,7 @@ void File::stop_modifying() {
                 copy.add_individual(std::move(frame));
                 
                 if (idx.get() % 1000 == 0) {
-                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                    prefixed_print("pv", "Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
                 }
             }
             
@@ -1816,14 +1819,14 @@ void File::stop_modifying() {
                 copy.add_individual(std::move(frame));
                 
                 if (idx.get() % 1000 == 0) {
-                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                    prefixed_print("pv", "Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
                 }
             }
         }
         
         copy.close();
         
-        Print("Written fixed file.");
+        prefixed_print("pv", "Written fixed file.");
     }
     
     void File::try_compress() {
@@ -1856,13 +1859,11 @@ void File::stop_modifying() {
             copy.add_individual(std::move(frame));
             
             if (i.get() % 1000 == 0) {
-                Print("Frame ", i," / ",length(),"...");
+                prefixed_print("pv", "Frame ", i," / ",length(),"...");
             }
         }
         
         copy.stop_writing();
-        
-        Print("Written");
         
         {
             print_info();
@@ -1882,7 +1883,7 @@ void File::stop_modifying() {
             throw U_EXCEPTION("Must be open for writing.");
     
         if(_header.metadata.has_value()) {
-            Print("Updating metadata...");
+            prefixed_print("pv", "Updating metadata...");
             //auto metadata = _header.generate_metadata();
             write(_header.metadata.value(), _header.meta_offset());
         }
@@ -1971,7 +1972,7 @@ void File::stop_modifying() {
         
         std::sort(pixel_values.begin(), pixel_values.end());
         auto p = percentile(pixel_values, percent);
-        Print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
+        prefixed_print("pv", "Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
         //auto str = Meta::toStr(samples);
         return p;
     }

@@ -435,7 +435,7 @@ const Bone& Keypoint::bone(size_t index) const {
 blob::Pose Keypoint::toPose() const {
     std::vector<blob::Pose::Point> coords;
     for (auto& b : bones)
-        coords.push_back(blob::Pose::Point(b.x, b.y));
+        coords.push_back(blob::Pose::Point(b.x, b.y, true));
     return blob::Pose{
         .points = std::move(coords)
     };

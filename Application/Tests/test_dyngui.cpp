@@ -1931,8 +1931,8 @@ TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
     };
 
     std::vector<TestAnnotation> source{
-        TestAnnotation{.uid = 1, .type = 1, .points = {blob::Pose::Point{1, 2}, blob::Pose::Point{3, 4}}},
-        TestAnnotation{.uid = 2, .type = 2, .points = {blob::Pose::Point{5, 6}}}
+        TestAnnotation{.uid = 1, .type = 1, .points = {blob::Pose::Point{1, 2, true}, blob::Pose::Point{3, 4, false}}},
+        TestAnnotation{.uid = 2, .type = 2, .points = {blob::Pose::Point{5, 6, true}}}
     };
 
     Context context{
@@ -1947,17 +1947,17 @@ TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
                         continue;
                     }
 
-                    if(pt.x >= bds.width) {
-                        bds.width = pt.x;
+                    if(pt.x() >= bds.width) {
+                        bds.width = pt.x();
                     }
-                    if(pt.x < bds.x) {
-                        bds.x = pt.x;
+                    if(pt.x() < bds.x) {
+                        bds.x = pt.x();
                     }
-                    if(pt.y >= bds.height) {
-                        bds.height = pt.y;
+                    if(pt.y() >= bds.height) {
+                        bds.height = pt.y();
                     }
-                    if(pt.y < bds.y) {
-                        bds.y = pt.y;
+                    if(pt.y() < bds.y) {
+                        bds.y = pt.y();
                     }
                 }
                 if(bds.x == FLT_MAX) {
@@ -1994,23 +1994,23 @@ TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
     std::vector<std::string> texts;
     collect_rendered_text_strings(root, texts);
     ASSERT_THAT(texts, ::testing::ElementsAre(
-        "pt:[1,2]-0",
-        "pt:[3,4]-1",
-        "not 2: [[5,6]]"
+        "pt:[1,2,1]-0",
+        "pt:[3,4,0]-1",
+        "not 2: [[5,6,1]]"
     ));
 
-    source[0].points = {blob::Pose::Point{10, 11}};
+    source[0].points = {blob::Pose::Point{10, 11, false}};
     source[1].type = 1;
-    source[1].points = {blob::Pose::Point{20, 21}, blob::Pose::Point{30, 31}};
+    source[1].points = {blob::Pose::Point{20, 21, true}, blob::Pose::Point{30, 31, true}};
 
     ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
 
     texts.clear();
     collect_rendered_text_strings(root, texts);
     ASSERT_THAT(texts, ::testing::ElementsAre(
-        "pt:[10,11]-0",
-        "pt:[20,21]-0",
-        "pt:[30,31]-1"
+        "pt:[10,11,0]-0",
+        "pt:[20,21,1]-0",
+        "pt:[30,31,1]-1"
     ));
 }
 

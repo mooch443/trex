@@ -540,10 +540,10 @@ bool TrackingScene::on_global_event(Event event) {
                 .clid = 0u,
                 .type = AnnotationType::BOX,
                 .points = std::vector<Point>{
-                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y0)),
-                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y0)),
-                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y1)),
-                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y1))
+                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y0), true),
+                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y0), true),
+                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y1), true),
+                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y1), true)
                 }
             };
 
@@ -1452,16 +1452,20 @@ void TrackingScene::_draw(DrawStructure& graph) {
             
             Vec2 xy(FLT_MAX, FLT_MAX);
             for(auto& pt : annotation->points) {
-                if(pt.x < xy.x) xy.x = pt.x;
-                if(pt.y < xy.y) xy.y = pt.y;
+                if(annotation->type == AnnotationType::POSE && not pt.valid())
+                    continue;
+                if(pt.x() < xy.x) xy.x = pt.x();
+                if(pt.y() < xy.y) xy.y = pt.y();
             }
             
             if(xy.x != FLT_MAX
                && xy.y != FLT_MAX)
             {
                 for(auto& pt : annotation->points) {
+                    if(annotation->type == AnnotationType::POSE && not pt.valid())
+                        continue;
                     //Print("pt=",pt," adding ", pos - absolute, " => ", Vec2(pt) + pos - absolute);
-                    pt = Vec2(pt) + pos - absolute;
+                    pt.move_to(Vec2(pt) + pos - absolute);
                     //if(pt.y < xy.y) xy.y = pt.y;
                 }
                 
@@ -2291,6 +2295,52 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 });
             }),
             
+            ActionFunc("toggle_detection_point_visibility", [this](const Action& action) {
+                REQUIRE_EXACTLY(2, action);
+                
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([this, detect_annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front()), point_idx = Meta::fromStr<uint64_t>(action.parameters.back()), action](auto, DrawStructure& graph) {
+                    if(not _data
+                       || not _data->_cache)
+                        throw InvalidArgumentException("No data pointer set. Probably quitting.");
+                    
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be added to.");
+
+                    auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                    auto it = detect_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+                    if(it == detect_annotations.end()) {
+                        throw InvalidArgumentException("Cannot find detect annotation ", action, " in ", detect_annotations);
+                    }
+
+                    auto annotation = std::find_if(it->second.begin(), it->second.end(), [detect_annotation_uid](const Annotation& candidate) {
+                        return candidate.uid == detect_annotation_uid;
+                    });
+                    if(annotation == it->second.end())
+                        throw InvalidArgumentException("Cannot find detect annotation uid ", detect_annotation_uid, " in ", it->second);
+                    if(annotation->points.size() <= point_idx)
+                        throw InvalidArgumentException(point_idx, " out of range for detect annotation uid ", detect_annotation_uid, " with ", annotation->points.size(), " points.");
+                    
+                    auto& pt = annotation->points.at(point_idx);
+                    Print("Toggling visibility of ", pt);
+                    pt.set_visible(not pt.visible());
+                    
+                    SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    
+                    auto& gui = _data->dynGUI;
+                    gui.context.update_local_setting(
+                        gui.current_object_handler.get(),
+                        "local.rightclicked_point",
+                        [](sprite::Reference& ref) {
+                            ref.get().set_value_from_string("[]");
+                        });
+                });
+            }),
+            
             ActionFunc("move_whole_detect_annotation", [this](const Action& action) {
                 REQUIRE_EXACTLY(1, action);
                 
@@ -2346,7 +2396,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
 
                     if(not Vec2(pos).Equals((Vec2)annotation->points.at(point_idx))) {
-                        annotation->points.at(point_idx) = pos;
+                        annotation->points.at(point_idx).move_to(pos);
                         SETTING(track_detect_annotations) = std::move(detect_annotations);
                     }
                 });
@@ -3056,13 +3106,13 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         
                         Bounds bds(FLT_MAX,FLT_MAX, -FLT_MAX, -FLT_MAX);
                         for(auto &pt : object.points) {
-                            if(not pt.valid())
+                            if(object.type == AnnotationType::POSE && not pt.valid())
                                 continue;
 
-                            if(pt.x >= bds.width) bds.width = pt.x;
-                            if(pt.x < bds.x) bds.x = pt.x;
-                            if(pt.y >= bds.height) bds.height = pt.y;
-                            if(pt.y < bds.y) bds.y = pt.y;
+                            if(pt.x() >= bds.width)  bds.width = pt.x();
+                            if(pt.x() < bds.x)       bds.x = pt.x();
+                            if(pt.y() >= bds.height) bds.height = pt.y();
+                            if(pt.y() < bds.y)       bds.y = pt.y();
                         }
                         if(bds.x == FLT_MAX)
                             continue;

@@ -66,7 +66,7 @@ void SceneManager::set_active(Scene* scene, std::function<void()> prepare, std::
             if(active_scene == scene) return;
 
             if (active_scene && active_scene != scene) {
-                Print("[SceneManager] Deactivating ", active_scene->name());
+                prefixed_print("SceneManager", "Deactivating ", active_scene->name());
                 active_scene->deactivate();
                 
                 {
@@ -78,14 +78,14 @@ void SceneManager::set_active(Scene* scene, std::function<void()> prepare, std::
             last_active_scene = active_scene;
             active_scene = nullptr;
             if(scene)
-                Print("[SceneManager] Switching to ", scene->name());
+                prefixed_print("SceneManager", "Switching to ", scene->name());
             if(prepare)
                 prepare();
             active_scene = scene;
             if (scene) {
                 scene->activate();
             } else
-                Print("[SceneManager] Deactivating.");
+                prefixed_print("SceneManager", "Deactivating.");
             if(activated)
                 activated();
             
@@ -98,7 +98,7 @@ void SceneManager::set_active(Scene* scene, std::function<void()> prepare, std::
                 SceneManager::getInstance().set_active(SceneManager::getInstance().fallback_scene);
             }
             else {
-                Print("[SceneManager] No fallback scene for error: ", e.what());
+                prefixed_print("SceneManager", "No fallback scene for error: ", e.what());
             }
         }
     };
