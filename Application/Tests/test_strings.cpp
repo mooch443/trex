@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
 #include <commons.pc.h>
+#include "gtest/gtest.h"
 #include <misc/parse_parameter_lists.h>
 #include <misc/Timer.h>
 #include <misc/Path.h>
@@ -17,8 +17,19 @@
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/DynamicGUI.h>
 #include <core/idx_t.h>
+#include <core/VideoInfo.h>
+#include <core/DetectionTypes.h>
+#include <core/FrameTags.h>
+#include <core/GPURecognitionTypes.h>
+#include <file/PathArray.h>
+#include <misc/zipper.h>
+#include <core/FOI.h>
+#include <core/TrackingSettings.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
+#include <misc/CommandLine.h>
+
+static_assert(cmn::Meta::name<glz::generic>() == "json");
 
 static constexpr auto lower = cmn::utils::lowercase("hiIbImS");
 
@@ -47,6 +58,15 @@ using namespace utils;
  
  */
 
+
+namespace track::detect {
+std::ostream& operator<<(std::ostream& os, const KeypointNames& dt)
+{
+    os << dt.toStr();
+    return os;
+}
+
+}
 
 namespace dyn {
 enum class Align {
@@ -85,7 +105,7 @@ struct Object {
 
 struct MainFile {
     std::vector<Object> objects;
-    std::optional<glz::json_t> defaults;
+    std::optional<glz::generic> defaults;
 };
 
 
@@ -128,74 +148,830 @@ struct StructTest {
 static const auto recent_items_test = R"({"entries":[{"created":"1722898354365058","filename":"/Users/user/Downloads/MatrixIssues/20240407_130252","modified":"1722898656173724","name":"/Users/user/Downloads/MatrixIssues/20240407_130252","output_dir":"","output_prefix":"","settings":{"cam_matrix":[0.9162667552083333,0,0.5045229020833334,0,1.6345315185185185,0.5236356972222223,0,0,1],"cam_undistort":true,"cam_undistort_vector":[-0.314080328,-0.0967427775,-0.000260259724,0.000191272304,0.476336027],"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"detect_threshold_is_absolute":false,"function_test":null,"individual_image_scale":0.6000000238418579,"midline_stiff_percentage":0.10000000149011612,"output_dir":"","source":"/Users/user/Downloads/MatrixIssues/20240407_130252.MOV","threshold":40,"track_threshold_is_absolute":false,"track_include":[[[1501,817],[463,841],[461,351],[1489,337]],[[1498,803],[1497,847],[456,861],[459,828]],[[1517,300],[1492,347],[456,364],[444,305]],[[498,853],[432,857],[430,316],[490,337]],[[1540,841],[1492,834],[1479,317],[1510,323]]],"track_max_individuals":2,"track_max_speed":40,"track_posture_threshold":9,"track_size_filter":[[0.25,1.5]],"track_threshold":40}},{"created":"1720779303324089","filename":"","modified":"1720779303324089","name":"/Users/user/Videos/tmp/juvenile_birchmanni_4_Trial12_UN_UN","output_dir":"","output_prefix":"","settings":{"blob_split_algorithm":"fill","calculate_posture":false,"cwd":"/Users/user/trex/Application/beta/Debug","detect_model":"yolov8x-pose","individual_image_normalization":"moments","meta_encoding":"r3g3b2","meta_source_path":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","source":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","track_do_history_split":false,"track_max_reassign_time":1}},{"created":"1720779303320210","filename":"","modified":"1720779303320210","name":"/Users/user/Videos/tmp/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"output_dir":"/Users/user/Videos/tmp","recognition_segment_add_factor":1,"source":"/Users/user/Downloads/002_full_pilot.MP4","track_max_individuals":4,"track_threshold":15}},{"created":"1720779303312230","filename":"","modified":"1720779303312230","name":"/Users/user/Downloads/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.10000000149011612,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"gui_focus_group":[2],"gui_show_individual_preview":true,"heatmap_ids":[2],"individual_image_size":[80,80],"manual_matches":{"0":{"0":331361215,"1":362298148,"2":365449625,"3":50918454}},"manual_splits":{"10145":[1798340233],"10147":[1794669897],"10392":[1616404981],"10755":[432130367],"11032":[429400456],"11477":[1531453472],"11488":[1524637286],"11966":[152144770],"11968":[148474138],"12968":[183080834],"12993":[230779254],"12996":[228680390],"13308":[227114888],"14421":[174613835],"14426":[171468834],"14944":[1822521131],"15312":[1574971339],"15318":[1578641100],"16071":[66138639],"1653":[67681770],"16850":[913424684],"17002":[44104078],"1732":[67152321],"17605":[1929459522],"17896":[216569868],"17897":[207132831],"17944":[222846982],"17946":[228613767],"18586":[1881244567],"20015":[175739857],"20510":[465689085],"20807":[340865054],"20811":[343485149],"2238":[469772213],"23193":[53004033],"23197":[52479054],"24079":[97563986],"25172":[1928388496],"25174":[1925242007],"27190":[75032149],"27266":[72926034],"278":[1093151078],"280":[1094199649],"2891":[1940964054],"29018":[1131421509],"30853":[1362219416],"31401":[743976203],"31406":[745024848],"31460":[743452091],"3195":[1486995894],"34363":[229209693],"3446":[307347713],"3626":[77129362],"37473":[1757510170],"38899":[1612717393],"3899":[578302611],"44644":[1779992133],"44680":[1758495877],"45275":[109088291],"4540":[1935218378],"4601":[1924228299],"4603":[1903257168],"4821":[1159321968],"4825":[1155127728],"50231":[267946708],"50759":[1803052086],"50932":[1842905049],"54123":[37802975],"5500":[436217029],"5506":[433071617],"55981":[688400379],"57154":[1944147094],"57158":[1937328989],"6038":[922830723],"6039":[923879310],"61508":[217617076],"62288":[1944102445],"62304":[1904777172],"62306":[1900582039],"62552":[1461727497],"62557":[1458582283],"6325":[1518979461],"63657":[1690912047],"67618":[84490233],"6805":[1075946738],"68194":[313629355],"68199":[285841900],"68400":[75552263],"7599":[1828216105],"7649":[1832936187],"7681":[1843423414],"7726":[1867022998],"8488":[370266431],"8495":[351391185],"8496":[402771064],"8499":[382847024],"8555":[144804749],"9027":[1344294991],"9280":[1530968058],"9464":[40954656],"9470":[40955829]},"output_dir":"","segment_size_filter":[[0.10000000149011612,100]],"source":"/Users/user/Downloads/002_full_pilot.MP4","threshold":15,"track_ignore":[[[679,2097],[6,2147],[3,1663]],[[499,10],[6,351],[2,3]],[[3834,2152],[3284,2130],[3832,1723]]],"track_max_individuals":4,"track_max_speed":100,"track_size_filter":[[1.5,10]],"track_threshold":15}}],"modified":"1723213416841714"})";
 
 namespace cmn::gui::dyn {
+
 using namespace cmn::utils;
 
-TEST(FastFromStrTest, EscapedQuoteIsRetained)
-{
-    std::string out;
-    fast_fromstr(out, R"("a\"b")");   // payload is  a\"b  inside the quotes
+constexpr auto merge_time_threshold = ParameterHistory::merge_time_threshold + std::chrono::milliseconds(1);
+
+TEST(GlobalSettingsTests, HistoryDisabledByDefault) {
+    ParameterHistory history;
+    sprite::Map values;
+    values["test"] = int(1);
+    history.value_changed(AccessLevelType::PUBLIC, values, "test");
+
+    history.before_value_changed(AccessLevelType::PUBLIC, values, "test");
+    values["test"] = int(2);
+    history.value_changed(AccessLevelType::PUBLIC, values, "test");
+
+    EXPECT_TRUE(history.empty());
+    EXPECT_FALSE(history.last_changed("test").has_value());
+    EXPECT_FALSE(history.last_value_of("test").has_value());
+    EXPECT_FALSE(history.undo(values).has_value());
+    EXPECT_FALSE(history.redo(values).has_value());
+    EXPECT_EQ(values.at("test").value<int>(), 2);
+}
+
+TEST(GlobalSettingsTests, HistoryMonitoringCanBeDisabled) {
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+        config.values["test"] = int(1);
+        ASSERT_TRUE(config.history.last_value_of("test").has_value());
+
+        config.history.set_monitor_level(std::nullopt);
+        config.values["test"] = int(2);
+        ASSERT_TRUE(config.history.last_value_of("test").has_value());
+        EXPECT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        EXPECT_TRUE(config.history.empty());
+
+        config.history.reset(AccessLevelType::PUBLIC);
+        config.values["test"] = int(3);
+        ASSERT_TRUE(config.history.last_value_of("test").has_value());
+        EXPECT_EQ(config.history.last_value_of("test")->value<int>(), 3);
+
+        config.history.reset();
+        config.values["test"] = int(4);
+        EXPECT_TRUE(config.history.empty());
+        EXPECT_FALSE(config.history.last_value_of("test").has_value());
+        EXPECT_FALSE(config.undo().has_value());
+        EXPECT_FALSE(config.redo().has_value());
+        EXPECT_EQ(config.values.at("test").value<int>(), 4);
+    });
+}
+
+TEST(SpriteMapTests, CopyAssignmentDefersChangeCallbacks) {
+    sprite::Map values;
+    values["a"] = int(1);
+    values["b"] = int(2);
+    values["removed"] = true;
+    sprite::Map source;
+    source["a"] = int(3);
+    source["b"] = int(4);
+    source["added"] = int(5);
+    source["silent"] = int(6);
+
+    bool copying = false;
+    std::map<std::string, int> changes;
+    values.register_general_callback([&](std::string_view name) {
+        if(copying) {
+            EXPECT_EQ(values.at("a").value<int>(), 3);
+            EXPECT_EQ(values.at("b").value<int>(), 4);
+            ++changes[std::string(name)];
+        }
+    });
+    values["a"].get().registerBeforeWriteCallback([&](auto) {
+        EXPECT_EQ(values.at("a").value<int>(), 1);
+        values["b"] = int(9);
+    });
+    int pending_changes = 0, silent_changes = 0;
+    auto pending = values.register_callbacks({"added"}, [&](auto) {
+        EXPECT_EQ(values.at("b").value<int>(), 4);
+        ++pending_changes;
+    });
+    auto silent = values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
+        {"silent"}, [&](auto) { ++silent_changes; });
+
+    copying = true;
+    values = source;
+    EXPECT_EQ(values.size(), source.size());
+    for(const auto& name : source.keys())
+        EXPECT_EQ(values.at(name).value<int>(), source.at(name).value<int>());
+    EXPECT_EQ(changes, (std::map<std::string, int>{{"a", 1}, {"b", 1}, {"added", 1}, {"silent", 1}}));
+    EXPECT_EQ(pending_changes, 1);
+    EXPECT_EQ(silent_changes, 0);
+    values.unregister_callbacks(std::move(pending));
+    values.unregister_callbacks(std::move(silent));
+}
+
+TEST(SpriteMapTests, CopyAssignmentRestoresCallbacksAfterFailure) {
+    sprite::Map values;
+    values["a"] = int(1);
+    values["b"] = int(2);
+    sprite::Map source;
+    source["a"] = int(3);
+    source["b"] = int(4);
+    int changes = 0;
+    values.register_general_callback([&](auto) { ++changes; });
+    auto before = values["a"].get().registerBeforeWriteCallback([](auto) {
+        throw std::runtime_error("write failed");
+    });
+
+    EXPECT_THROW(values = source, std::runtime_error);
+    values["a"].get().unregisterBeforeWriteCallback(before);
+    changes = 0;
+    values["a"] = int(5);
+    values["b"] = int(6);
+    values["added"] = int(7);
+    EXPECT_EQ(changes, 3);
+}
+
+TEST(SpriteMapTests, CopyAssignmentPreservesCallbacksAcrossTypeChanges) {
+    sprite::Map values;
+    values["value"] = int(1);
+    sprite::Map source;
+    source["value"] = std::string("changed");
+    int before_changes = 0, changes = 0;
+    values["value"].get().registerBeforeWriteCallback([&](auto) { ++before_changes; });
+    auto callback = values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
+        {"value"}, [&](auto) { ++changes; });
+
+    values = source;
+    EXPECT_EQ(values.at("value").value<std::string>(), "changed");
+    EXPECT_EQ(changes, 1);
+    values["value"] = std::string("after copy");
+    EXPECT_EQ(before_changes, 1);
+    EXPECT_EQ(changes, 2);
+    values.unregister_callbacks(std::move(callback));
+    values["value"] = std::string("unregistered");
+    EXPECT_EQ(changes, 2);
+}
+
+TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.values["source"] = file::PathArray("input/recording.pv");
+        config.values["output_dir"] = file::Path("input");
+        config.values["output_prefix"] = std::string("session");
+        config.values["filename"] = file::Path("recording");
+        config.defaults["output_prefix"] = std::string("default");
+        config.examples["output_prefix"] = std::string("example");
+        config.docs["output_prefix"] = "prefix documentation";
+        config.access["output_prefix"] = AccessLevelType::PUBLIC;
+        config.history.push().values["output_prefix"] = std::string("session");
+    });
+    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", std::string("current")});
+    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", std::string("configured")});
+    auto before = GlobalSettings::read([](const Configuration& config) {
+        return GlobalSettings::snapshot(config);
+    });
+
+    int changes = 0;
+    auto callback = GlobalSettings::register_callbacks({"output_prefix"}, [&](auto) { ++changes; });
+    GlobalSettings::write([](Configuration& config) {
+        config.values["source"] = file::PathArray("original/recording.mp4");
+        config.values["output_dir"] = file::Path("original");
+        config.values["output_prefix"] = std::string("changed");
+        config.values["filename"] = file::Path("changed");
+        config.values["snapshot_added_setting"] = true;
+        config.defaults["output_prefix"] = std::string("changed");
+        config.examples.erase("output_prefix");
+        config.docs.clear();
+        config.access.clear();
+        config.history.clear();
+    });
+    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", std::string("changed")});
+    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", std::string("changed")});
+    GlobalSettings::write([&](Configuration& config) { before->rollback(config); });
+
+    GlobalSettings::read([](const Configuration& config) {
+        EXPECT_EQ(config.values.at("source").value<file::PathArray>(), file::PathArray("input/recording.pv"));
+        EXPECT_EQ(config.values.at("output_dir").value<file::Path>(), file::Path("input"));
+        EXPECT_EQ(config.values.at("output_prefix").value<std::string>(), "session");
+        EXPECT_EQ(config.values.at("filename").value<file::Path>(), file::Path("recording"));
+        EXPECT_FALSE(config.values.has("snapshot_added_setting"));
+        EXPECT_EQ(config.defaults.at("output_prefix").value<std::string>(), "default");
+        EXPECT_EQ(config.examples.at("output_prefix").value<std::string>(), "example");
+        EXPECT_EQ(config.docs.at("output_prefix"), "prefix documentation");
+        EXPECT_EQ(config.access.at("output_prefix"), AccessLevelType::PUBLIC);
+        EXPECT_EQ(config.history.last().values.at("output_prefix").value<std::string>(), "session");
+    });
+    GlobalSettings::read([](const sprite::Map& current, const sprite::Map& configured) {
+        EXPECT_EQ(current.at("output_prefix").value<std::string>(), "current");
+        EXPECT_EQ(configured.at("output_prefix").value<std::string>(), "configured");
+    });
+    changes = 0;
+    SETTING(output_prefix) = std::string("after rollback");
+    EXPECT_EQ(changes, 1);
+    GlobalSettings::unregister_callbacks(std::move(callback));
+}
+
+TEST(GlobalSettingsTests, SnapshotRollsBackLastOwnerUnlessCommitted) {
+    for(bool commit : {false, true}) {
+        SCOPED_TRACE(commit);
+        SETTING(output_prefix) = std::string("before");
+        CommandLine::instance().reset_settings({});
+        CommandLine::instance().add_setting("output_prefix", "before");
+        std::shared_ptr<GlobalSettings::Snapshot> pending;
+        {
+            auto before = GlobalSettings::read([](const Configuration& config) {
+                return GlobalSettings::snapshot(config);
+            });
+            pending = before;
+            SETTING(output_prefix) = std::string("changed");
+            CommandLine::instance().reset_settings({});
+            if(commit)
+                before->commit();
+        }
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "changed");
+        EXPECT_TRUE(CommandLine::instance().settings().empty());
+        pending.reset();
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), commit ? "changed" : "before");
+        ASSERT_EQ(CommandLine::instance().settings().size(), commit ? 0u : 1u);
+        if(not commit) {
+            EXPECT_EQ(CommandLine::instance().settings().front().name, "output_prefix");
+            EXPECT_EQ(CommandLine::instance().settings().front().value, std::optional<std::string>("before"));
+        }
+    }
+    CommandLine::instance().reset_settings({});
+}
+
+TEST(GlobalSettingsTests, SnapshotRollsBackDuringExceptionUnwinding) {
+    SETTING(output_dir) = file::Path("before");
+    EXPECT_THROW({
+        auto before = GlobalSettings::read([](const Configuration& config) {
+            return GlobalSettings::snapshot(config);
+        });
+        SETTING(output_dir) = file::Path("changed");
+        throw std::runtime_error("conversion preparation failed");
+    }, std::runtime_error);
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), file::Path("before"));
+}
+
+TEST(GlobalSettingsTests, SnapshotRequiresSecureConfigurationContexts) {
+    Configuration detached;
+    auto* live = GlobalSettings::write([](Configuration& config) { return &config; });
+    EXPECT_THROW(GlobalSettings::snapshot(*live), std::logic_error);
+    auto before = GlobalSettings::read([&](const Configuration& config) {
+        EXPECT_THROW(GlobalSettings::snapshot(detached), std::logic_error);
+        return GlobalSettings::snapshot(config);
+    });
+    EXPECT_THROW(before->rollback(*live), std::logic_error);
+    GlobalSettings::read([&](const Configuration&) {
+        EXPECT_THROW(before->rollback(*live), std::logic_error);
+    });
+    GlobalSettings::read([&](const sprite::Map&, const sprite::Map&) {
+        EXPECT_THROW(GlobalSettings::snapshot(*live), std::logic_error);
+    });
+    GlobalSettings::write([&](sprite::Map&, sprite::Map&) {
+        EXPECT_THROW(GlobalSettings::snapshot(*live), std::logic_error);
+        EXPECT_THROW(before->rollback(*live), std::logic_error);
+    });
+    GlobalSettings::write([&](Configuration& config) {
+        EXPECT_THROW(before->rollback(detached), std::logic_error);
+        EXPECT_NO_THROW(before->rollback(config));
+    });
+}
+
+TEST(GlobalSettingsTests, UnduOperation) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
     
-    // Desired result: back-slash removed, quote kept →  a"b
-    EXPECT_EQ(out, "a\"b");
-}
-
-// A back‑slash that is *not* followed by a quote must be preserved
-TEST(FastFromStrTest, LoneBackslashIsPreserved)
-{
-    // payload inside quotes:  a\c
-    std::string out;
-    fast_fromstr(out, R"("a\c")");
+    SETTING(test) = int(1);
     
-    // Nothing to un‑escape ⇒ output identical (without the surrounding quotes)
-    EXPECT_EQ(out, R"(ac)");
-}
-
-// A double‑back‑slash sequence represents a single literal back‑slash,
-// so both back‑slashes must survive (\" is the *only* collapse rule).
-TEST(FastFromStrTest, DoubleBackslashIsPreserved)
-{
-    std::string out;
-    fast_fromstr(out, R"("a\\\\b")");
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
     
-    EXPECT_EQ(out, R"(a\\b)");
-}
-
-TEST(FastFromStrTest, OLDoubleBackslashIsPreserved)
-{
-    std::string out;
-    fast_fromstr(out, R"(a\\b)");
+    SETTING(test) = int(123);
     
-    EXPECT_EQ(out, R"(a\\b)");
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 123);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1u);
+        EXPECT_EQ(config.undo(), std::make_optional(std::set<std::string>{"test"}));
+    });
+
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+    });
 }
 
+TEST(GlobalSettingsTests, HistoryCallbacksWaitForSettingsReaders) {
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+        config.values["test"] = int(1);
+    });
+    auto value = GlobalSettings::get("test");
+    std::promise<void> started;
+    auto ready = started.get_future();
+    std::future<void> changed;
 
-TEST(FastFromStrTest, EmptyQuotedStringProducesEmpty)
-{
-    std::string out;
-    fast_fromstr(out, R"("")");   // just two quote characters
-    EXPECT_EQ(out, "");
+    GlobalSettings::read([&](const Configuration&) {
+        changed = std::async(std::launch::async, [&] {
+            started.set_value();
+            value = int(2);
+        });
+        ready.wait();
+        EXPECT_EQ(changed.wait_for(std::chrono::milliseconds(100)), std::future_status::timeout);
+    });
+    changed.get();
+    EXPECT_EQ(value.value<int>(), 2);
 }
 
-TEST(FastFromStrTest, SingleCharacterQuoted)
-{
-    std::string out;
-    fast_fromstr(out, R"("x")");   // minimal payload of one char
-    EXPECT_EQ(out, "x");
+TEST(GlobalSettingsTests, ComplexUnduOperation) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    SETTING(test) = int(1);
+    SETTING(map) = std::map<int, std::string>{{123, "hi"}};
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(12);
+    SETTING(test) = int(1);
+    SETTING(test) = int(12345);
+    SETTING(map) = std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}};
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 12345);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}}));
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{123, "hi"}}));
+    });
+    
+    /// ---- ANOTHER ROUND ----
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(12);
+    SETTING(test) = int(1);
+    SETTING(test) = int(123);
+    SETTING(map) = std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}};
+    
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(456);
+    SETTING(map) = std::map<int, std::string>{{1,"hoi"}, {3,"hoi"}, {123, "hi i bims"}};
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{1,"hoi"}, {3,"hoi"}, {123, "hi i bims"}}));
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.undo();
+    });
+
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 123);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}}));
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.undo();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{123, "hi"}}));
+    });
 }
 
-TEST(FastFromStrTest, UnquotedStringVerbatim)
-{
-    std::string out;
-    fast_fromstr(out, "plain");    // no surrounding quotes
-    EXPECT_EQ(out, "plain");
+TEST(GlobalSettingsTests, DoesNotMaintainSystemVariables) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    SETTING(test) = int(1);
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(1234);
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 2345);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 2345);
+    });
+    
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        config.history.reset(AccessLevelType::LOAD);
+    });
+    
+    SETTING(system) = int(1);
+    SETTING(user) = int(2);
+    SETTING(load) = int(3);
+    SETTING(startup) = int(4);
+    GlobalSettings::set_access_level("system", AccessLevelType::SYSTEM);
+    GlobalSettings::set_access_level("user", AccessLevelType::PUBLIC);
+    GlobalSettings::set_access_level("load", AccessLevelType::LOAD);
+    GlobalSettings::set_access_level("startup", AccessLevelType::STARTUP);
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(system) = int(0);
+    SETTING(user) = int(5);
+    SETTING(load) = int(10);
+    SETTING(startup) = int(15);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_FALSE(config.history.historic_value_of("startup").has_value());
+        ASSERT_FALSE(config.history.historic_value_of("system").has_value());
+        ASSERT_EQ(config.history.historic_value_of("user")->value<int>(), 2);
+        ASSERT_EQ(config.history.historic_value_of("load")->value<int>(), 3);
+    });
 }
 
-TEST(FastFromStrTest, MismatchedQuotesVerbatim)
-{
-    std::string out;
-    fast_fromstr(out, "\"a");      // opening quote without matching closing quote
-    EXPECT_EQ(out, "\"a");
+TEST(GlobalSettingsTests, RemovesHistorySimple) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    SETTING(test) = int(1);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0); // initial values are not history
+        ASSERT_TRUE(config.history.empty());
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_FALSE(config.history.historic_value_of("test").has_value());
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+    
+    /// UNDO
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// REDO
+    /// 1 | 2 | 3
+    ///     ^
+    /// 1 | 2 | 3
+    ///         ^
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        EXPECT_EQ(config.redo(), std::make_optional(std::set<std::string>{"test"}));
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1u);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
 }
+
+TEST(GlobalSettingsTests, AddsInitialValuesAutomatically) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    SETTING(test) = int(1);
+    
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1); // initial values are not history
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+}
+
+TEST(GlobalSettingsTests, DoesNotCrashWithEmptyHistory) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// UNDO
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+    ///
+    
+    SETTING(test) = int(1);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0); // initial values are not history
+        ASSERT_TRUE(config.history.empty());
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_FALSE(config.history.historic_value_of("test").has_value());
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+    
+    /// UNDO
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.undo();
+        config.undo();
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// REDO
+    /// 1 | 2 | 3
+    ///     ^
+    /// 1 | 2 | 3
+    ///         ^
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.redo();
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1u);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+}
+
+TEST(GlobalSettingsTests, RemovesHistory) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    SETTING(test) = int(1);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 2345);
+        ASSERT_EQ(config.values.at("test").value<int>(), 2345);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.history.clear();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+        ASSERT_EQ(config.history.last_changed("test"), std::nullopt);
+        ASSERT_FALSE(config.history.last_value_of("test").has_value());
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+    });
+    
+    /// initialize to 0
+    SETTING(test) = int(0); // this is history + 0
+    SETTING(unrelated) = std::string("init");
+    
+    /// add two history items for the same item and one unrelated
+    std::this_thread::sleep_for(merge_time_threshold);
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345); // this is history + 1
+    });
+    std::this_thread::sleep_for(merge_time_threshold);
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(456); // this will be the current
+    });
+    std::this_thread::sleep_for(merge_time_threshold);
+    GlobalSettings::write([](Configuration& config) {
+        config.values["unrelated"] = std::string("ups");
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        config.history.print();
+        ASSERT_EQ(config.history.size(), 3);
+        // history zero ago
+        ASSERT_EQ(config.history.last_changed("unrelated"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("unrelated")->value<std::string>(), "init");
+        // history 1 ago
+        ASSERT_EQ(config.history.last_changed("test"), 1u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 2345);
+        
+        // check current value
+        ASSERT_EQ(config.values.at("unrelated").value<std::string>(), "ups");
+        ASSERT_EQ(config.history.last_value_of("unrelated")->value<std::string>(), "ups");
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 456);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        // history zero ago
+        ASSERT_EQ(config.history.last_changed("unrelated"), 2);
+        // history 1 ago
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 2345);
+        
+        // check current value
+        ASSERT_EQ(config.values.at("unrelated").value<std::string>(), "init");
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 456);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.redo();
+        config.history.print();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 3);
+        // history zero ago
+        ASSERT_EQ(config.history.last_changed("unrelated"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("unrelated")->value<std::string>(), "init");
+        // history 1 ago
+        ASSERT_EQ(config.history.last_changed("test"), 1u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 2345);
+        
+        // check current value
+        ASSERT_EQ(config.values.at("unrelated").value<std::string>(), "ups");
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("unrelated")->value<std::string>(), "ups");
+    });
+}
+
+TEST(GlobalSettingsTests, MaintainsHistory) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset(AccessLevelType::PUBLIC);
+    });
+    
+    SETTING(test) = int(1);
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        ASSERT_TRUE(config.history.last().values.has("test"));
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 2345);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 2345);
+    });
+}
+
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +1078,93 @@ TEST(UnresolvedStringPatternTest, CopyAssignment_ReplacesExistingResources)
             ASSERT_LE(obj.value.sv.data() + obj.value.sv.size(), end);
         }
     }
+}
+
+TEST(UnresolvedStringPatternTest, QuotedArrayRemainsSingleLiteralSegment)
+{
+    using namespace cmn::pattern;
+
+    constexpr std::string_view expr = "['a,b','c']";
+    auto pattern = UnresolvedStringPattern::prepare(expr);
+    gui::dyn::Context context;
+    gui::dyn::State state;
+
+    EXPECT_EQ(pattern.realize(context, state), expr);
+    ASSERT_EQ(pattern.objects.size(), 1u);
+    ASSERT_EQ(pattern.objects.front().type, PreparedPattern::SV);
+    EXPECT_EQ(pattern.objects.front().value.sv, expr);
+}
+
+TEST(UnresolvedStringPatternTest, OwnedLiteralCopyAndMove)
+{
+    using namespace cmn::pattern;
+
+    auto original = PreparedPattern::make_string("line\n");
+    PreparedPattern copy(original);
+    ASSERT_EQ(copy.type, PreparedPattern::STRING);
+    EXPECT_NE(copy.value.str, original.value.str);
+    EXPECT_EQ(copy, original);
+    copy.value.str->append("copy");
+    EXPECT_EQ(*original.value.str, "line\n");
+    EXPECT_TRUE(original < copy);
+    EXPECT_EQ(original.toStr(), "<line\n>");
+
+    auto assigned = PreparedPattern::make_sv("view");
+    assigned = original;
+    EXPECT_NE(assigned.value.str, original.value.str);
+    auto& assigned_alias = assigned;
+    assigned = assigned_alias;
+    EXPECT_EQ(*assigned.value.str, "line\n");
+
+    auto* storage = assigned.value.str;
+    PreparedPattern moved(std::move(assigned));
+    EXPECT_EQ(assigned.type, PreparedPattern::NONE);
+    EXPECT_EQ(moved.value.str, storage);
+    copy = std::move(moved);
+    EXPECT_EQ(moved.type, PreparedPattern::NONE);
+    EXPECT_EQ(copy.value.str, storage);
+    auto& copy_alias = copy;
+    copy = std::move(copy_alias);
+    EXPECT_EQ(*copy.value.str, "line\n");
+    copy = PreparedPattern::make_sv("view");
+    EXPECT_EQ(copy.type, PreparedPattern::SV);
+    EXPECT_EQ(copy.value.sv, "view");
+}
+
+TEST(UnresolvedStringPatternTest, DecodedLiteralsSurviveCopyAndMove)
+{
+    using namespace cmn::pattern;
+
+    for(const auto input : {R"(prefix '\n\u007bmissing\u007d\\n' suffix)",
+                           R"(prefix {if:true:'\n\u007bmissing\u007d\\n':no} suffix)"})
+    {
+        SCOPED_TRACE(input);
+        gui::dyn::Context context;
+        gui::dyn::State state;
+        UnresolvedStringPattern copy;
+        {
+            auto original = UnresolvedStringPattern::prepare(input);
+            EXPECT_EQ(original.realize(context, state), "prefix \n{missing}\\n suffix");
+            copy = original;
+        }
+        UnresolvedStringPattern moved(std::move(copy));
+        EXPECT_EQ(moved.realize(context, state), "prefix \n{missing}\\n suffix");
+        auto assigned = UnresolvedStringPattern::prepare(R"('old\n')");
+        assigned = std::move(moved);
+        EXPECT_EQ(assigned.realize(context, state), "prefix \n{missing}\\n suffix");
+    }
+
+    auto original = UnresolvedStringPattern::prepare(R"({value.'key\n'})");
+    UnresolvedStringPattern copy(original);
+    ASSERT_EQ(copy.objects.size(), 1u);
+    ASSERT_EQ(copy.objects.front().type, PreparedPattern::PREPARED);
+    const auto& subs = copy.objects.front().value.prepared->subs;
+    ASSERT_EQ(subs.size(), 1u);
+    ASSERT_EQ(subs.front().size(), 1u);
+    ASSERT_EQ(subs.front().front().type, PreparedPattern::STRING);
+    EXPECT_EQ(*subs.front().front().value.str, "key\n");
+    EXPECT_NE(subs.front().front().value.str,
+              original.objects.front().value.prepared->subs.front().front().value.str);
 }
 
 //
@@ -653,6 +1516,66 @@ TEST(PreparseTest, SubItemsExtended) {
     ASSERT_EQ(realized, "[1024,768] 1024");
 }
 
+TEST(PreparseTest, VideoInfoFields) {
+    const VideoInfo info{
+        .resolution = Size2(640, 480),
+        .length = 120_f,
+        .current_frame_index = 7_f
+    };
+
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("video", [&info](const VarProps&) -> const VideoInfo& {
+            return info;
+        })
+    };
+    State state;
+    auto pattern = cmn::pattern::UnresolvedStringPattern::prepare(
+        "{video.current_frame_index}/{video.length} "
+        "{at:0:{video.resolution}}x{at:1:{video.resolution}}");
+
+    EXPECT_EQ(pattern.realize(context, state), "7/120 640x480");
+}
+
+TEST(PreparseTest, EmptyConditionsInIf) {
+    using namespace cmn::pattern;
+    
+    auto str = "{if:{global.gui_show_selections}:'string':}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    Print(result);
+    
+    using namespace gui::dyn;
+
+    {
+        SETTING(gui_show_selections) = true;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "string");
+    }
+
+    {
+        SETTING(gui_show_selections) = false;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "");
+    }
+}
+
 TEST(PreparseTest, SpecialCase) {
     using namespace cmn::pattern;
     
@@ -679,7 +1602,7 @@ TEST(PreparseTest, JSONPreparse) {
     /// in the end this returns a string (which can then be parsed into whatever)
     /// so we will also need an output type at some point...
     using namespace cmn::pattern;
-    std::string str = "hi {if:{cond}:'hier ist noch {was} eingelassen':{var}}";
+    std::string str = "hi {if:{cond}:hier ist noch {was} eingelassen:{var}}";
     auto result = UnresolvedStringPattern::prepare(str);
     
     std::stringstream ss;
@@ -759,104 +1682,6 @@ TEST(PreparseTest, JSONPreparse) {
     Print("spent ", elapsed_us, "us / parse");
 }
 
-template <typename T = std::string, typename ParseFn>
-void benchmark_parse_fn(const std::string& label, ParseFn parse_fn,
-                       const std::vector<std::pair<std::string, std::string>>& cases,
-                       gui::dyn::Context& context, gui::dyn::State& state, size_t samples = 10000)
-{
-    using namespace cmn::pattern;
-    
-    printf("level,desc,%s_us_per_parse\n", label.c_str());
-    for (size_t level = 0; level < cases.size(); ++level) {
-        const auto& [desc, pattern_str] = cases[level];
-        std::string out;
-
-        // If your function requires pattern pre-parsing, do it here:
-        // For RealizeStringPattern: auto pattern = prepare_string_pattern(pattern_str);
-        // For parse_text: just use pattern_str
-        T pattern;
-        if constexpr(std::same_as<T, UnresolvedStringPattern>) {
-            pattern = UnresolvedStringPattern::prepare(pattern_str);
-        } else {
-            pattern = pattern_str;
-        }
-
-        // Warmup
-        for (int i = 0; i < 100; ++i)
-            out = parse_fn(pattern, context, state);
-
-        // Timed
-        auto handler = state._current_object_handler.lock();
-        auto start = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < samples; ++i) {
-            handler->clear_variable_values();
-            //for(size_t j = 0; j < 100; ++j) {
-                out = parse_fn(pattern, context, state);
-            //}
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-
-        double elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / double(samples);
-        printf("%zu,%s,%f\n", level, desc.c_str(), elapsed_us);
-        //Print(level, ",", desc, ",", elapsed_us);
-    }
-}
-
-TEST(ParsePerformanceTest, CompareParsers) {
-    using namespace gui::dyn;
-
-    std::vector<std::pair<std::string, std::string>> cases = {
-        {"plain", "hello world"},
-        {"var", "hello {foo}"},
-        {"if", "{if:{cond}:'yes':'no'}"},
-        {"nested", "hi {if:{cond}:'nested {foo}':'no'}"},
-        {"deep_nested", "start {if:{cond1}:{if:{cond2}:'deep {foo}':'no'}:'fail'} end"},
-        // Instead of loop10 and long_nested, create more deeply nested but valid constructs:
-        {"many_if_5", "{if:{cond}:{if:{cond}:{if:{cond}:{if:{cond}:{if:{cond}:'deep':'no'}:'no'}:'no'}:'no'}:'no'}"},
-        // To simulate size/complexity, concatenate valid expressions:
-        {"long_repeat", std::string(200, 'x') + "{foo}" + std::string(200, 'x') + "{foo}" + std::string(200, 'x')},
-        {"long_flat", std::string(1000, 'x')},
-        {"long_repeat_variable", std::string(200, 'x') + utils::repeat("{foo}x",100) + std::string(200, 'x') + "{foo}" + std::string(200, 'x')},
-        {"realistic", std::string("{if:{not:{has_pred}}:{name}:{if:{equal:{at:0:{max_pred}}:{id}}:<green>{name}</green>:<red>{name}</red> <i>loc</i>[<c><nr>{at:0:{max_pred}}</nr>:<nr>{int:{*:100:{at:1:{max_pred}}}}</nr><i>%</i></c>]}}{if:{tag}:' <a>tag:{tag.id} ({dec:2:{tag.p}})</a>':''}{if:{average_category}:' <nr>{average_category}</nr>':''}{if:{&&:{category}:{not:{equal:{category}:{average_category}}}}:' <b><i>{category}</i></b>':''}")}
-    };
-
-    // Context setup as in your examples
-    bool condition = true;
-    sprite::Map tag;
-    tag["p"] = float();
-    tag["id"] = uint32_t();
-    gui::dyn::Context context = {
-        VarFunc("cond", [&condition](const VarProps&) -> bool { return condition; }),
-        VarFunc("foo", [](const VarProps&) -> std::string { return "bar"; }),
-        VarFunc("cond1", [](const VarProps&) -> bool { return true; }),
-        VarFunc("cond2", [](const VarProps&) -> bool { return false; }),
-        VarFunc("has_pred", [](const VarProps&) -> bool { return true; }),
-        VarFunc("max_pred", [](const VarProps&) -> std::pair<track::Idx_t, float> { return {track::Idx_t(0), 0.99}; }),
-        VarFunc("category", [](const VarProps&) -> std::string { return "male"; }),
-        VarFunc("tag", [&](const VarProps&) -> sprite::Map& { return tag; }),
-        VarFunc("average_category", [](const VarProps&) -> std::string { return "male"; }),
-        VarFunc("name", [](const VarProps&) -> std::string { return "fish0"; }),
-        VarFunc("id", [](const VarProps&) -> track::Idx_t { return track::Idx_t(0); })
-    };
-    gui::dyn::State state;
-    auto object_handler = std::make_shared<CurrentObjectHandler>();
-    state._current_object_handler = std::weak_ptr(object_handler);
-
-    using namespace cmn::pattern;
-    
-    // RealizeStringPattern benchmark
-    benchmark_parse_fn<UnresolvedStringPattern>("RealizeStringPattern",
-        [](UnresolvedStringPattern& pattern, gui::dyn::Context& ctx, gui::dyn::State& st) -> std::string {
-            return pattern.realize(ctx, st);
-        }, cases, context, state);
-
-    // parse_text benchmark
-    benchmark_parse_fn("parse_text",
-        [](const std::string& pattern_str, gui::dyn::Context& ctx, gui::dyn::State& st) -> std::string {
-            return parse_text(pattern_str, ctx, st);
-        }, cases, context, state);
-}
-
 using namespace cmn::pattern;
 // Helper: make a Prepared with a given name (unique "original")
 static Prepared* make_prepared(const char* label) {
@@ -924,9 +1749,15 @@ void verify_string_views_point_into_original(const UnresolvedStringPattern& patt
     {
         switch (pat.type)
         {
+            case PreparedPattern::CHAR:
+                break;
             case PreparedPattern::SV:
                 ASSERT_GE(pat.value.sv.data(), base);
                 ASSERT_LE(pat.value.sv.data() + pat.value.sv.size(), end);
+                break;
+
+            case PreparedPattern::STRING:
+                ASSERT_NE(pat.value.str, nullptr);
                 break;
 
             case PreparedPattern::PREPARED:
@@ -972,6 +1803,10 @@ void verify_prepared_patterns_are_owned(const UnresolvedStringPattern& pattern)
         switch (pat.type)
         {
             case PreparedPattern::SV:
+                break;
+
+            case PreparedPattern::STRING:
+                ASSERT_NE(pat.value.str, nullptr);
                 break;
 
             case PreparedPattern::PREPARED:
@@ -1149,6 +1984,278 @@ TEST(UnresolvedStringPatternTest, SelfAssignmentNoLeakNoCrash) {
     ASSERT_EQ(a.objects[0].value.prepared, a.all_patterns[0]);
 }
 
+TEST(ConversionTest, FoiInfoSupportsRuntimeLookupAndJsonSerialization) {
+    constexpr auto expected = track::FOI::info<track::FOI::lost_2_fish>();
+    static_assert(expected.name == track::FOI::lost_2_fish);
+
+    const std::function<glz::generic(const std::string&)> lookup = [](const std::string& name) {
+        return track::FOI::dyn_info(name).to_json();
+    };
+    const std::string name(track::FOI::lost_2_fish);
+    const auto json = lookup(name);
+    const auto& fields = json.get_object();
+    EXPECT_EQ(fields.at("name").get_string(), expected.name);
+    EXPECT_EQ(fields.at("symbol").get_string(), expected.symbol);
+    EXPECT_EQ(fields.at("tooltip").get_string(), expected.tooltip);
+}
+
+TEST(ConversionTest, VideoInfoSerializesAllFields) {
+    const std::string source = R"(["recording-1.mp4","recording-2.mp4"])";
+    const VideoInfo info{
+        .base = file::PathArray(source),
+        .resolution = Size2(640, 480),
+        .framerate = 25,
+        .finite = true,
+        .length = 120_f,
+        .current_frame_index = 7_f
+    };
+
+    const auto serialized = glz::write_json(info);
+    ASSERT_TRUE(serialized.has_value());
+    glz::generic reflected;
+    ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
+
+    for(const auto& json : {info.to_json(), reflected}) {
+        const auto& fields = json.get_object();
+        ASSERT_EQ(fields.size(), 6u);
+        EXPECT_EQ(fields.at("base").get_string(), source);
+        const auto& resolution = fields.at("resolution").get_array();
+        ASSERT_EQ(resolution.size(), 2u);
+        EXPECT_DOUBLE_EQ(resolution[0].get_number(), 640);
+        EXPECT_DOUBLE_EQ(resolution[1].get_number(), 480);
+        EXPECT_DOUBLE_EQ(fields.at("framerate").get_number(), 25);
+        EXPECT_TRUE(fields.at("finite").get_boolean());
+        EXPECT_DOUBLE_EQ(fields.at("length").get_number(), 120);
+        EXPECT_DOUBLE_EQ(fields.at("current_frame_index").get_number(), 7);
+    }
+}
+
+TEST(ConversionTest, VideoInfoPreservesInvalidFrames) {
+    const VideoInfo info{};
+    const auto serialized = glz::write_json(info);
+    ASSERT_TRUE(serialized.has_value());
+    glz::generic reflected;
+    ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
+
+    for(const auto& json : {info.to_json(), reflected}) {
+        const auto& fields = json.get_object();
+        ASSERT_EQ(fields.size(), 6u);
+        EXPECT_TRUE(fields.at("length").is_null());
+        EXPECT_TRUE(fields.at("current_frame_index").is_null());
+        EXPECT_DOUBLE_EQ(fields.at("framerate").get_number(), 0);
+        EXPECT_FALSE(fields.at("finite").get_boolean());
+    }
+}
+
+TEST(ConversionTest, TypedSettingsAcceptQuotedAndBareValues) {
+    const auto check = []<typename T>(const std::string& input, const T& expected) {
+        for(const auto& text : {input, Meta::toStr(input), "'" + input + "'"}) {
+            SCOPED_TRACE(::testing::Message() << Meta::name<T>() << ": " << text);
+            EXPECT_NO_THROW({ EXPECT_EQ(Meta::fromStr<T>(text), expected); });
+            for(const bool command_line : {false, true}) {
+                SCOPED_TRACE(::testing::Message() << Meta::name<T>() << ": " << text
+                    << (command_line ? " (command line)" : " (settings file)"));
+                sprite::Map values;
+                if constexpr(std::is_same_v<T, bool>)
+                    values["value"] = not expected;
+                else
+                    values["value"] = T{};
+                if(command_line) {
+                    CommandLine command;
+                    command.add_setting("value", text);
+                    EXPECT_NO_THROW(command.load_settings(values));
+                } else {
+                    EXPECT_NO_THROW(GlobalSettings::load_from_string("value = " + text + "\n", {
+                        .access = AccessLevelType::SYSTEM, .target = &values
+                    }));
+                }
+                EXPECT_EQ(values.at("value").value<T>(), expected);
+            }
+        }
+    };
+    check("poses", track::detect::ObjectDetectionFormat::poses);
+    check("yolo", track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::yolo});
+    check("long text", std::string("long text"));
+    check("42", int{42});
+    check("42", uint32_t{42});
+    check("1.25", float{1.25});
+    check("1.25", double{1.25});
+    check("true", true);
+    check("false", false);
+    check("42", std::optional<int>{42});
+    check("1.25", std::optional<double>{1.25});
+    check("true", std::optional<bool>{true});
+}
+
+TEST(ConversionTest, NestedValuesDecodeQuotedLeavesOnce) {
+    const auto check = []<typename T>(const std::string& input, const T& expected) {
+        for(const auto& text : {input, Meta::toStr(expected), glz::write_json(cvt2json(expected)).value()}) {
+            SCOPED_TRACE(::testing::Message() << Meta::name<T>() << ": " << text);
+            EXPECT_NO_THROW({ EXPECT_EQ(Meta::fromStr<T>(text), expected); });
+        }
+    };
+    check(R"(["42",'7',0])", std::vector<int>{42, 7, 0});
+    check(R"(["1.25",'2.5'])", std::array<double, 2>{1.25, 2.5});
+    check(R"(["42",'7'])", std::set<int>{7, 42});
+    check(R"(["42","true"])", std::pair<int, bool>{42, true});
+    check(R"(["42","1.25","false"])", std::tuple<int, double, bool>{42, 1.25, false});
+    check(R"({"1":["42",null],"2":["7"]})",
+          std::optional{std::map<int, std::vector<std::optional<int>>>{{1, {42, std::nullopt}}, {2, {7}}}});
+    check(R"(["42","true","null","[1,2]","\"quoted\"","\\n","\\u0041"])",
+          std::vector<std::string>{"42", "true", "null", "[1,2]", R"("quoted")", R"(\n)", R"(\u0041)"});
+    check(R"([null,"null",""])", std::vector<std::optional<std::string>>{std::nullopt, "null", ""});
+    check(R"("\u0034\u0032")", int{42});
+    //check(R"("\"42\"")", int{42});
+    //check(R"("'42'")", int{42});
+    //check(R"("'1.25'")", double{1.25});
+}
+
+TEST(ConversionTest, TypedSettingsPreserveJsonValues) {
+    const auto check = []<typename T>(const T& expected) {
+        const auto text = Meta::toStr(expected);
+        SCOPED_TRACE(::testing::Message() << Meta::name<T>() << ": " << text);
+        EXPECT_NO_THROW({ EXPECT_EQ(Meta::fromStr<T>(text), expected); });
+        sprite::Map original, loaded;
+        original["value"] = expected;
+        if constexpr(std::is_same_v<T, bool>)
+            loaded["value"] = not expected;
+        else
+            loaded["value"] = T{};
+        glz::generic document = glz::generic::object_t{};
+        document["value"] = original.at("value").get().to_json();
+        const auto json = glz::write_json(document).value();
+        SCOPED_TRACE(::testing::Message() << Meta::name<T>() << ": " << json);
+        ASSERT_NO_THROW(sprite::parse_values(sprite::MapSource::CMD, loaded, json, nullptr, {}, {}));
+        EXPECT_EQ(loaded.at("value").value<T>(), expected);
+    };
+    check(track::detect::ObjectDetectionFormat::poses);
+    check(track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::yolo});
+    check(std::vector<track::detect::ObjectDetectionFormat::Class>{track::detect::ObjectDetectionFormat::poses});
+    check(std::map<std::string, track::detect::ObjectDetectionFormat::Class>{{"format", track::detect::ObjectDetectionFormat::poses}});
+    check(std::string(R"("long text")"));
+    check(int{-42});
+    check(double{1.25});
+    check(true);
+    check(false);
+    check(std::optional<int>{42});
+    check(std::vector<std::optional<double>>{1.25, std::nullopt});
+    check(std::vector<std::string>{"42", "true", "null", "[1,2]", R"("quoted")", R"(\n)", R"(\u0041)"});
+    check(std::map<std::string, std::optional<std::string>>{{"text", "null"}, {"absent", std::nullopt}});
+    check(std::map<std::string, file::Path>{{"path", file::Path(R"("fish")")}});
+}
+
+TEST(ConversionTest, InvalidIdentityJsonRoundTrips) {
+    const track::Idx_t invalid;
+    EXPECT_EQ(Meta::fromStr<track::Idx_t>(glz::write_json(invalid.to_json()).value()), invalid);
+}
+
+using KeypointNamesRoundTripTest = ::testing::TestWithParam<track::detect::KeypointNames>;
+
+TEST(KeypointNamesTest, LooksUpSparseIndicesWithoutChangingNames) {
+    const track::detect::KeypointNames names{.names = std::map<size_t, std::string>{{2, "nose"}, {10, "tail"}}};
+    EXPECT_EQ(names.name(2), std::optional<std::string>{"nose"});
+    EXPECT_EQ(names.name(10), std::optional<std::string>{"tail"});
+    EXPECT_EQ(names.name(0), std::nullopt);
+    EXPECT_EQ(names.name(3), std::nullopt);
+    EXPECT_EQ(names.name(11), std::nullopt);
+    EXPECT_EQ(names.names->size(), 2u);
+    EXPECT_EQ(track::detect::KeypointNames{}.name(0), std::nullopt);
+}
+
+TEST(KeypointNamesTest, FromStrAcceptsStringLiterals) {
+    using track::detect::KeypointNames;
+    const KeypointNames empty{.names = std::map<size_t, std::string>{}};
+    const KeypointNames contiguous{.names = std::map<size_t, std::string>{{0, "nose"}, {1, "tail"}}};
+    const KeypointNames sparse{.names = std::map<size_t, std::string>{{2, "nose"}, {10, "tail"}}};
+
+    EXPECT_EQ(KeypointNames::fromStr(""), KeypointNames{});
+    EXPECT_EQ(KeypointNames::fromStr("null"), KeypointNames{});
+    EXPECT_EQ(KeypointNames::fromStr("[]"), empty);
+    EXPECT_EQ(KeypointNames::fromStr("{}"), empty);
+    EXPECT_EQ(KeypointNames::fromStr(R"(["nose","tail"])"), contiguous);
+    EXPECT_EQ(KeypointNames::fromStr(R"({"2":"nose","10":"tail"})"), sparse);
+    EXPECT_EQ(Meta::fromStr<KeypointNames>(R"(["nose","tail"])"), contiguous);
+    EXPECT_EQ(Meta::fromStr<KeypointNames>(R"({"2":"nose","10":"tail"})"), sparse);
+}
+
+TEST_P(KeypointNamesRoundTripTest, ToStrFromStr) {
+    const auto& names = GetParam();
+    const auto text = names.toStr();
+
+    if(names.names.has_value()) {
+        ASSERT_FALSE(text.empty());
+        EXPECT_EQ(text.front(), '{');
+        EXPECT_EQ(text.back(), '}');
+    } else {
+        EXPECT_EQ(text, "null");
+    }
+
+    EXPECT_EQ(track::detect::KeypointNames::fromStr(text), names);
+    EXPECT_EQ(track::detect::KeypointNames::fromStr(text.c_str()), names);
+    EXPECT_EQ(track::detect::KeypointNames::fromStr(std::string_view(text)), names);
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(Meta::toStr(names)), names);
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(text.c_str()), names);
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(std::string_view(text)), names);
+}
+
+TEST_P(KeypointNamesRoundTripTest, ToJsonFromStr) {
+    const auto& names = GetParam();
+    const auto json = cvt2json(names);
+
+    if(names.names.has_value()) {
+        ASSERT_TRUE(json.is_object());
+        const auto& fields = json.get_object();
+        EXPECT_EQ(fields.size(), names.names->size());
+        for(const auto& [index, name] : *names.names) {
+            const auto key = std::to_string(index);
+            ASSERT_TRUE(fields.contains(key));
+            ASSERT_TRUE(fields.at(key).is_string());
+            EXPECT_EQ(fields.at(key).get_string(), name);
+        }
+    } else {
+        EXPECT_TRUE(json.is_null());
+    }
+
+    const auto serialized = glz::write_json(json);
+    ASSERT_TRUE(serialized.has_value());
+
+    EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(serialized.value()), names);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    KeypointNames,
+    KeypointNamesRoundTripTest,
+    ::testing::Values(
+        track::detect::KeypointNames{},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{}},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{{0,"nose"}, {1,"left_eye"}, {2,"right_eye"}}},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{{2,"nose"}, {10,"left_eye"}, {42,"tail"}}},
+        track::detect::KeypointNames{.names = std::map<size_t, std::string>{
+            {0,""}, {1,"left eye"}, {2,"tail,tip"}, {3,R"(quoted "name")"}, {4,R"(back\slash)"}
+        }}
+    ));
+
+TEST(KeypointNamesTest, LegacyArrayInputWritesMap) {
+    const std::vector<std::pair<std::string, track::detect::KeypointNames>> cases{
+        {"[]", {.names = std::map<size_t, std::string>{}}},
+        {R"(["nose","left eye","tail,tip"])",
+         {.names = std::map<size_t, std::string>{{0,"nose"}, {1,"left eye"}, {2,"tail,tip"}}}}
+    };
+
+    for(const auto& [input, expected] : cases) {
+        SCOPED_TRACE(input);
+        const auto names = Meta::fromStr<track::detect::KeypointNames>(input);
+        EXPECT_EQ(names, expected);
+        EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(input.c_str()), expected);
+        EXPECT_EQ(Meta::fromStr<track::detect::KeypointNames>(std::string_view(input)), expected);
+        EXPECT_EQ(names.toStr(), Meta::toStr(*expected.names));
+        const auto json = names.to_json();
+        ASSERT_TRUE(json.is_object());
+        EXPECT_EQ(glz::write_json(json).value(),
+                  glz::write_json(cvt2json(*expected.names)).value());
+    }
+}
+
 TEST(ConversionTest, FileObjects) {
     //dyn::MainFile object;
     //std::string buffer = file::Path("/Users/tristan/trex/Application/src/commons/examples/test_gui.json").read_file();
@@ -1164,7 +2271,7 @@ TEST(ConversionTest, FileObjects) {
 }
 
 TEST(ConversionTest, RealObjects) {
-    /*glz::json_t json{};
+    /*glz::generic json{};
     std::string buffer = R"([18446744073709551615,"Hello World",{"pi":3.14}])";
     glz::read_json(json, buffer);
     ASSERT_EQ(json[1].get<std::string>(), "Hello World");*/
@@ -1193,7 +2300,7 @@ TEST(ConversionTest, RealObjects) {
 }
 
 TEST(ConversionTest, Website) {
-    /*glz::json_t json{};
+    /*glz::generic json{};
     std::string buffer = R"([18446744073709551615,"Hello World",{"pi":3.14}])";
     glz::read_json(json, buffer);
     ASSERT_EQ(json[1].get<std::string>(), "Hello World");*/
@@ -1210,17 +2317,17 @@ TEST(ConversionTest, Website) {
 }
 
 /*TEST(ConversionTest, Basic) {
-    glz::json_t tuple_test = { 5.5, 5.5 };
+    glz::generic tuple_test = { 5.5, 5.5 };
     
     std::string s{};
     double dbl = 3.14;
-    glz::json_t dblj = dbl;
+    glz::generic dblj = dbl;
     glz::write_json(dblj, s);
     
     uint64_t nr = 55;
 
     static_assert(glz::detail::num_t<uint64_t>);
-    glz::json_t j = nr;
+    glz::generic j = nr;
     ASSERT_TRUE(j.is_number());
     ASSERT_TRUE(j.holds<uint64_t>());
     glz::write_json(j, s);
@@ -1229,7 +2336,7 @@ TEST(ConversionTest, Website) {
     
     glz::write_json(j, s);
     
-    glz::json_t json = 64u;
+    glz::generic json = 64u;
     glz::error_ctx error;
     EXPECT_NO_THROW(error = glz::read_json(json, s));
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
@@ -1242,7 +2349,7 @@ class NumberConversionTest : public ::testing::Test {
 protected:
     void test_conversion(T value) {
         std::string s;
-        glz::json_t json = value;
+        glz::generic json = value;
         glz::write_json(json, s);
 
         std::string expected;
@@ -1256,7 +2363,7 @@ protected:
 
         EXPECT_EQ(s, expected);
         
-        glz::json_t json_read;
+        glz::generic json_read;
         auto error = glz::read_json(json_read, s);
         EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
         EXPECT_EQ(json_read.get<T>(), value);
@@ -1277,12 +2384,12 @@ TYPED_TEST(NumberConversionTest, BasicConversion) {
 TEST(FloatDoubleConversionTest, PrecisionCheck) {
     std::string s;
     double dbl = 3.141592653589793;
-    glz::json_t dblj = dbl;
+    glz::generic dblj = dbl;
     glz::write_json(dblj, s);
     
     EXPECT_EQ(s, "3.141592653589793");
 
-    glz::json_t json;
+    glz::generic json;
     auto error = glz::read_json(json, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json.get_float(), 3.141592653589793);
@@ -1291,37 +2398,58 @@ TEST(FloatDoubleConversionTest, PrecisionCheck) {
 TEST(FloatDoubleConversionTest, ScientificNotation) {
     std::string s;
     double dbl = 1.23e-10;
-    glz::json_t dblj = dbl;
+    glz::generic dblj = dbl;
     glz::write_json(dblj, s);
     
     EXPECT_EQ(s, "1.23E-10");
 
-    glz::json_t json;
+    glz::generic json;
     auto error = glz::read_json(json, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json.get_float(), 1.23e-10);
 }
 
+TEST(FloatDoubleConversionTest, ParsesScientificNotation) {
+    EXPECT_FLOAT_EQ(Meta::fromStr<float>("1e-7"), 1e-7f);
+    EXPECT_DOUBLE_EQ(Meta::fromStr<double>("1E-7"), 1e-7);
+    EXPECT_FLOAT_EQ(Meta::fromStr<float>("2.5E+3"), 2500.f);
+    EXPECT_DOUBLE_EQ(Meta::fromStr<double>("2.5e+3"), 2500.);
+}
+
+TEST(FloatDoubleConversionTest, RespectsViewBounds) {
+    const std::string input = "1.25";
+    EXPECT_DOUBLE_EQ(_Meta::fromStr<double>(std::string_view(input.data(), 3)), 1.2);
+}
+
+TEST(FloatDoubleConversionTest, RejectsTrailingCharacters) {
+    EXPECT_THROW(Meta::fromStr<float>("1.25junk"), std::runtime_error);
+    EXPECT_THROW(Meta::fromStr<double>("1.25junk"), std::runtime_error);
+}
+
+TEST(FloatDoubleConversionTest, ParsesLongDouble) {
+    EXPECT_EQ(Meta::fromStr<long double>("1.25"), 1.25L);
+}
+
 TEST(IntegerConversionTest, LargeIntegers) {
     std::string s;
     uint64_t large_uint = 18446744073709551615ULL; // Max value for uint64_t
-    glz::json_t json_uint = large_uint;
+    glz::generic json_uint = large_uint;
     glz::write_json(json_uint, s);
     
     EXPECT_EQ(s, "18446744073709551615");
 
-    glz::json_t json;
+    glz::generic json;
     auto error = glz::read_json(json, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json.get<uint64_t>(), 18446744073709551615ULL);
 
     int64_t large_int = 9223372036854775807LL; // Max value for int64_t
-    glz::json_t json_int = large_int;
+    glz::generic json_int = large_int;
     glz::write_json(json_int, s);
     
     EXPECT_EQ(s, "9223372036854775807");
 
-    glz::json_t json_i;
+    glz::generic json_i;
     error = glz::read_json(json_i, s);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, s);
     EXPECT_EQ(json_i.get<int64_t>(), 9223372036854775807LL);
@@ -1329,21 +2457,21 @@ TEST(IntegerConversionTest, LargeIntegers) {
 
 TEST(ErrorHandlingTest, InvalidJson) {
     std::string invalid_json = R"({"invalid": )"; // malformed JSON
-    glz::json_t input;
+    glz::generic input;
     auto error = glz::read_json(input, invalid_json);
     EXPECT_NE(error, glz::error_code::none);
 }
 
 TEST(ErrorHandlingTest, NonNumberToNumber) {
     std::string invalid_json = R"("not a number")";
-    glz::json_t input;
+    glz::generic input;
     auto error = glz::read_json(input, invalid_json);
     EXPECT_NE(error, glz::error_code::none);
 }
 
 TEST(ErrorHandlingTest, ValidStringToNumber) {
     std::string valid_number = "123";
-    glz::json_t input;
+    glz::generic input;
     auto error = glz::read_json(input, valid_number);
     EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, valid_number);
     EXPECT_EQ(input.get<int64_t>(), 123);
@@ -1424,8 +2552,8 @@ TEST(JSONTest, TestBasicJSON) {
     };
     SETTING(graphs) = object;
     
-    auto json = SETTING(graphs).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).get().valueString());
+    auto json = SETTING(graphs).to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).valueString());
 }
 
 TEST(JSONTest, TestSkeletonJSON) {
@@ -1439,8 +2567,24 @@ TEST(JSONTest, TestSkeletonJSON) {
     };
     SETTING(skeleton) = object;
     
-    auto json = SETTING(skeleton).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).get().valueString());
+    auto json = SETTING(skeleton).to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).valueString());
+}
+
+TEST(ShapeListTest, ParsesDocumentedExample) {
+    const auto shapes = Meta::fromStr<track::ShapeList>(
+        "[[[100,100],[200,100],[200,200],[100,200]],[[300,100],[400,100],[350,200]]]");
+    const std::vector<std::vector<Vec2>> actual(shapes.begin(), shapes.end());
+    const std::vector<std::vector<Vec2>> expected{
+        {Vec2(100,100), Vec2(200,100), Vec2(200,200), Vec2(100,200)},
+        {Vec2(300,100), Vec2(400,100), Vec2(350,200)}
+    };
+
+    ASSERT_EQ(actual.size(), expected.size());
+    for(size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_TRUE(std::is_permutation(actual[i].begin(), actual[i].end(),
+                                       expected[i].begin(), expected[i].end()));
+    }
 }
 
 TEST(JSONTest, TestVec2JSON) {
@@ -1452,18 +2596,18 @@ TEST(JSONTest, TestVec2JSON) {
     SETTING(big_number) = uint64_t(std::numeric_limits<uint64_t>::max());
     
     /// the strings will not be exactly the same.
-    auto json = SETTING(vectors).get().to_json();
+    auto json = SETTING(vectors).to_json();
     ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(glz::write_json(json).value())), object);
     
     /// check whether it removes trailing zeros
     auto s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "[[10,25]]");
     
-    json = SETTING(number).get().to_json();
+    json = SETTING(number).to_json();
     s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "5");
     
-    json = SETTING(big_number).get().to_json();
+    json = SETTING(big_number).to_json();
     s = glz::write_json(json).value();
     /// currently not achievable - only in custom structs
     //ASSERT_EQ(s, SETTING(big_number).get().valueString());
@@ -2238,6 +3382,217 @@ TEST(FindReplaceTest, ReplaceSubstringsWithDifferentLengths) {
     EXPECT_EQ(find_replace(input, search_strings), expected);
 }
 
+// find_replace with single char pair
+
+TEST(FindReplaceCharTest, BasicTest) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "bonono");
+}
+
+TEST(FindReplaceCharTest, EmptyInput) {
+    std::string input = "";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "");
+}
+
+TEST(FindReplaceCharTest, NoMatches) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'x', 'y'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, IdenticalReplacement) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'a'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, AllCharactersMatch) {
+    std::string input = "aaaa";
+    std::pair<char, char> search_replace = {'a', 'b'};
+    EXPECT_EQ(find_replace(input, search_replace), "bbbb");
+}
+
+TEST(FindReplaceCharTest, SpecialCharacters) {
+    std::string input = "path/to/file";
+    std::pair<char, char> search_replace = {'/', '\\'};
+    EXPECT_EQ(find_replace(input, search_replace), "path\\to\\file");
+}
+
+TEST(FindReplaceCharTest, StringViewInput) {
+    std::string_view input = "banana";
+    std::pair<char, char> search_replace = {'n', 'm'};
+    EXPECT_EQ(find_replace(input, search_replace), "bamama");
+}
+
+TEST(FindReplaceCharTest, MultipleInstancesOfSearchChar) {
+    std::string input = "abcdeabc";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "xbcdexbc");
+}
+
+TEST(FindReplaceCharTest, CaseSensitivity) {
+    std::string input = "AbaB";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "AbxB");
+}
+
+TEST(FindReplaceCharTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing a plain ascii char
+    std::string input = "こんにちは 世界";
+    std::pair<char, char> search_replace = {' ', '_'};
+    EXPECT_EQ(find_replace(input, search_replace), "こんにちは_世界");
+}
+
+// find_replace with multiple char pairs
+
+TEST(FindReplaceCharPairsTest, BasicTest) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'b', 'c'},
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "conono");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInput) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyPairs) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInputAndPairs) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, NoMatches) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'x', 'y'},
+        {'z', 'w'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, FirstMatchingPairWins) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'a', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bxnxnx");
+}
+
+TEST(FindReplaceCharPairsTest, ReplacementsDoNotCascade) {
+    // once a char is replaced, later pairs must not be applied to the result,
+    // so swapping two chars works in a single pass
+    std::string input = "abba";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'b', 'a'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "baab");
+}
+
+TEST(FindReplaceCharPairsTest, SpecialCharactersAndDigits) {
+    std::string input = "a$b%c123";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'$', 'X'},
+        {'%', 'Y'},
+        {'1', '2'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "aXbYc223");
+}
+
+TEST(FindReplaceCharPairsTest, SomeMatchingPairs) {
+    std::string input = "abcdefgh";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'z', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdefgh");
+}
+
+TEST(FindReplaceCharPairsTest, AllMatchingPairs) {
+    std::string input = "abab";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyxy");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleInstancesOfSearchChars) {
+    std::string input = "abcdeabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdexbc");
+}
+
+TEST(FindReplaceCharPairsTest, IdenticalReplacements) {
+    std::string input = "abcabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'a'},
+        {'b', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "abcabc");
+}
+
+TEST(FindReplaceCharPairsTest, CaseSensitivity) {
+    std::string input = "The Quick Brown";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'T', 't'},
+        {'Q', 'q'},
+        {'B', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "the quick brown");
+}
+
+TEST(FindReplaceCharPairsTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing plain ascii chars
+    std::string input = "こんにちは 世界!";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {' ', '_'},
+        {'!', '?'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "こんにちは_世界?");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleReplacementsInARow) {
+    std::string input = "abc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'},
+        {'c', 'z'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyz");
+}
+
+TEST(FindReplaceCharPairsTest, RespectOrderOfPairs) {
+    // like RespectOrderOfSearchStrings: an earlier pair takes precedence
+    // over a later pair with the same search char
+    std::string input = "aaa";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'a', 'c'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bbb");
+}
+
 
 // more complex parsing
 
@@ -2586,69 +3941,6 @@ TEST(NarrowCastTest, NoTags) {
 }
 #endif
 
-// Test suite for round-trip Meta::toStr -> Meta::fromStr -> Meta::toStr
-TEST(ToStrFromStrRoundTripTest, BasicTest) {
-    std::string original1 = "hello";
-    std::string original2 = R"(world)";
-    std::string original3 = R"(\n\t\\)";
-    
-    std::string intermediate1 = Meta::toStr<std::string>(original1);
-    std::string intermediate2 = Meta::toStr<std::string>(original2);
-    std::string intermediate3 = Meta::toStr<std::string>(original3);
-    
-    std::string result1 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate1));
-    std::string result2 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate2));
-    std::string result3 = Meta::toStr<std::string>(Meta::fromStr<std::string>(intermediate3));
-    
-    EXPECT_EQ(result1, intermediate1);
-    EXPECT_EQ(result2, intermediate2);
-    EXPECT_EQ(result3, intermediate3);
-}
-
-// Test suite for round-trip Meta::toStr -> Meta::fromStr -> Meta::toStr
-TEST(ToStrFromStrRoundTripTest, EscapingTest) {
-    std::vector<std::string> testStrings = {
-        R"(\\\test\\)",
-        R"(\)",
-        R"(testwithend\)",
-        R"("trailing spaces beyond end"    )",
-        R"(hello)",
-        R"(world)",
-        R"('single quotes')",
-        R"("double quotes")",
-        R"(\"escaped double quotes\")",
-        R"('\'escaped single quotes\'')",
-        R"(\\)",
-        R"(\\\")",
-        R"(\\\\)",
-        R"(\n\t\b\r\f\a)",
-        R"(\\n\\t\\b\\r\\f\\a)",
-        R"(   leading spaces)",
-        R"(trailing spaces   )",
-        R"("trailing spaces beyond end"    )",
-        R"(    "leading spaces beyond start")"
-    };
-    
-    for (const auto& original : testStrings) {
-        std::string intermediate = Meta::toStr<std::string>(original);
-        Print("original ", original.c_str());
-        Print("intermed ", intermediate.c_str());
-        
-        // Assuming your fromStr function trims spaces beyond the enclosing quotes
-        std::string trimmed_intermediate = intermediate;
-        
-        std::string result = Meta::toStr<std::string>(Meta::fromStr<std::string>(trimmed_intermediate));
-        
-        Print("result   ", result.c_str());
-        
-        EXPECT_EQ(result, intermediate) << "Failed round-trip test for string: " << original;
-        
-        std::string fully_reversed = Meta::fromStr<std::string>(result);
-        Print("fully r  ", fully_reversed.c_str());
-        EXPECT_EQ(fully_reversed, original) << "Failed round-trip test for string: " << original;
-    }
-}
-
 bool isWindowsOS() {
 #if defined(_WIN32) || defined(_WIN64)
     return true;
@@ -2777,6 +4069,195 @@ TEST(ParseArrayParts, WithDifferentTypes) {
     ASSERT_EQ(result3.size(), 3);
 }
 
+TEST(LoopArrayParts, MatchesRawArrayParts) {
+    const std::pair<std::string_view, std::vector<std::string_view>> cases[] = {
+        {"", {}},
+        {" \t\r\n ", {}},
+        {"single", {"single"}},
+        {" a ,\tb , c\n", {"a", "b", "c"}},
+        {"[a,b,c]", {"[a,b,c]"}},
+        {R"(a,[b,{"c":[1,2]}],(d,e),f)", {"a", R"([b,{"c":[1,2]}])", "(d,e)", "f"}},
+        {R"("b,c",'d,e',"",'')", {R"("b,c")", "'d,e'", R"("")", "''"}},
+        {R"("b\",c",'d\',e',f)", {R"("b\",c")", R"('d\',e')", "f"}},
+        {R"("b\\",'c\\',d)", {R"("b\\")", R"('c\\')", "d"}},
+        {R"("[a,b]'",'{c,d}"',e)", {R"("[a,b]'")", R"('{c,d}"')", "e"}},
+        {"a，b,c", {"a，b", "c"}},
+        {"a,b]", {"a", "b]"}},
+        {",a", {"", "a"}},
+        {"a, ,b", {"a", "", "b"}},
+        {"a,b, ", {"a", "b", ""}},
+        {",,", {"", "", ""}}
+    };
+    for(const auto& [input, expected] : cases) {
+        SCOPED_TRACE(input);
+        std::vector<std::string_view> parts;
+        const auto count = loop_array_parts<',', false>(input, [&](size_t index, std::string_view part) {
+            EXPECT_EQ(index, parts.size());
+            parts.push_back(part);
+        });
+        EXPECT_EQ(parts, expected);
+        EXPECT_EQ(count, parts.size());
+        EXPECT_EQ(parse_array_parts(input), expected);
+    }
+}
+
+TEST(LoopArrayParts, SupportsCustomDelimiter) {
+    std::vector<std::string_view> parts;
+    const auto callback = [&](size_t index, std::string_view part) {
+        EXPECT_EQ(index, parts.size());
+        parts.push_back(part);
+    };
+    const auto input = R"( a,b ; [c;d] ; "e;f" ; (g;h) ; )";
+    const auto count = loop_array_parts<';'>(input, callback);
+    EXPECT_EQ(parts, (std::vector<std::string_view>{"a,b", "[c;d]", R"("e;f")", "(g;h)"}));
+    EXPECT_EQ(count, parts.size());
+    parts.clear();
+    const auto raw_count = loop_array_parts<';', false>(input, callback);
+    EXPECT_EQ(parts, (std::vector<std::string_view>{"a,b", "[c;d]", R"("e;f")", "(g;h)", ""}));
+    EXPECT_EQ(raw_count, parts.size());
+}
+
+TEST(LoopArrayParts, CountsOnlyEmittedParts) {
+    const std::pair<std::string_view, std::vector<std::string_view>> cases[] = {
+        {"", {}},
+        {" \t\r\n ", {}},
+        {"a", {"a"}},
+        {"a,b", {"a", "b"}},
+        {"a,b,", {"a", "b"}},
+        {"a,b,   ", {"a", "b"}},
+        {R"("",'',[],[a,,b],)", {R"("")", "''", "[]", "[a,,b]"}}
+    };
+    for(const auto& [input, expected] : cases) {
+        SCOPED_TRACE(input);
+        std::vector<std::string_view> parts;
+        const auto count = loop_array_parts(input, [&](size_t index, std::string_view part) {
+            EXPECT_EQ(index, parts.size());
+            parts.push_back(part);
+        });
+        EXPECT_EQ(parts, expected);
+        EXPECT_EQ(count, parts.size());
+    }
+}
+
+TEST(LoopArrayParts, RejectsLeadingInteriorAndRepeatedTrailingEmptyParts) {
+    for(std::string_view input : {",a", " ,a", "a,,b", "a, ,b", "a,b,,", "a,b, , ", ",", ",,"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(loop_array_parts(input, [](size_t, std::string_view) {}), illegal_syntax);
+    }
+}
+
+TEST(LoopArrayParts, BorrowsInputDuringCallback) {
+    std::string input = " alpha , beta ";
+    const auto check = [&](auto&& source) {
+        size_t calls = 0;
+        EXPECT_EQ(loop_array_parts(source, [&](size_t index, std::string_view part) {
+            EXPECT_EQ(index, calls++);
+            EXPECT_EQ(part, index == 0 ? "alpha" : "beta");
+            EXPECT_EQ(part.data(), input.data() + (index == 0 ? 1 : 9));
+        }), 2u);
+        EXPECT_EQ(calls, 2u);
+    };
+    check(input);
+    check(std::as_const(input));
+    check(std::string_view(input));
+    check(input.c_str());
+    const char* null_input = nullptr;
+    EXPECT_EQ(loop_array_parts(null_input, [](size_t, std::string_view) { ADD_FAILURE(); }), 0u);
+
+    std::vector<std::string> parts;
+    EXPECT_EQ(loop_array_parts(std::string(80, 'a') + ", beta", [&](size_t index, std::string_view part) {
+        EXPECT_EQ(index, parts.size());
+        parts.emplace_back(part);
+    }), 2u);
+    EXPECT_EQ(parts, (std::vector<std::string>{std::string(80, 'a'), "beta"}));
+}
+
+TEST(LoopArrayParts, PropagatesCallbackException) {
+    for(size_t fail_at : {0u, 1u, 2u}) {
+        SCOPED_TRACE(fail_at);
+        size_t calls = 0;
+        EXPECT_THROW(loop_array_parts("a,b,c", [&](size_t index, std::string_view) {
+            EXPECT_EQ(index, calls++);
+            if(index == fail_at)
+                throw std::runtime_error("callback failed");
+        }), std::runtime_error);
+        EXPECT_EQ(calls, fail_at + 1);
+    }
+}
+
+TEST(ParseArrayParts, AccessArrayPart) {
+    struct TestCase {
+        std::string_view input;
+        char delimiter;
+        std::vector<std::string_view> expected;
+    };
+
+    const TestCase cases[] = {
+        {"", ',', {}},
+        {"single", ',', {"single"}},
+        {"a,b,c", ',', {"a", "b", "c"}},
+        {" a , b , c ", ',', {"a", "b", "c"}},
+        {"  ", ',', {}},
+        {",,", ',', {"", "", ""}},
+        {"a,,c,", ',', {"a", "", "c", ""}},
+        {"[a,b,c]", ',', {"[a,b,c]"}},
+        {R"(a, [b,c], {key:"d,e"}, (f,g))", ',',
+         {"a", "[b,c]", R"({key:"d,e"})", "(f,g)"}},
+        {R"(a, "b,c", 'd,e')", ',', {"a", R"("b,c")", "'d,e'"}},
+        {R"("a\",b",tail)", ',', {R"("a\",b")", "tail"}},
+        {R"("a\\",tail)", ',', {R"("a\\")", "tail"}},
+        {R"('a\',b',tail)", ',', {R"('a\',b')", "tail"}},
+        {R"(key: [1,2]: "a:b": (c:d))", ':',
+         {"key", "[1,2]", R"("a:b")", "(c:d)"}},
+        {std::string_view{"a\0b,c", 5}, ',',
+         {std::string_view{"a\0b", 3}, "c"}}
+    };
+
+    for(size_t i = 0; i < std::size(cases); ++i) {
+        const auto& test = cases[i];
+        SCOPED_TRACE(::testing::Message() << "case=" << i);
+        for(size_t index = 0; index < test.expected.size(); ++index) {
+            SCOPED_TRACE(::testing::Message() << "index=" << index);
+            EXPECT_NO_THROW({
+                EXPECT_EQ(test.delimiter == ':'
+                              ? access_array_part<':'>(test.input, index)
+                              : access_array_part<','>(test.input, index),
+                          test.expected[index]);
+            });
+        }
+        EXPECT_THROW(test.delimiter == ':'
+                         ? access_array_part<':'>(test.input, test.expected.size())
+                         : access_array_part<','>(test.input, test.expected.size()),
+                     std::invalid_argument);
+        EXPECT_THROW(test.delimiter == ':'
+                         ? access_array_part<':'>(test.input, test.expected.size() + 1)
+                         : access_array_part<','>(test.input, test.expected.size() + 1),
+                     std::invalid_argument);
+    }
+
+    const std::string_view wrapped = "[alpha, [beta,gamma], omega]";
+    EXPECT_NO_THROW({
+        EXPECT_EQ(access_array_part(util::truncate(wrapped), 1), "[beta,gamma]");
+    });
+
+    std::string source = " first, second , third ";
+    EXPECT_NO_THROW({
+        auto part = access_array_part(source, 1);
+        static_assert(std::is_same_v<decltype(part), std::string_view>);
+        EXPECT_EQ(part, "second");
+        EXPECT_EQ(part.data(), source.data() + source.find("second"));
+        source[source.find("second")] = 'S';
+        EXPECT_EQ(part, "Second");
+    });
+
+    EXPECT_NO_THROW({
+        auto part = access_array_part(std::string("first, second, third"), 1);
+        static_assert(std::is_same_v<decltype(part), std::string>);
+        EXPECT_EQ(part, "second");
+        EXPECT_EQ(access_array_part(std::string("first, second, third"), 2), "third");
+    });
+}
+
 // ---------------------------------------------------------------------------
 // parse_array_parts – return-type selection and lifetime safety
 // ---------------------------------------------------------------------------
@@ -2866,9 +4347,6 @@ TEST(ParseArrayParts, IgnoresDelimiterInsideParentheses)
 
     auto result = parse_array_parts(input);
 
-    // This currently FAILS:
-    // result is ["(a", "b)", "c"] because '(' and ')' are not tracked
-    // in the internal `brackets` stack.
     ASSERT_EQ(result, expected);
 }
 
@@ -2908,6 +4386,154 @@ TEST(ParseArrayPartsBehaviorTest, HugeInputWithoutDelimiters)
     auto tokens = parse_array_parts(big);
     ASSERT_EQ(tokens.size(), 1u);
     EXPECT_EQ(tokens.front().size(), big.size());
+}
+
+// === Meta::fromStr<container<...>> empty-element contract ====================
+//
+// Contract ("allow trailing only"): when parsing a container string, a single
+// trailing empty element (from a trailing delimiter, e.g. "[a,b,]") is tolerated
+// and dropped. Any other empty element is illegal and throws illegal_syntax:
+//   * interior empties      -> "[a,,b]"
+//   * leading empties       -> "[,a]"
+//   * a second trailing one -> "[a,b,,]"
+//   * the only token empty   -> "[,]"
+// This contract is enforced uniformly across vector, deque, array, set and map.
+
+TEST(ContainerEmptyElementContract, VectorTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[1,2,]"),
+              (std::vector<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, VectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorLeadingEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,1,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorDoubleTrailingThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,2,,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorOnlyCommaThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorEmptyContainerOk) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[]"),
+              (std::vector<int>{}));
+}
+
+TEST(ContainerEmptyElementContract, DequeTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::deque<int>>("[1,2,]"),
+              (std::deque<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, DequeInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::deque<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, ArrayTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::array<int, 2>>("[1,2,]")),
+              (std::array<int, 2>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, ArrayInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::array<int, 2>>("[1,,2]")), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, SetTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::set<int>>("[1,2,]"),
+              (std::set<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, SetInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::set<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,"b":2,})")),
+              (std::map<std::string, int>{{"a", 1}, {"b", 2}}));
+}
+
+TEST(ContainerEmptyElementContract, MapInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,,"b":2})")),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapEmptyContainerOk) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>("{}")),
+              (std::map<std::string, int>{}));
+}
+
+// The literal example from the contract request: interior empty must throw,
+// while the trailing-only variant parses cleanly (whitespace is trimmed).
+TEST(ContainerEmptyElementContract, StringVectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<std::string>>("[element,element 2,,last,]"),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, StringVectorTrailingOnlyAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<std::string>>("[element,element 2,last,]"),
+              (std::vector<std::string>{"element", "element 2", "last"}));
+}
+
+TEST(MetaTest, FixedSizeReadersCheckCardinality) {
+    using Pair = std::pair<std::string, std::string>;
+    using Tuple = std::tuple<int, std::string>;
+    using Array = std::array<int, 2>;
+    EXPECT_EQ(Meta::fromStr<Pair>("[,tail]"), (Pair{"", "tail"}));
+    EXPECT_EQ(Meta::fromStr<Pair>("[head,]"), (Pair{"head", ""}));
+    EXPECT_EQ(Meta::fromStr<Tuple>(R"([3,"a,b"])"), (Tuple{3, "a,b"}));
+    EXPECT_EQ(Meta::fromStr<cv::Range>(std::string("[1,3]")), cv::Range(1, 3));
+    EXPECT_EQ(Meta::fromStr<cv::Size>("[1,3]"), cv::Size(1, 3));
+    EXPECT_EQ(Meta::fromStr<cv::Rect>("[1,2,3,4]"), cv::Rect(1, 2, 3, 4));
+
+    for(const std::string input : {"[]", "[1]", "[1,2,3]"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(Meta::fromStr<Pair>(input), std::invalid_argument);
+        EXPECT_THROW(Meta::fromStr<Tuple>(input), illegal_syntax);
+        EXPECT_THROW(Meta::fromStr<Array>(input), std::invalid_argument);
+        EXPECT_THROW(Meta::fromStr<cv::Range>(input), std::invalid_argument);
+        EXPECT_THROW(Meta::fromStr<cv::Size>(input), std::invalid_argument);
+    }
+    for(const auto input : {"[]", "[1,2,3]", "[1,2,3,4,5]"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(Meta::fromStr<cv::Rect>(input), std::invalid_argument);
+    }
+    EXPECT_THROW(Meta::fromStr<Tuple>("[1,a,]"), illegal_syntax);
+    EXPECT_TRUE((Meta::fromStr<std::array<int, 0>>("[]").empty()));
+    EXPECT_THROW((Meta::fromStr<std::array<int, 0>>("[1]")), std::invalid_argument);
+    EXPECT_EQ(Meta::fromStr<std::tuple<>>("[]"), std::tuple<>{});
+    EXPECT_THROW(Meta::fromStr<std::tuple<>>("[1]"), illegal_syntax);
+}
+
+TEST(MetaTest, MapReaderPreservesEntryBoundaries) {
+    using Map = std::map<std::string, std::string>;
+    EXPECT_EQ(Meta::fromStr<Map>(R"({:empty key,"empty value":,"a:b":"c,d",})"),
+              (Map{{"", "empty key"}, {"empty value", ""}, {"a:b", "c,d"}}));
+    using Nested = std::map<int, std::vector<int>>;
+    EXPECT_EQ(Meta::fromStr<Nested>(R"({"1":[2,3,],2:[]})"),
+              (Nested{{1, {2, 3}}, {2, {}}}));
+    for(const auto input : {"{a}", "{a:b:c}"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(Meta::fromStr<Map>(input), std::invalid_argument);
+    }
+}
+
+TEST(ContainerEmptyElementContract, QueuePreservesOrderAndEmptyElementRules) {
+    auto values = Meta::fromStr<std::queue<int>>("[3,1,2,]");
+    ASSERT_EQ(values.size(), 3u);
+    for(const int expected : {3, 1, 2}) {
+        EXPECT_EQ(values.front(), expected);
+        values.pop();
+    }
+    EXPECT_TRUE(Meta::fromStr<std::queue<int>>("[]").empty());
+    EXPECT_THROW(Meta::fromStr<std::queue<int>>("[1,,2]"), illegal_syntax);
+    auto sorted = Meta::fromStr<std::priority_queue<int>>("[1,3,2,]");
+    ASSERT_EQ(sorted.size(), 3u);
+    EXPECT_EQ(sorted.top(), 3);
 }
 
 // === truncate – defensive programming ======================================
@@ -3046,6 +4672,17 @@ TEST(ToStringTest, ExceptionCase) {
     float bigNumber = 1e40;
     EXPECT_EQ(to_string(bigNumber), "inf");
 }
+
+#ifndef trex_use_std_to_chars
+TEST(ToStringTest, FormattedFallbackRespectsBufferBounds) {
+    std::array<char, 1> buffer{'!'};
+    const auto result = cmn::to_chars(buffer.data(), buffer.data() + buffer.size(),
+                                    12.0, cmn::chars_format::fixed);
+    EXPECT_EQ(result.ec, std::errc::value_too_large);
+    EXPECT_EQ(result.ptr, buffer.data());
+    EXPECT_EQ(buffer[0], '!');
+}
+#endif
 
 TEST(ToStringTest, HandleCompileTimeUnsignedInt) {
     // only check using static_assert if not using GCC
@@ -3188,6 +4825,7 @@ TEST(ConstexprStringTest, ConstructorFromArray) {
 }
 
 TEST(ConstexprStringTest, ConstructorFromStdArray) {
+    static_assert(!std::is_constructible_v<ConstString_t, std::array<char, 0>>);
     constexpr std::array<char, 6> testArray = {'H', 'e', 'l', 'l', 'o', '\0'};
     constexpr ConstexprString<128> myStr(testArray);
     static_assert(myStr.size() == 5, "Length is incorrect");
@@ -3202,6 +4840,11 @@ TEST(ConstexprStringTest, ConstructorFromAnotherConstexprString) {
     static_assert(myStr.size() == 5, "Length is incorrect");
     EXPECT_EQ(myStr.size(), 5);
     EXPECT_EQ(myStr.view(), "World");
+
+    constexpr auto full = originalStr.fill<'W'>();
+    constexpr ConstexprString<128> full_copy(full, [](char c) { return c; });
+    static_assert(full_copy.size() == 128 && full_copy[127] == 'W');
+    EXPECT_EQ(full_copy.view(), full.view());
 }
 
 TEST(ConstexprStringTest, ConstructorFromArrayWithFunction) {
@@ -3238,6 +4881,17 @@ TEST(ConstexprStringTest, AppendCharArrayMethod) {
     static_assert(result.size() == 10, "Length is incorrect");
     EXPECT_EQ(result.size(), 10);
     EXPECT_EQ(result.view(), "HelloWorld");
+}
+
+TEST(ConstexprStringTest, MixedConcatenationAndDifferentAppendCapacity) {
+    constexpr ConstexprString<4> part("ab");
+    constexpr ConstexprString<16> mixed("<", part, std::string_view("cd"), ">");
+    static_assert(mixed.view() == "<abcd>");
+    constexpr auto appended = ConstexprString<16>("prefix").append(part);
+    static_assert(appended.view() == "prefixab");
+    static_assert(!std::is_constructible_v<ConstString_t, int, const char (&)[2]>);
+    EXPECT_EQ(mixed.view(), "<abcd>");
+    EXPECT_EQ(appended.view(), "prefixab");
 }
 
 TEST(ConstexprStringTest, FillMethod) {
@@ -4007,6 +5661,10 @@ TEST(IsInIndexTest, ReturnsNposWhenMissing) {
     EXPECT_EQ(missing_index, npos);
 }
 
+TEST(Serialize, TupleName) {
+    ASSERT_EQ((Meta::name<std::tuple<int,float>>()), "tuple<int,float>");
+}
+
 namespace {
 struct ThrowIfCompared {
     bool* was_compared = nullptr;
@@ -4037,3 +5695,783 @@ TEST(IsInIndexTest, StopsEvaluatingAfterLaterMatch) {
     });
     EXPECT_FALSE(compared_after_match);
 }
+
+
+namespace meter {
+
+template<typename Q>
+requires is_instantiation<std::optional, Q>::value
+constexpr std::string_view name() {
+    static constexpr util::ConstString_t ret("optional<", _Meta::name<typename cmn::remove_cvref<typename Q::value_type>::type>(), ">" );
+    return ret.view();
+}
+}
+
+TEST(MetaTest, OptionalSerializesProperly) {
+    ASSERT_EQ(meter::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+    ASSERT_EQ(Meta::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+}
+
+TEST(MetaTest, RejectsParsingIntoSpan) {
+    EXPECT_THROW((Meta::fromStr<std::span<const int>>("[1,2]")), std::invalid_argument);
+}
+
+TEST(MetaTest, ParsesVectorWithCustomAllocator) {
+    using Vector = std::vector<int, NoInitializeAllocator<int>>;
+    EXPECT_EQ(Meta::fromStr<Vector>("[1,2,3]"), (Vector{1, 2, 3}));
+}
+
+TEST(MetaTest, ParsesIllegalArray) {
+    const auto values = Meta::fromStr<IllegalArray<int>>("[1,2,3]");
+    ASSERT_EQ(values.size(), 3u);
+    EXPECT_EQ(values[0], 1);
+    EXPECT_EQ(values[1], 2);
+    EXPECT_EQ(values[2], 3);
+    EXPECT_TRUE(Meta::fromStr<IllegalArray<int>>("[]").empty());
+    EXPECT_EQ(Meta::toStr(Meta::fromStr<IllegalArray<bool>>("[true,false]")), "[true,false]");
+}
+
+TEST(MetaTest, RejectsParsingIntoInitializerList) {
+    EXPECT_THROW((Meta::fromStr<std::initializer_list<int>>("[1,2]")), std::invalid_argument);
+}
+
+TEST(MetaTest, StringViewRequiresPersistentInput) {
+    EXPECT_THROW(Meta::fromStr<std::string_view>(std::string("hello")), std::invalid_argument);
+    const std::string input = "hello";
+    const auto view = Meta::fromStr<std::string_view>(input);
+    EXPECT_EQ(view, input);
+    EXPECT_EQ(view.data(), input.data());
+}
+
+TEST(MetaTest, NullPointersSerializeSafely) {
+    EXPECT_EQ(Meta::toStr(static_cast<int*>(nullptr)), "null");
+    EXPECT_EQ(Meta::toStr(static_cast<const char*>(nullptr)), "null");
+    EXPECT_EQ(Meta::toStr(std::optional<const char*>{nullptr}), "null");
+    EXPECT_EQ(_Meta::toStr<file::Path*>(static_cast<file::Path*>(nullptr)), "null");
+}
+
+TEST(MetaTest, FunctionNameSerializesArgumentsAndReturnType) {
+    using Function = std::function<int(uint16_t, std::string)>;
+
+    ASSERT_EQ(utils::get_name(Function{}), "function<int(uint16,string)>");
+}
+
+TEST(MetaTest, FunctionNameSerializesRecursiveTypes) {
+    using Function = std::function<
+        std::optional<std::map<uint16_t, std::string>>(
+            std::vector<int>,
+            std::pair<uint16_t, std::string>,
+            std::tuple<int, float>
+        )
+    >;
+
+    ASSERT_EQ(
+        utils::get_name(Function{}),
+        "function<optional<map<uint16,string>>(list<int>,pair<uint16,string>,tuple<int,float>)>"
+    );
+}
+
+TEST(MetaTest, RecursiveTypeNamesSerializeProperly) {
+    using VectorOfPairs = std::vector<std::pair<uint16_t, std::string>>;
+    using MapOfVectors = std::map<uint16_t, std::vector<std::string>>;
+    using Tuple = std::tuple<
+        int,
+        std::optional<std::map<uint16_t, std::string>>,
+        std::vector<std::pair<uint16_t, std::string>>
+    >;
+
+    ASSERT_EQ(Meta::name<VectorOfPairs>(), "list<pair<uint16,string>>");
+    ASSERT_EQ(Meta::name<MapOfVectors>(), "map<uint16,list<string>>");
+    ASSERT_EQ(Meta::name<Tuple>(), "tuple<int,optional<map<uint16,string>>,list<pair<uint16,string>>>");
+}
+
+TEST(MetaTest, BasicAndRecursiveNamesAreConstantExpressions) {
+    using Map = std::map<int, std::pair<char, const char*>>;
+    using Pair = std::pair<int, std::pair<char, long double>>;
+    using Function = std::function<void(const Map&)>;
+    static_assert(Meta::name<char>() == "char");
+    static_assert(Meta::name<long double>() == "long double");
+    static_assert(Meta::name<std::tuple<>>() == "tuple<>");
+    static_assert(Meta::name<std::array<int, 0>>() == "array<int,0>");
+    static_assert(Meta::name<std::array<int, 2>>() == "array<int,2>");
+    static_assert(Meta::name<std::array<int, 12>>() == "array<int,12>");
+    static_assert(Meta::name<std::vector<std::array<int, 2>>>() == "list<array<int,2>>");
+    static_assert(Meta::name<Map>() == "map<int,pair<char,c_str>>");
+    static_assert(Meta::name<Pair>() == "pair<int,pair<char,long double>>");
+    static_assert(Meta::name<Function>() == "function<void(map<int,pair<char,c_str>>)>");
+    static_assert(Meta::name<std::function<void()>>() == "function<void()>");
+    EXPECT_EQ(Meta::name<Function>(), utils::get_name(Function{}));
+}
+
+namespace {
+struct MetaNamedOnly {
+    static constexpr std::string_view class_name() { return "named"; }
+};
+
+struct MetaUnnamedSerializable {
+    std::string toStr() const { return "value"; }
+};
+
+struct MetaNamedSerializable : MetaNamedOnly, MetaUnnamedSerializable {};
+
+struct MetaRvalueStringOnly {
+    operator std::string() && { return "value"; }
+};
+
+struct MetaExplicitString {
+    explicit operator std::string() const { return "value"; }
+};
+
+struct MetaStringOnlyParser {
+    std::string value;
+    static MetaStringOnlyParser fromStr(const std::string& str) { return {str}; }
+};
+
+struct MetaOverloadedParser {
+    std::string value;
+    static MetaOverloadedParser fromStr(const std::string& str) { return {str}; }
+    static MetaOverloadedParser fromStr(std::string_view str) { return {std::string(str)}; }
+};
+
+template<typename T>
+concept HasMetaStringConversion = requires(const T& value) { _Meta::toStr(value); };
+
+template<typename T>
+concept HasUtilStringConversion = requires(const T& value) { util::to_string(value); };
+}
+
+TEST(MetaTest, StringConversionConstraintsMatchConstArgument) {
+    static_assert(!HasMetaStringConversion<MetaRvalueStringOnly>);
+    static_assert(!HasUtilStringConversion<MetaRvalueStringOnly>);
+    static_assert(!HasUtilStringConversion<MetaNamedOnly>);
+    EXPECT_EQ(Meta::toStr(MetaExplicitString{}), "\"value\"");
+    EXPECT_EQ(util::to_string(MetaExplicitString{}), "\"value\"");
+}
+
+TEST(MetaTest, CustomParserAdaptsStringLikeInput) {
+    EXPECT_EQ(Meta::fromStr<MetaStringOnlyParser>(std::string_view("value")).value, "value");
+    EXPECT_EQ(Meta::fromStr<MetaOverloadedParser>("value").value, "value");
+}
+
+TEST(MetaTest, OptionalAndReferenceDispatchUsesUnderlyingType) {
+    using Function = std::function<void()>;
+    const std::optional<Function> function{Function{}};
+    EXPECT_EQ(Meta::toStr(function), "function<void()>");
+    EXPECT_EQ(Meta::toStr<const std::optional<Function>&>(function), "function<void()>");
+    static_assert(Meta::name<const std::optional<Function>&>() == "optional<function<void()>>");
+    static_assert(Meta::name<const std::invalid_argument&>() == "invalid_argument");
+    static_assert(Meta::name<std::optional<const char*>>() == "optional<c_str>");
+    static_assert(Meta::name<const char* const&>() == "c_str");
+    const char* text = "value";
+    EXPECT_EQ(Meta::toStr<const char* const&>(text), "\"value\"");
+    const std::atomic<int> number{7};
+    EXPECT_EQ(Meta::toStr<const std::atomic<int>&>(number), "7");
+    EXPECT_EQ(Meta::fromStr<const std::optional<int>&>("7"), std::optional<int>{7});
+    EXPECT_EQ(Meta::fromStr<const std::optional<int>&>("null"), std::nullopt);
+    EXPECT_THROW(Meta::fromStr<std::optional<Function>>(std::string_view("value")), std::runtime_error);
+}
+
+TEST(MetaTest, SmartPointerOverloadsAreDisjointAndComplete) {
+    EXPECT_TRUE(Meta::toStr(std::make_shared<MetaNamedOnly>()).starts_with("ptr<?>0x"));
+    EXPECT_EQ(Meta::toStr(std::make_shared<MetaNamedSerializable>()), "ptr<named>value");
+    EXPECT_EQ(Meta::toStr(std::make_unique<MetaUnnamedSerializable>()), "ptr<?>value");
+    EXPECT_EQ(Meta::toStr(std::shared_ptr<MetaNamedSerializable>{}), "ptr<named>null");
+    EXPECT_EQ(Meta::toStr(std::unique_ptr<MetaUnnamedSerializable>{}), "ptr<?>null");
+}
+
+namespace {
+
+using namespace track::detect;
+using track::FrameTags;
+using track::BdxIgnoreList;
+
+class PredictionFilterTests : public ::testing::Test {
+    sprite::Map saved;
+
+    void SetUp() override {
+        GlobalSettings::write([&](Configuration& config) {
+            if(config.values.has("detect_classes"))
+                config.values.at("detect_classes").get().copy_to(saved);
+            config.values["detect_classes"] = blob::MaybeObjectClass_t{};
+        });
+    }
+
+    void TearDown() override {
+        GlobalSettings::write([&](Configuration& config) {
+            config.values.erase("detect_classes");
+            if(saved.has("detect_classes"))
+                saved.at("detect_classes").get().copy_to(config.values);
+        });
+    }
+};
+
+TEST_F(PredictionFilterTests, Basic) {
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t {
+        cmn::blob::ObjectClass_t {
+            {0, "dog"},
+            {1, "bird"},
+            {2, "fish"},
+            {42, "toothbrush"}
+        }
+    };
+
+    auto filter = PredictionFilter::fromStr(R"([0,2,toothbrush])");
+    Print(filter);
+    ASSERT_EQ("[0,2,42]", filter.toStr());
+
+    filter = PredictionFilter::fromStr(R"(-[dog,2,toothbrush])");
+    Print(filter);
+    ASSERT_EQ("-[0,2,42]", filter.toStr());
+
+    filter = PredictionFilter::fromStr(R"(-[dog,2,toothbrush,dog])");
+    Print(filter);
+    ASSERT_EQ("-[0,2,42]", filter.toStr());
+
+    for(const auto& input : {"[0,2]", "-[0,2]"}) {
+        SCOPED_TRACE(input);
+        const auto expected = PredictionFilter::fromStr(input);
+        EXPECT_NO_THROW({ EXPECT_EQ(PredictionFilter::fromStr(cmn::Meta::toStr(std::string(input))), expected); });
+        EXPECT_NO_THROW({ EXPECT_EQ(PredictionFilter::fromStr(glz::write_json(expected.to_json()).value()), expected); });
+    }
+}
+
+TEST(YOLOFilenameTest, ValidFilenames) {
+    EXPECT_TRUE(yolo::is_default_model("yolo11n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n-pose"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11n-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-pose"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11m-seg"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11x-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo11x-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n-sem"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n-sem.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10b.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10l.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10s.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov10x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov3-sppu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov3-tinyu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov3u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5l6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5lu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5m6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5mu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5n6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5nu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5s6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5su.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5x6u.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov5xu.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8l.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8s.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-cls.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-human.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-obb.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-pose-p6.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-pose.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x-v8loader.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x6-oiv7.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov8x6.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9c-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9c.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9e-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9e.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9m.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9s.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolov9t.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo12345m.pt")); // larger versions drop the v
+    EXPECT_TRUE(yolo::is_default_model("yolo80x.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo22b.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo45l.pt")); // Missing hyphen
+    EXPECT_TRUE(yolo::is_default_model("yolo20l-obb.pt")); // Hyphen not allowed in this position
+    EXPECT_TRUE(yolo::is_default_model("yolov8x6-500.pt"));
+}
+
+TEST(YOLOFilenameTest, InvalidFilenames) {
+
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-world-cc3m.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-worldv2-cc3m.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8l-worldv2.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8m-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8m-worldv2.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-worldv2.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-world.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-worldv2.pt"));
+
+    EXPECT_FALSE(yolo::is_default_model("yolov7a.pt"));
+    EXPECT_FALSE(yolo::is_default_model("yolo10.pt")); // Missing 'v'
+    EXPECT_FALSE(yolo::is_default_model("yolo12.pt")); // Missing model size
+    EXPECT_FALSE(yolo::is_default_model("yolo26")); // Missing model size
+    EXPECT_FALSE(yolo::is_default_model("yolo26.pt")); // Missing model size
+    EXPECT_FALSE(yolo::is_default_model("yolov.pt")); // Missing version number
+    EXPECT_FALSE(yolo::is_default_model("yolov10.ptx")); // Extra characters after .pt
+    EXPECT_FALSE(yolo::is_default_model("yolov10_b.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10!.pt")); // Special character not allowed
+    EXPECT_FALSE(yolo::is_default_model("abc_yolov10.pt")); // Extra prefix not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10.pt ")); // Trailing space not allowed
+    EXPECT_FALSE(yolo::is_default_model(" yolov10.pt")); // Leading space not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolovv10.pt")); // Double 'v'
+    EXPECT_FALSE(yolo::is_default_model("yolov10-pt")); // Missing dot before 'pt'
+    EXPECT_FALSE(yolo::is_default_model("yolov8x6-pose!.pt")); // Special character '!' not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x- world.pt")); // Space not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov3tiny.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov5mu.px")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov5n_6u.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8n.seg.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-world_pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8-l.pt")); // Hyphen not in correct position
+    EXPECT_FALSE(yolo::is_default_model("yolo_v8m.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8_x.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov_10b.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov-10l.pt")); // Hyphen not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10 m.pt")); // Space not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov10n.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov10x..pt")); // Double dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8l_world.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8lworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8-lworldv2.pt")); // Hyphen not in correct position
+    EXPECT_FALSE(yolo::is_default_model("yolov8lworldv2-pt")); // Hyphen not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8lm.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8mcl.s.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8mpose.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8m.seg.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8.m-obb.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8mworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8-n.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8n_cls.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8npose.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8n.seg-pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8n.world.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov_8s.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8s_obb.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8s_worldpt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8s-worldv2.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov8-s.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8x_cl.s.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8xworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8x_pose.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x..seg.pt")); // Double dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x6.oiv7.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov8x-6-500.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolov8x6.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov9c_seg.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9c.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolov9_e.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9.e-seg.pt")); // Extra dot not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9m_.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolov9ms.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov9_t.pt")); // Underscore not allowed
+    EXPECT_FALSE(yolo::is_default_model("yolo12-x.pt")); // Hyphen not allowed in this position
+    EXPECT_FALSE(yolo::is_default_model("yolo14world.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo15-pose.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolo100seg.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo99nworld.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov8xtiny.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov3large.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov1small.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo11human.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo100pt")); // Missing dot before 'pt'
+    EXPECT_FALSE(yolo::is_default_model("yolo56pose.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolo19seg.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolo100m.ptx")); // Incorrect extension
+    EXPECT_FALSE(yolo::is_default_model("yolo77k.pt")); // Missing hyphen
+    EXPECT_FALSE(yolo::is_default_model("yolov77n.pt")); // Extra v
+    EXPECT_FALSE(yolo::is_default_model("yolo202.ptx")); // Incorrect extension
+}
+
+namespace {
+
+std::string json_string(const glz::generic& json) {
+    return glz::write_json(json).value();
+}
+
+}
+
+TEST(Sam3PromptPayloadTest, FromStrParsesPlainTextPrompt) {
+    const auto prompt = Sam3PromptPayload::fromStr("fish");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::text);
+    ASSERT_TRUE(prompt.has_value());
+    EXPECT_EQ(prompt.text(), "fish");
+    EXPECT_EQ(prompt.toStr(), "fish");
+    EXPECT_EQ(json_string(prompt.to_json()), "\"fish\"");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrParsesQuotedTextPrompt) {
+    const auto prompt = Sam3PromptPayload::fromStr("\"fish\"");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::text);
+    ASSERT_TRUE(prompt.has_value());
+    EXPECT_EQ(prompt.text(), "fish");
+    EXPECT_EQ(prompt.toStr(), "fish");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrTrimsAndParsesSingleQuotedTextPrompt) {
+    const auto prompt = Sam3PromptPayload::fromStr("  'fish'  ");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::text);
+    ASSERT_TRUE(prompt.has_value());
+    EXPECT_EQ(prompt.text(), "fish");
+    EXPECT_EQ(prompt.toStr(), "fish");
+    EXPECT_EQ(json_string(prompt.to_json()), "\"fish\"");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrParsesPointPromptArray) {
+    const auto prompt = Sam3PromptPayload::fromStr("[[1,2],[3,4]]");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::points);
+    ASSERT_EQ(prompt.points().size(), 2u);
+    EXPECT_EQ(prompt.points()[0], Vec2(1, 2));
+    EXPECT_EQ(prompt.points()[1], Vec2(3, 4));
+    EXPECT_EQ(prompt.toStr(), "[[1,2],[3,4]]");
+    EXPECT_EQ(json_string(prompt.to_json()), "[[1,2],[3,4]]");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrParsesBoxPromptArray) {
+    const auto prompt = Sam3PromptPayload::fromStr("[[10,20,30,40],[50,60,70,80]]");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::boxes);
+    ASSERT_EQ(prompt.boxes().size(), 2u);
+    EXPECT_EQ(prompt.boxes()[0], (Bounds(10, 20, 30, 40)));
+    EXPECT_EQ(prompt.boxes()[1], (Bounds(50, 60, 70, 80)));
+    EXPECT_EQ(prompt.toStr(), "[[10,20,30,40],[50,60,70,80]]");
+    EXPECT_EQ(json_string(prompt.to_json()), "[[10,20,30,40],[50,60,70,80]]");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrTrimsArrayPromptWhitespace) {
+    const auto prompt = Sam3PromptPayload::fromStr("  [[1,2],[3,4]]  ");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::points);
+    ASSERT_EQ(prompt.points().size(), 2u);
+    EXPECT_EQ(prompt.points()[0], Vec2(1, 2));
+    EXPECT_EQ(prompt.points()[1], Vec2(3, 4));
+    EXPECT_EQ(prompt.toStr(), "[[1,2],[3,4]]");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrTreatsEmptyTextAsNoPayload) {
+    const auto prompt = Sam3PromptPayload::fromStr("  ");
+
+    EXPECT_FALSE(prompt.has_value());
+    EXPECT_EQ(prompt.type(), Sam3PromptType::none);
+    EXPECT_THROW((void)prompt.toStr(), std::exception);
+    EXPECT_THROW((void)prompt.to_json(), std::exception);
+}
+
+TEST(Sam3PromptPayloadTest, FromStrTreatsEmptyArrayAsNoPayload) {
+    const auto prompt = Sam3PromptPayload::fromStr("[]");
+
+    EXPECT_FALSE(prompt.has_value());
+    EXPECT_EQ(prompt.type(), Sam3PromptType::none);
+    EXPECT_THROW((void)prompt.toStr(), std::exception);
+    EXPECT_THROW((void)prompt.to_json(), std::exception);
+}
+
+TEST(Sam3PromptPayloadTest, FromStrRejectsMixedArrayShapes) {
+    EXPECT_THROW(
+        (void)Sam3PromptPayload::fromStr("[[1,2],[3,4,5,6]]"),
+        std::exception);
+}
+
+TEST(Sam3PromptListTest, FromStrParsesBoxPromptArray) {
+    auto list = Meta::fromStr<Sam3PromptList>("['hi i bims',[[25,666],[1234,4567]],[[0,0,200,200],[200,200,210,230]]]");
+
+    Sam3PromptList expected{
+        { .value = "hi i bims" },
+        { .value = std::vector<Vec2>{Vec2(25,666), Vec2(1234,4567)} },
+        { .value = std::vector<Bounds>{{0.f,0.f,200.f,200.f}, {200.f,200.f,210.f,230.f}} }
+    };
+
+    ASSERT_EQ(expected.size(), list.size());
+    for(auto&& [E, A] : Zip::Zip(expected, list)) {
+        ASSERT_EQ(E, A) << E.toStr() << " != " << A.toStr();
+        EXPECT_EQ(E.toStr(), A.toStr());
+    }
+
+}
+
+TEST(Sam3PromptListTest, ToStrCollapsesSinglePayloadButJsonKeepsArray) {
+    const Sam3PromptList list{
+        Sam3PromptPayload{ .value = std::string("fish") }
+    };
+
+    EXPECT_EQ(list.toStr(), "fish");
+    EXPECT_EQ(json_string(list.to_json()), "[\"fish\"]");
+}
+
+TEST(Sam3PromptListTest, ToStrKeepsArrayForMultiplePayloads) {
+    const Sam3PromptList list{
+        Sam3PromptPayload{ .value = std::string("fish") },
+        Sam3PromptPayload{ .value = std::vector<Vec2>{Vec2(1, 2)} }
+    };
+
+    EXPECT_EQ(list.toStr(), "[fish,[[1,2]]]");
+    EXPECT_EQ(json_string(list.to_json()), "[\"fish\",[[1,2]]]");
+}
+
+TEST(Sam3PromptsTest, FromStrParseSingle) {
+    Sam3Prompts prompts = Meta::fromStr<Sam3Prompts>("['hi i bims',[[25,666],[1234,4567]],[[0,0,200,200],[200,200,210,230]]]");
+
+    Sam3PromptList expected{
+        { .value = "hi i bims" },
+        { .value = std::vector<Vec2>{Vec2(25,666), Vec2(1234,4567)} },
+        { .value = std::vector<Bounds>{{0.f,0.f,200.f,200.f}, {200.f,200.f,210.f,230.f}} }
+    };
+
+    Sam3Prompts expected_prompts {
+        { Frame_t{}, expected }
+    };
+
+    /// check that move is there
+    Sam3Prompts other = std::move(prompts);
+    prompts = std::move(other);
+
+    ASSERT_EQ(expected_prompts.size(), prompts.size());
+
+    for(auto &&[expected_key, real_key] : Zip::Zip(extract_keys(expected_prompts), extract_keys(prompts))) {
+        ASSERT_EQ(expected_key, real_key);
+        ASSERT_EQ(expected_prompts.at(expected_key), prompts.at(real_key));
+    }
+}
+
+TEST(Sam3PromptsTest, FromStrPlainTextPromptString) {
+    const Sam3Prompts prompts = Sam3Prompts::fromStr("fish");
+
+    EXPECT_TRUE(prompts.size() == 1u);
+    EXPECT_EQ(prompts.toStr(), "fish");
+    EXPECT_EQ(json_string(prompts.to_json()), "{\"null\":[\"fish\"]}");
+}
+
+TEST(Sam3PromptsTest, ToStrCollapsesSingleGlobalPromptListButJsonKeepsMapShape) {
+    const Sam3Prompts prompts{
+        { Frame_t{}, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } }
+    };
+
+    EXPECT_EQ(prompts.toStr(), "fish");
+    EXPECT_EQ(json_string(prompts.to_json()), "{\"null\":[\"fish\"]}");
+}
+
+TEST(Sam3PromptsTest, ToStr) {
+    const Sam3Prompts prompts{
+        { 0_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } }
+    };
+
+    EXPECT_EQ(prompts.toStr(), "{0:fish}");
+    EXPECT_EQ(json_string(prompts.to_json()), "{\"0\":[\"fish\"]}");
+}
+
+TEST(Sam3PromptsTest, FromStr) {
+    const Sam3Prompts expected{
+        { 0_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } }
+    };
+
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:fish}"), expected);
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:'fish'}"), expected);
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:[fish]}"), expected);
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:['fish']}"), expected);
+
+    const Sam3Prompts multi_expected{
+        { 0_f, Sam3PromptList{
+            Sam3PromptPayload{ .value = std::string("fish") },
+            Sam3PromptPayload{ .value = std::string("human") }
+        } }
+    };
+
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:[fish,human]}"), multi_expected);
+
+    const Sam3Prompts expected2{
+        { Frame_t{}, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("human") } } },
+        { 0_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } },
+        { 1_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::vector<Vec2>{{10_F,12_F}} } } }
+    };
+
+    EXPECT_EQ(Sam3Prompts::fromStr("{null:human,0:fish,1:[[10,12]]}"), expected2) << "expected " << expected2.toStr() << " got " << Sam3Prompts::fromStr("{null:human,0:fish,1:[[10,12]]}").toStr();
+}
+
+TEST(Sam3PromptsTest, EmptyPromptRepositorySerializesAsEmptyObject) {
+    const Sam3Prompts prompts;
+
+    EXPECT_TRUE(prompts.empty());
+    EXPECT_EQ(prompts.toStr(), "{}");
+    EXPECT_EQ(json_string(prompts.to_json()), "{}");
+}
+
+TEST(BlobIgnoreTest, ParsedEmptyListsIgnoreNothing) {
+    for(const std::string_view input : {"[]", "{}", "[{}]", "[{10:[]},{}]"}) {
+        SCOPED_TRACE(input);
+        const auto list = BdxIgnoreList::fromStr(input);
+        EXPECT_FALSE(list.is_ignored(0_f, pv::bid{0u}));
+        EXPECT_FALSE(list.is_ignored(10_f, pv::bid{1u}));
+    }
+
+    EXPECT_EQ(BdxIgnoreList::fromStr("[]").toStr(), "[]");
+    EXPECT_EQ(BdxIgnoreList::fromStr("{}").toStr(), "[]");
+}
+
+TEST(BlobIgnoreTest, LegacyMapBecomesOneEntry) {
+    const auto list = BdxIgnoreList::fromStr("{12:[7],0:[0,4000000000],10:[5,2,5]}");
+
+    EXPECT_EQ(list.toStr(), "[{0:[0]},{0:[4000000000]},{10:[2]},{10:[5]},{12:[7]}]");
+    EXPECT_TRUE(list.is_ignored(0_f, pv::bid{0u}));
+    EXPECT_TRUE(list.is_ignored(0_f, pv::bid{4000000000u}));
+    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{2u}));
+    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{5u}));
+    EXPECT_TRUE(list.is_ignored(12_f, pv::bid{7u}));
+    EXPECT_FALSE(list.is_ignored(10_f, pv::bid{7u}));
+    EXPECT_FALSE(list.is_ignored(11_f, pv::bid{5u}));
+}
+
+TEST(BlobIgnoreTest, AcceptsInnerWhitespaceAndQuotedFrameKeys) {
+    const auto list = BdxIgnoreList::fromStr(
+        R"([ { "10" : [ 5, 2, 5 ], "12" : [ ] }, { "11" : [ 7 ] } ])");
+
+    EXPECT_EQ(list.toStr(), "[{10:[2,5],12:[]},{11:[7]}]");
+    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{2u}));
+    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{5u}));
+    EXPECT_TRUE(list.is_ignored(11_f, pv::bid{7u}));
+    EXPECT_FALSE(list.is_ignored(12_f, pv::bid{7u}));
+}
+
+TEST(BlobIgnoreTest, MetaRoundTripPreservesEntriesAndRebuildsLookup) {
+    const std::string input = "[{10:[2,5]},{10:[3],11:[7]},{}]";
+    const auto original = Meta::fromStr<BdxIgnoreList>(input);
+    const auto restored = Meta::fromStr<BdxIgnoreList>(Meta::toStr(original));
+
+    EXPECT_EQ(Meta::toStr(restored), input);
+    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{2u}));
+    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{3u}));
+    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{5u}));
+    EXPECT_TRUE(restored.is_ignored(11_f, pv::bid{7u}));
+    EXPECT_FALSE(restored.is_ignored(11_f, pv::bid{3u}));
+    EXPECT_FALSE(restored.is_ignored(12_f, pv::bid{7u}));
+}
+
+TEST(BlobIgnoreTest, ParsedValuesOwnTheirInput) {
+    std::string input = "prefix[{10:[2,5]},{11:[7]}]suffix";
+    const auto list = BdxIgnoreList::fromStr(std::string_view(input).substr(6, input.size() - 12));
+    input.assign(input.size(), 'x');
+
+    EXPECT_EQ(list.toStr(), "[{10:[2,5]},{11:[7]}]");
+    EXPECT_TRUE(list.is_ignored(10_f, pv::bid{2u}));
+    EXPECT_TRUE(list.is_ignored(11_f, pv::bid{7u}));
+}
+
+TEST(BlobIgnoreTest, JsonRoundTripPreservesEntriesAndLookup) {
+    const auto original = BdxIgnoreList::fromStr("[{10:[2,5]},{10:[3],11:[7]},{}]");
+    const auto value = original.to_json();
+    ASSERT_TRUE(value.is_array());
+    ASSERT_EQ(value.size(), 3u);
+    ASSERT_TRUE(value[2].is_object());
+    const auto json = glz::write_json(value);
+    ASSERT_TRUE(json.has_value());
+    const auto restored = BdxIgnoreList::fromStr(json.value());
+
+    EXPECT_EQ(restored, original);
+    EXPECT_EQ(restored.toStr(), "[{10:[2,5]},{10:[3],11:[7]},{}]");
+    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{2u}));
+    EXPECT_TRUE(restored.is_ignored(10_f, pv::bid{3u}));
+    EXPECT_TRUE(restored.is_ignored(11_f, pv::bid{7u}));
+    EXPECT_FALSE(restored.is_ignored(11_f, pv::bid{2u}));
+}
+
+TEST(BlobIgnoreTest, RejectsInvalidOuterSyntax) {
+    for(const std::string_view input : {
+            "", " ", "null", "42", "{10:[1]", "[{10:[1]}", "{10:[1]}]"
+        })
+    {
+        SCOPED_TRACE(input);
+        EXPECT_THROW((void)BdxIgnoreList::fromStr(input), std::exception);
+    }
+}
+
+TEST(BlobIgnoreTest, RejectsMalformedEntries) {
+    for(const std::string_view input : {
+            "[1]", "{bad:[1]}", "[{10:[bad]}]", "{10:1}",
+            "[{10:[1]},,{11:[2]}]", "[{10:[1,,2]}]"
+        })
+    {
+        SCOPED_TRACE(input);
+        EXPECT_THROW((void)BdxIgnoreList::fromStr(input), std::exception);
+    }
+}
+TEST(FrameTagTest, QuotedNamesRoundTrip) {
+    for(const std::string_view value : {
+            "alpha",
+            "Alpha 2",
+            "review-later",
+            "group_one",
+            "group one-2"
+        })
+    {
+        const auto tag = FrameTag::fromStr(value);
+        EXPECT_NO_THROW({ EXPECT_EQ(FrameTag::fromStr(Meta::toStr(std::string(value))), tag); });
+        EXPECT_NO_THROW({ EXPECT_EQ(FrameTag::fromStr(glz::write_json(tag.to_json()).value()), tag); });
+    }
+}
+
+TEST(FrameTagTest, JsonRoundTripPreservesSimpleTagsInFrameMap) {
+    const FrameTags tags{{Frame_t(12u), {FrameTag::fromStr("feeding")}}};
+    EXPECT_EQ(FrameTags::fromStr(glz::write_json(tags.to_json()).value()), tags);
+}
+
+// Test constructor with array of paths as string
+TEST(PathArrayTest, ArrayOfStringConstructor) {
+    file::PathArray paths("[\"path/to/file1\", \"path/to/file2\"]");
+    EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
+    EXPECT_EQ(paths.get_paths()[0].str(), file::make_path("path", "to", "file1"));  // Check the first path
+    EXPECT_EQ(paths.get_paths()[1].str(), file::make_path("path", "to", "file2"));  // Check the second path
+
+    const auto serialized = glz::write_json(paths.to_json()).value();
+    const auto loaded = Meta::fromStr<file::PathArray>(serialized);
+    ASSERT_EQ(loaded.get_paths().size(), paths.get_paths().size());
+    for(size_t i = 0; i < paths.get_paths().size(); ++i)
+        EXPECT_EQ(loaded.get_paths()[i].str(), paths.get_paths()[i].str());
+}
+
+} // namespace

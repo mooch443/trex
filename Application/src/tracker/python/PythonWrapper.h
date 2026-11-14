@@ -91,13 +91,14 @@ struct PythonImplInterface {
     void (*convert_exceptions)(std::function<void()>&&) = nullptr;
     void (*set_settings)(cmn::GlobalSettings*, cmn::file::DataLocation*, void*, void*) = nullptr;
     void (*set_display_function)(std::function<void(const std::string&, const cv::Mat&)>&&, std::function<void()>&&) = nullptr;
+    void (*set_runtime_warning_function)(std::function<void(const std::string&)>&&) = nullptr;
     bool (*has_loaded_module)(const std::string&) = nullptr;
     bool (*check_module)(const std::string&, std::function<void()>) = nullptr;
     bool (*is_none)(const std::string&, const std::string&) = nullptr;
     bool (*valid)(const std::string&, const std::string&) = nullptr;
-    std::optional<glz::json_t> (*run_no_args)(const std::string&, const std::string&) = nullptr;
-    std::optional<glz::json_t> (*run_string_arg)(const std::string&, const std::string&, const std::string&) = nullptr;
-    std::optional<glz::json_t> (*run_json_arg)(const std::string&, const std::string&, const glz::json_t&) = nullptr;
+    std::optional<glz::generic> (*run_no_args)(const std::string&, const std::string&) = nullptr;
+    std::optional<glz::generic> (*run_string_arg)(const std::string&, const std::string&, const std::string&) = nullptr;
+    std::optional<glz::generic> (*run_json_arg)(const std::string&, const std::string&, const glz::generic&) = nullptr;
     std::optional<std::string> (*variable_to_string)(const std::string&, const std::string&) = nullptr;
     void (*execute)(const std::string&, bool) = nullptr;
     void (*unset_function)(const char*, const std::string&) = nullptr;
@@ -122,7 +123,8 @@ TREX_EXPORT void configure_runtime(
     void* instance,
     void* tile_buffers,
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
-    std::function<void()> close_fn
+    std::function<void()> close_fn,
+    std::function<void(const std::string&)> warning_fn = {}
 );
 TREX_EXPORT void check_correct_thread_id();
 TREX_EXPORT bool is_correct_thread_id();
@@ -130,9 +132,9 @@ TREX_EXPORT bool has_loaded_module(const std::string&);
 TREX_EXPORT bool check_module(const std::string&, std::function<void()> unloader = nullptr);
 TREX_EXPORT bool is_none(const std::string&, const std::string& m = "");
 TREX_EXPORT bool valid(const std::string&, const std::string& m = "");
-TREX_EXPORT std::optional<glz::json_t> run(const std::string&, const std::string&);
-TREX_EXPORT std::optional<glz::json_t> run(const std::string&, const std::string&, const std::string&);
-TREX_EXPORT std::optional<glz::json_t> run(const std::string&, const std::string&, const glz::json_t&);
+TREX_EXPORT std::optional<glz::generic> run(const std::string&, const std::string&);
+TREX_EXPORT std::optional<glz::generic> run(const std::string&, const std::string&, const std::string&);
+TREX_EXPORT std::optional<glz::generic> run(const std::string&, const std::string&, const glz::generic&);
 TREX_EXPORT std::optional<std::string> variable_to_string(const std::string&, const std::string& m = "");
 TREX_EXPORT void execute(const std::string&, bool safety_check = true);
 TREX_EXPORT void unset_function(const char*, const std::string& m = "");

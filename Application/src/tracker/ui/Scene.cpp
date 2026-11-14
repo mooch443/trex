@@ -7,11 +7,11 @@
 #include <ui/Coordinates.h>
 #include <gui/IMGUIBase.h>
 #include <ui/WorkProgress.h>
+#include <gui/dyn/CTimer.h>
 
 namespace cmn::gui {
 
 IMPLEMENT(SceneManager::_switching_error);
-IMPLEMENT(SceneManager::_displaying_error){false};
 
 Scene::Scene(Base& window,
              const std::string& name,
@@ -60,13 +60,13 @@ SceneManager::SceneManager()
     _gui_thread_id = std::this_thread::get_id();
 }
 
-void SceneManager::set_active(Scene* scene) {
-    auto fn = [this, scene]() {
+void SceneManager::set_active(Scene* scene, std::function<void()> prepare, std::function<void()> activated) {
+    auto fn = [this, scene, prepare = std::move(prepare), activated = std::move(activated)]() mutable {
         try {
             if(active_scene == scene) return;
 
             if (active_scene && active_scene != scene) {
-                Print("[SceneManager] Deactivating ", active_scene->name());
+                prefixed_print("SceneManager", "Deactivating ", active_scene->name());
                 active_scene->deactivate();
                 
                 {
@@ -76,25 +76,33 @@ void SceneManager::set_active(Scene* scene) {
                 }
             }
             last_active_scene = active_scene;
+            active_scene = nullptr;
+            if(scene)
+                prefixed_print("SceneManager", "Switching to ", scene->name());
+            if(prepare)
+                prepare();
             active_scene = scene;
             if (scene) {
-                Print("[SceneManager] Switching to ", scene->name());
                 scene->activate();
             } else
-                Print("[SceneManager] Deactivating.");
+                prefixed_print("SceneManager", "Deactivating.");
+            if(activated)
+                activated();
             
         } catch(const std::exception& e) {
+            prepare = {};
+            activated = {};
             SceneManager::set_switching_error(e.what());
 
             if (SceneManager::getInstance().fallback_scene) {
                 SceneManager::getInstance().set_active(SceneManager::getInstance().fallback_scene);
             }
             else {
-                Print("[SceneManager] No fallback scene for error: ", e.what());
+                prefixed_print("SceneManager", "No fallback scene for error: ", e.what());
             }
         }
     };
-    _enqueue(AlwaysAsync{}, fn);
+    _enqueue(AlwaysAsync{}, std::move(fn));
 }
 
 Scene* SceneManager::last_active() const {
@@ -117,11 +125,11 @@ void SceneManager::unregister_scene(Scene* scene) {
     }
 }
 
-void SceneManager::set_active(std::string name) {
+void SceneManager::set_active(std::string name, std::function<void()> prepare, std::function<void()> activated) {
     if (name.empty()) {
         if (std::unique_lock guard{ _mutex };
             active_scene) {
-            set_active(nullptr);
+            set_active(nullptr, std::move(prepare), std::move(activated));
         }
         return;
     }
@@ -136,7 +144,7 @@ void SceneManager::set_active(std::string name) {
 
     if (ptr) {
         if(ptr != active_scene)
-            set_active(ptr);
+            set_active(ptr, std::move(prepare), std::move(activated));
     }
     else {
         throw std::invalid_argument("Cannot find the given Scene name.");
@@ -206,6 +214,21 @@ void SceneManager::clear() {
 
 void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     //FindCoord::set_screen_size(graph, *window);
+    if(not _registered_graph
+       || not graph.has_event_exception_handler()
+       || ::operator!=(_registered_graph.value(), graph.has_event_exception_handler().value()))
+    {
+        _registered_graph = graph.set_event_exception_handler([](Event e, std::exception_ptr ptr) -> bool{
+            try {
+                if(ptr)
+                    std::rethrow_exception(ptr);
+            } catch(const std::exception& ex) {
+                FormatExcept("Caught an exception for event ", e.toStr(), ": ", ex.what());
+            }
+            return false;
+        }, std::source_location::current());
+    }
+    
     update_queue();
     _gui_queue->processTasks(window, graph);
     
@@ -218,8 +241,10 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     }
     
     try {
-        if (active_scene)
+        if (active_scene) {
+            [[maybe_unused]] CTimer timer{active_scene->name()};
             active_scene->draw(graph);
+        }
     }
     catch (const std::exception& e) {
         static const char* msg = nullptr;
@@ -231,19 +256,13 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
         }
     }
     
-    if (bool expected = false;
-        _displaying_error.compare_exchange_strong(expected, true))
-    {
+    if (not graph.has_open_dialogs()) {
         auto error_str = switching_error().read();
         if (error_str && not error_str->empty()) {
             graph.dialog(
-                [](auto){ _displaying_error = false; },
-                settings::htmlify(*error_str),
+                settings::htmlify(utils::ShortenText(*error_str, 1000)),
                 "Error"
             );
-        } else {
-            // No message to show -> immediately reset the flag
-            _displaying_error = false;
         }
     }
     

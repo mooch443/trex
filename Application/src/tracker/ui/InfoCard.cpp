@@ -1,4 +1,8 @@
 #include "InfoCard.h"
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <gui/types/Tooltip.h>
 #include <ui/GUICache.h>
@@ -76,9 +80,7 @@ DrawSegments::~DrawSegments() {
     /// since we only forward declare stuff
 }
 
-DrawSegments::DrawSegments()
-    : _tooltip(std::make_unique<Tooltip>(nullptr))
-{
+DrawSegments::DrawSegments() {
     on_click([this](auto){
         for(size_t i = 0; i < tracklet_texts.size(); ++i) {
             auto &[text, tooltip_text] = tracklet_texts.at(i);
@@ -108,8 +110,9 @@ DrawSegments::DrawSegments()
                         }
                         _target_bounds = text->bounds();
                         
-                        _tooltip->set_other(text);
-                        _tooltip->set_text(tooltip_text);
+                        add_custom_data("tooltip", static_cast<void*>(new std::string(tooltip_text)), [](void* ptr) {
+                            delete static_cast<std::string*>(ptr);
+                        });
                         _selected = text;
                         set_content_changed(true);
                         
@@ -125,7 +128,7 @@ DrawSegments::DrawSegments()
             if(auto s = _selected.lock();
                s != nullptr)
             {
-                _tooltip->set_other({});
+                remove_custom_data("tooltip");
                 _selected = {};
                 _previous_bounds = {};
                 _target_bounds = {};
@@ -148,6 +151,14 @@ void DrawSegments::set(Idx_t fdx, Frame_t frame, const IllegalArray<ShadowTrackl
     }
 }
 
+Drawable* DrawSegments::tooltip_object() {
+    return this;
+}
+
+Drawable* InfoCard::tooltip_object() {
+    return this;
+}
+
 Float2_t DrawSegments::add_segments(bool display_hints, float)
 {
 #if DEBUG_ORIENTATION
@@ -156,7 +167,7 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
     if(reason.frame == frameNr) {
         reason_str = reason.flipped_because_previous ? "previous_direction" : "(none)";
     }
-    advance(new Text(reason_str, text->pos() + Vec2(0, Base::default_line_spacing(text->font())), White, Font(0.8)));
+    advance(new Text(reason_str, text->pos() + Vec2(0, Base::default_line_spacing(text->font())), White, Font_t(0.8)));
 #endif
     
     // draw segment list
@@ -238,7 +249,7 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
             
             if(i >= narrow_cast<long_t>(tracklet_texts.size())) {
                 auto text = std::make_shared<Text>();
-                text->set(_font);
+                text->set(Font_t{_font});
                 text->set(Origin(1, 0.5));
                 text->set_clickable(true);
                 tracklet_texts.push_back({ std::move(text), tt});
@@ -347,18 +358,13 @@ void DrawSegments::update() {
     OpenContext([this]{
         if(_frame.valid())
             add_segments(true, 0);
-        if(auto s = _selected.lock();
-           s != nullptr)
-        {
-            advance_wrap(*_tooltip);
-        }
     });
     
     auto_size({_margins.width, _margins.height});
     set_content_changed(false);
 }
 
-void DrawSegments::set(Font font) {
+void DrawSegments::set(Font_t font) {
     if(font != _font) {
         _font = font;
         set_content_changed(true);
@@ -429,7 +435,7 @@ void InfoCard::update() {
     if(_shadow->fdx.valid()) {
         LockGuard guard(ro_t{}, "InfoCard::update", 10);
         if(guard.locked()) {
-            IndividualManager::transform_if_exists(_shadow->fdx, [&](auto fish) {
+            /*IndividualManager::transform_if_exists(_shadow->fdx, [&](auto fish) {
                 _shadow->has_vi_predictions = Tracker::instance()->has_vi_predictions();
                 _shadow->identity = fish->identity();
                 _shadow->has_frame = fish->has(_shadow->frame);
@@ -525,7 +531,7 @@ void InfoCard::update() {
             }).transform_error([&](auto message){
                 _shadow->fdx = Idx_t{};
                 return message;
-            });
+            });*/
             
         }
     }
@@ -539,11 +545,11 @@ void InfoCard::update() {
     //auto layout = std::make_shared<VerticalLayout>(Vec2(10, 10));
     const auto font = Font(0.8f, Style::Bold);
     float y = 10;
-    add<Text>(Str(_shadow->identity.name()), Loc(11,y + 1), TextClr(White.alpha(clr.a * 0.7f)), font);
-    auto text = add<Text>(Str(_shadow->identity.name()), Loc(10, y), TextClr(_shadow->has_frame ? clr : Color::blend(clr, Gray)), font);
+    add<Text>(Str(_shadow->identity.name()), Loc(11,y + 1), TextClr(White.alpha(clr.a * 0.7f)), Font_t{font});
+    auto text = add<Text>(Str(_shadow->identity.name()), Loc(10, y), TextClr(_shadow->has_frame ? clr : Color::blend(clr, Gray)), Font_t{font});
     
     if(!_shadow->has_frame) {
-        text = add<Text>(Str("inactive"), Loc(width() - 5, text->pos().y + 5), TextClr(Gray.alpha(clr.a * 0.5)), Font(font.size * 0.8, Style::Monospace, Align::Right));
+        text = add<Text>(Str("inactive"), Loc(width() - 5, text->pos().y + 5), TextClr(Gray.alpha(clr.a * 0.5)), Font_t(font.size * 0.8, Style::Monospace, Align::Right));
     }
     
     tracklet_texts.clear();
@@ -553,7 +559,7 @@ void InfoCard::update() {
 #if DEBUG_ORIENTATION
         auto text =
 #endif
-        add<Text>(Str(Meta::toStr(tracklets.size())+" tracklets"), Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), TextClr(White), Font(0.8f));
+        add<Text>(Str(Meta::toStr(tracklets.size())+" tracklets"), Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), TextClr(White), Font_t(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);
@@ -561,7 +567,7 @@ void InfoCard::update() {
         if(reason.frame == frameNr) {
             reason_str = reason.flipped_because_previous ? "previous_direction" : "(none)";
         }
-        advance(new Text(reason_str, text->pos() + Vec2(0, Base::default_line_spacing(text->font())), White, Font(0.8)));
+        advance(new Text(reason_str, text->pos() + Vec2(0, Base::default_line_spacing(text->font())), White, Font_t(0.8)));
 #endif
         
         // draw segment list
@@ -604,7 +610,7 @@ void InfoCard::update() {
                     TextClr{_shadow->frame != range.start()
                         ? White.alpha(alpha)
                         : Color(200,235,255).alpha(alpha)},
-                    Font(0.8f),
+                    Font_t(0.8f),
                     Origin(1, 0.5f)
                 }
             };
@@ -728,7 +734,7 @@ void InfoCard::update() {
     
     
     auto rect = add<Rect>(tmp, FillClr{bg.alpha(detail ? 50 : bg.a)});
-    text = add<Text>(Str("matching"), Loc(10, y), TextClr(White), Font(0.8f, Style::Bold));
+    text = add<Text>(Str("matching"), Loc(10, y), TextClr(White), Font_t(0.8f, Style::Bold));
     
     /*if(!detail_button->parent()) {
         detail_button->set_toggleable(true);
@@ -748,7 +754,7 @@ void InfoCard::update() {
     
     if(_shadow->is_automatic_match) {
         y += text->height();
-        text = add<Text>(Str("(automatic match)"), Loc(10, y), TextClr{White.alpha(150)}, Font(0.8f, Style::Italic));
+        text = add<Text>(Str("(automatic match)"), Loc(10, y), TextClr{White.alpha(150)}, Font_t(0.8f, Style::Italic));
         y += text->height();
         
         if(!automatic_button) {
@@ -777,10 +783,10 @@ void InfoCard::update() {
     
     std::string speed_str = _shadow->speed < 0 ? "(none)" : (Meta::toStr(_shadow->speed) + "cm/s");
     
-    y += add<Text>(Str(speed_str), Loc(10, y), TextClr{White.alpha(125)}, Font(0.8f))->height();
+    y += add<Text>(Str(speed_str), Loc(10, y), TextClr{White.alpha(125)}, Font_t(0.8f))->height();
     if (!_shadow->current_range.empty()) {
         if (_shadow->qrcode.valid()) {
-            y += add<Text>(Str("QR:" + Meta::toStr(_shadow->qrcode.id) + " (" + dec<2>(_shadow->qrcode.p).toStr() + ")"), Loc(10, y), TextClr(White.alpha(125)), Font(0.8))->height();
+            y += add<Text>(Str("QR:" + Meta::toStr(_shadow->qrcode.id) + " (" + dec<2>(_shadow->qrcode.p).toStr() + ")"), Loc(10, y), TextClr(White.alpha(125)), Font_t(0.8))->height();
         }
     }
     
@@ -813,8 +819,8 @@ void InfoCard::update() {
                 /*if(detail)
                     probs_str += " (p:"+Meta::toStr(probs.p_pos)+" a:"+Meta::toStr(probs.p_angle)+" s:"+Meta::toStr(probs.p_pos / probs.p_angle)+" t:"+Meta::toStr(probs.p_time)+")";*/
                 
-                auto text = add<Text>(Str(Meta::toStr(blob)+": "), Loc(10, y), TextClr(White), Font(0.8f));
-                auto second = add<Text>(Str(dec<4>(probs.p).toStr()), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(color), Font(0.8f));
+                auto text = add<Text>(Str(Meta::toStr(blob)+": "), Loc(10, y), TextClr(White), Font_t(0.8f));
+                auto second = add<Text>(Str(dec<4>(probs.p).toStr()), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(color), Font_t(0.8f));
                 y += text->height();
                 
                 auto w = second->pos().x + second->width() + 10;
@@ -844,11 +850,11 @@ void InfoCard::update() {
             p_sum = max(p_sum, value);
         
         float max_w = 200;
-        auto text = add<Text>(Str(_shadow->recognition_str), Loc(10, y), Font(0.8f, Style::Bold));
+        auto text = add<Text>(Str(_shadow->recognition_str), Loc(10, y), Font_t(0.8f, Style::Bold));
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
-        text = add<Text>(Str(Meta::toStr(_shadow->recognition_tracklet)), Loc(10, y), TextClr(220,220,220,255), Font(0.8f, Style::Italic));
+        text = add<Text>(Str(Meta::toStr(_shadow->recognition_tracklet)), Loc(10, y), TextClr(220,220,220,255), Font_t(0.8f, Style::Italic));
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
@@ -875,7 +881,7 @@ void InfoCard::update() {
             std::string str = Meta::toStr(fdx) + ": " + Meta::toStr(p);
             
             Color color = White * (1 - p/p_sum) + Red * (p / p_sum);
-            auto text = add<Text>(Str(str), Loc(current_pos), TextClr(color), Font(0.8f));
+            auto text = add<Text>(Str(str), Loc(current_pos), TextClr(color), Font_t(0.8f));
             
             auto w = text->pos().x + text->width() + 10;
             if(w > max_w)

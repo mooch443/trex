@@ -1,0 +1,43 @@
+{
+  "name": "commons-layout",
+  "displayName": "Commons Layout Expressions",
+  "description": "Highlight commons expressions and known DynamicGUI fields, with completion and hover help.",
+  "version": "0.5.2",
+  "publisher": "trex-local",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages"],
+  "keywords": ["commons", "trex", "json", "layout"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:json", "onLanguage:jsonc"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true },
+    "virtualWorkspaces": true
+  },
+  "scripts": { "test": "node --test test/*.test.js" },
+  "contributes": {
+    "configuration": {
+      "title": "Commons Layout",
+      "properties": {
+        "commonsLayout.filePatterns": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": ["**/*layout*.json", "**/*layout*.jsonc"],
+          "scope": "window",
+          "description": "File globs with commons expressions and DynamicGUI element types. An empty list disables highlighting and completion. Files retain their JSON or JSON with Comments language mode."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[json]": { "editor.semanticHighlighting.enabled": true },
+      "[jsonc]": { "editor.semanticHighlighting.enabled": true }
+    },
+    "semanticTokenTypes": [
+      { "id": "commonsEscape", "superType": "string", "description": "An escaped character inside a commons expression." },
+      { "id": "commonsField", "superType": "property", "description": "A field recognised for the owning DynamicGUI control or style object." }
+    ],
+    "semanticTokenScopes": [
+      { "scopes": { "commonsEscape": ["constant.character.escape"], "commonsField": ["keyword.other"] } }
+    ]
+  }
+}

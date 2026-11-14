@@ -4,16 +4,16 @@ using AVS = AbstractBaseVideoSource;
 
 AbstractBaseVideoSource::AbstractBaseVideoSource(VideoInfo info)
   : _info(info),
-    mat_buffers("mat_buffers", _info.size),
-    image_buffers("image_buffers", _info.size),
+    mat_buffers("mat_buffers", _info.resolution),
+    image_buffers("image_buffers", _info.resolution),
     _source_frame(10u, 5u,
-                std::string("frame."+_info.base.str()),
+                std::string("frame."+utils::ShortenText(_info.base.toStr(), 25)),
                 [this]()
     {
         return fetch_next();
     }),
     _resize_cvt(10u, 5u,
-                std::string("resize."+_info.base.str()),
+                std::string("resize."+utils::ShortenText(_info.base.toStr(), 25)),
                 [this]()
     {
         return this->fetch_next_process();
@@ -25,8 +25,8 @@ AbstractBaseVideoSource::~AbstractBaseVideoSource() {
     quit();
 }
 void AbstractBaseVideoSource::quit() {
-    _source_frame.quit();
     _resize_cvt.quit();
+    _source_frame.quit();
     
     mat_buffers.clear();
     image_buffers.clear();
@@ -36,18 +36,18 @@ void AbstractBaseVideoSource::notify() {
     _resize_cvt.notify();
 }
 
-Size2 AbstractBaseVideoSource::size() const { return _info.size; }
+Size2 AbstractBaseVideoSource::size() const { return _info.resolution; }
 
 void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
     if(not ptr
-       || ptr->rows != _info.size.height
-       || ptr->cols != _info.size.width)
+       || ptr->rows != _info.resolution.height
+       || ptr->cols != _info.resolution.width)
     {
 #ifndef NDEBUG
         if(ptr)
-            FormatWarning("Incompatible dimensions: ", Size2(*ptr), " vs ", _info.size);
+            FormatWarning("Incompatible dimensions: ", Size2(*ptr), " vs ", _info.resolution);
         else
-            FormatWarning("Incompatible dimensions: null ptr vs ", _info.size);
+            FormatWarning("Incompatible dimensions: null ptr vs ", _info.resolution);
 #endif
         return;
     }
@@ -57,8 +57,8 @@ void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
 
 void AbstractBaseVideoSource::move_back(Image::Ptr&& ptr) {
     /*if (not ptr
-        || ptr->rows != info.size.height
-        || ptr->cols != info.size.width)
+        || ptr->rows != info.resolution.height
+        || ptr->cols != info.resolution.width)
     {
         return;
     }*/

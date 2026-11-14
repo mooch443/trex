@@ -7,13 +7,17 @@
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
 #include <processing/encoding.h>
+#include <python/BackendRegistry.h>
 #include <python/Detection.h>
 #include <python/PythonWrapper.h>
 #include <ui/ImageDisplayElement.h>
 #include <ui/LabelElement.h>
 #include <processing/Background.h>
 #include <core/idx_t.h>
+#include <core/DetectionTypes.h>
+#include <core/default_config.h>
 #include <core/GPURecognitionTypes.h>
+#include <core/TileImage.h>
 #include <file/DataLocation.h>
 #include <pv.h>
 #include <core/TileBuffers.h>
@@ -25,8 +29,8 @@ struct DetectionMeta {
     float conf;
     uint16_t x, y, w, h;
     
-    glz::json_t to_json() const {
-        glz::json_t json;
+    glz::generic to_json() const {
+        glz::generic json;
         json["bdx"] = bdx.to_json();
         json["conf"] = conf;
         json["x"] = x;
@@ -73,8 +77,17 @@ TileImage make_sam3_tiled_frame(Image::Ptr&& frame_image)
         Image::Make(*frame_image),
         tile_size,
         frame_image->dimensions());
-    tiled._offsets = {geometry.offset};
-    tiled.source_size = geometry.content_size;
+    tiled.set_tile_geometries({
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, frame_image->cols, frame_image->rows),
+            .tile_content = track::TileRect(
+                -geometry.offset.x,
+                -geometry.offset.y,
+                geometry.content_size.width,
+                geometry.content_size.height),
+            .tile_size = tile_size
+        }
+    });
     return tiled;
 }
 
@@ -104,7 +117,7 @@ struct LiveSegmentation::Data {
     std::unique_ptr<pv::File> _output_file;
     std::optional<track::detect::Sam3Prompts> _last_prompt_repository;
     
-    bool has_annotations(Frame_t index) const {
+    bool has_detect_annotations(Frame_t index) const {
         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
         if(not detect_sam3_prompt)
             return false;
@@ -190,7 +203,7 @@ struct LiveSegmentation::Data {
 
     void store_frame_if_annotated(SegmentationData&& data, uint64_t prompt_revision) {
         auto index = data.original_index();
-        if(not has_annotations(index)) {
+        if(not has_detect_annotations(index)) {
             return; /// no need to store
         }
         
@@ -669,8 +682,8 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                     VarFunc("frame_requested", [this](const VarProps&) -> std::optional<Frame_t> {
                         return _last_requested_frame;
                     }),
-                    VarFunc("annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
-                        std::vector<glz::json_t> result;
+                    VarFunc("detect_annotations", [this](const VarProps&) -> std::vector<glz::generic> {
+                        std::vector<glz::generic> result;
                         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
                         if(not detect_sam3_prompt)
                             return result;
@@ -679,9 +692,9 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                             const auto materialized = track::materialize_sam3_prompt_state(_current_frame.index, detect_sam3_prompt);
                             result.reserve(materialized.objects.size());
                             for(const auto& object : materialized.objects) {
-                                result.push_back(glz::json_t::object_t{
+                                result.push_back(glz::generic::object_t{
                                     {"id", object.id},
-                                    {"seed_frame", object.seed_frame.valid() ? glz::json_t(object.seed_frame.get()) : glz::json_t(nullptr)},
+                                    {"seed_frame", object.seed_frame.valid() ? glz::generic(object.seed_frame.get()) : glz::generic(nullptr)},
                                     {"x", object.seed_box.x},
                                     {"y", object.seed_box.y},
                                     {"w", object.seed_box.width},
@@ -692,8 +705,8 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         
                         return result;
                     }),
-                    VarFunc("data", [this](const VarProps&) -> std::vector<glz::json_t> {
-                        std::vector<glz::json_t> result;
+                    VarFunc("data", [this](const VarProps&) -> std::vector<glz::generic> {
+                        std::vector<glz::generic> result;
                         if(std::unique_lock guard{_next_frame_mutex};
                            _current_data)
                         {
@@ -728,7 +741,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         _playback = Meta::fromStr<bool>(action.parameters.front());
                         Print("Playback = ", _playback.load());
                     }),
-                    ActionFunc("remove_annotation", [this](const Action& action) {
+                    ActionFunc("remove_detect_annotation", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
                         auto object_id = Meta::fromStr<uint64_t>(action.parameters.front());
                         Print("Remove annotation ", object_id);
@@ -753,7 +766,9 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                 };
                 
                 context.custom_elements["label"] = std::unique_ptr<CustomElement>(
-                    new LabelElement(&_data->unassigned_labels, &_data->labels, &_data->dt)
+                      new LabelElement(&_data->unassigned_labels, &_data->labels, [this](){
+                          return _data->dt;
+                      })
                 );
                 context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
                     new ImageDisplayElement(&_image_generators)
@@ -863,7 +878,11 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
     _bowl->set_target_focus({});
     
     auto coords = FindCoord::get();
-    _bowl->update(_current_frame.index, graph, coords);
+    // The prototype has no tracking repository; its bowl only draws shared shapes.
+    _bowl->update([&](Entangled&) {
+        if(READ_SETTING(gui_mode, mode_t::Class) == mode_t::tracking)
+            _bowl->draw_shapes(graph, coords);
+    });
     
     _current_image->set_scale(_bowl->_current_scale);
     _current_image->set_pos(_bowl->_current_pos);

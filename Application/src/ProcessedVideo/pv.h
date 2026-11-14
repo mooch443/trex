@@ -106,9 +106,12 @@ namespace pv {
             offset input videos.
          */
         V_15,
+
+        /** Metadata stores native JSON values instead of quoted valueString() payloads. */
+        V_16,
         
         //! current
-        current = V_15
+        current = V_16
     };
     
     class Frame {
@@ -406,7 +409,7 @@ namespace pv {
         
     public:
         File(File&&) noexcept;
-        ~File();
+        ~File() noexcept;
         
         void close() override;
         const pv::Frame& last_frame();
@@ -416,7 +419,7 @@ namespace pv {
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
         std::string get_info(bool full = true);
         std::string get_info_rich_text(bool full = true);
-        void print_info() { Print(get_info().c_str()); }
+        void print_info() { NoNLPrint(get_info().c_str(),"\n"); }
         
         virtual CropOffsets crop_offsets() const override {
             std::unique_lock lock(_lock);

@@ -4,7 +4,8 @@
 #include <core/default_config.h>
 #include <ui/Scene.h>
 
-namespace cmn::gui::terminal {
+namespace cmn::terminal {
+using namespace gui;
 
 void open_terminal() {
     std::string cmd;
@@ -81,7 +82,7 @@ void open_terminal() {
             }
             else {
                 std::set<std::string> matches;
-                for(auto key : GlobalSettings::keys()) {
+                for(auto&& key : GlobalSettings::keys()) {
                     if(utils::contains(utils::lowercase(key), utils::lowercase(command))) {
                         matches.insert(key);
                     }

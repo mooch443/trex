@@ -20,7 +20,7 @@ namespace cmn::gui {
     class Text;
     class Rect;
 
-    class InfoCard : public Entangled {
+    class [[deprecated("This class should not be used")]] InfoCard : public Entangled {
         struct ShadowIndividual;
         ShadowIndividual *_shadow{nullptr};
         derived_ptr<Button> prev, next, detail_button, automatic_button;
@@ -34,17 +34,18 @@ namespace cmn::gui {
         ~InfoCard();
         void update(gui::DrawStructure&, Frame_t);
         void update() override;
+        
+        Drawable* tooltip_object();
     };
 
     class DrawSegments : public Entangled {
         IllegalArray<ShadowTracklet> _tracklets;
         std::vector<ShadowTracklet> _displayed_tracklets;
         std::vector<std::tuple<std::shared_ptr<Text>, std::string>> tracklet_texts;
-        std::unique_ptr<Tooltip> _tooltip;
         
         GETTER(track::Idx_t, fdx);
         GETTER(Frame_t, frame);
-        Font _font{0.6};
+        Font_t _font{0.6};
         Margins _margins{0,0,0,0};
         SizeLimit _limits{300,0};
         std::weak_ptr<Text> _selected{};
@@ -58,14 +59,15 @@ namespace cmn::gui {
         
         using Entangled::set;
         void set(track::Idx_t fdx, Frame_t frame, const IllegalArray<ShadowTracklet>& tracklets);
-        void set(Font);
+        void set(Font_t);
         void set(Margins);
         void set(SizeLimit);
         
         Float2_t add_segments(bool display_hints, float offx);
         
-        void update();
+        void update() override;
         void update_box();
+        Drawable* tooltip_object() override;
     };
 
 }

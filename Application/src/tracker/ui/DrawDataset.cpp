@@ -1,4 +1,7 @@
 #include "DrawDataset.h"
+#include <processing/PVBlob.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <gui/types/StaticText.h>
 #include <tracking/IndividualManager.h>
@@ -19,7 +22,7 @@ struct DrawDataset::Data {
         attr::Size{30,30},
         Str{"<sym>✕</sym>"},
         FillClr{100,50,50,150},
-        TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
+        TextClr{White}, Font_t{0.55}, Margins{-5,0,0,0}, Origin{1,0}
     };
     
     struct Cache {
@@ -74,7 +77,7 @@ DrawDataset::~DrawDataset() {}
         _color = Black.alpha(150);
     }
 
-    void DrawDataset::set_data(Frame_t frameIndex, const GUICache &cache) {
+    void DrawDataset::set_data(const track::Tracker& tracker, Frame_t frameIndex, const GUICache &cache) {
         frame = frameIndex;
         tracklet_order = cache.global_tracklet_order();
         consec = {};
@@ -134,7 +137,7 @@ DrawDataset::~DrawDataset() {}
                 
                 auto [condition, seg] = fish->has_processed_tracklet(frame);
                 if(condition) {
-                    if(auto tup = fish->processed_recognition(seg.start());
+                    if(auto tup = fish->processed_recognition(tracker, seg.start());
                        tup.has_value())
                     {
                         entry.probabilities = std::get<1>(*tup);
@@ -152,7 +155,7 @@ DrawDataset::~DrawDataset() {}
                     if(auto blob = fish->compressed_blob(frame);
                        blob != nullptr)
                     {
-                        auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+                        auto pred = tracker.find_prediction(frame, blob->blob_id());
                         if(pred) {
                             auto map = track::prediction2map(*pred);
                             entry.probabilities = std::map<track::Idx_t, float>{};
@@ -201,20 +204,20 @@ DrawDataset::~DrawDataset() {}
     inline Layout::Ptr makeLayoutRow(std::initializer_list<std::string> labels, Font font = Font(0.6)) {
         std::vector<Layout::Ptr> cells;
         for (auto& label : labels) {
-            cells.push_back(Layout::Make<Layout>(
+            cells.push_back(Layout::Make<Layout>{
                  std::vector<Layout::Ptr>{ 
-                Layout::Make<StaticText>(Str{label}, font, Margins{}) 
+                Layout::Make<StaticText>{Str{label}, Font_t{font}, Margins{}}
             }
-            ));
+            });
         }
-        return Layout::Make<Layout>(cells);
+        return Layout::Make<Layout>{cells};
     }
     
     void DrawDataset::update() {
-        if(parent() && parent()->stage()) {
-            if(!parent()->stage()->scale().empty())
-                set_scale(parent()->stage()->scale().reciprocal());
-        }
+        //if(parent() && parent()->stage()) {
+        //    if(!parent()->stage()->scale().empty())
+        //        set_scale(parent()->stage()->scale().reciprocal());
+        //}
         
         if(not content_changed())
             return;
@@ -276,7 +279,7 @@ DrawDataset::~DrawDataset() {}
                 }
             }
             
-            _data->title.create(Str{"<h3>Current tracklet</h3>\n<c>"+settings::htmlify(Meta::toStr(_current_quality))+"</c>"}, Loc{8,10}, Font(0.6));
+            _data->title.create(Str{"<h3>Current tracklet</h3>\n<c>"+settings::htmlify(Meta::toStr(_current_quality))+"</c>"}, Loc{8,10}, Font_t(0.6));
             advance_wrap(_data->title);
             
             if(_data->rows.empty()) {
@@ -292,7 +295,7 @@ DrawDataset::~DrawDataset() {}
                          "Angle Var.",
                          "Midline Len.",
                          "Outline Len."
-                     }, Font(0.6, Style::Bold))
+                     }, Font_t(0.6, Style::Bold))
                 );
                 
                 _data->layout.set(Clickable{true});

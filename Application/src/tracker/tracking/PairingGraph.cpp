@@ -1,6 +1,7 @@
 #include "PairingGraph.h"
 #include "Tracker.h"
 #include <tracking/Individual.h>
+#include <tracking/PPFrame.h>
 #include <file/CSVExport.h>
 #include <misc/Path.h>
 #include <misc/Timer.h>

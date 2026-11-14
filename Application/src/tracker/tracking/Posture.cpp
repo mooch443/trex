@@ -15,6 +15,7 @@
 #include <processing/DLList.h>
 #include <misc/ObjectCache.h>
 #include <gui/GuiTypes.h>
+#include <tracking/Stuffs.h>
 
 namespace track {
     static const std::vector<Vec2> neighbors = {
@@ -302,7 +303,7 @@ std::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &
     return calculate_midline(std::move(result));
 }
 
-std::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blob)
+std::expected<Result, const char*> calculate_posture(const Background& background, Frame_t, pv::BlobWeakPtr blob)
 {
     Outline::check_constants();
     
@@ -332,7 +333,7 @@ std::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr bl
         // calculate outline points in (almost) random order based on
         // greyscale values, instead of just binary thresholding.
         //auto raw_outline = subpixel_threshold(greyscale, threshold);
-        auto thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::background(), posture_closing_steps, posture_closing_size, std::move(cache));
+        auto thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, &background, posture_closing_steps, posture_closing_size, std::move(cache));
         thresholded_blob->add_offset(-blob->bounds().pos());
         
         periodic::points_t selected = nullptr;

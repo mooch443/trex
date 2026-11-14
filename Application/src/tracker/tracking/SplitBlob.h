@@ -6,6 +6,16 @@
 #include <processing/BlobWeakPtr.h>
 #include <processing/PVBlob.h>
 
+ENUM_CLASS(track::split::, Action,
+    KEEP,
+    KEEP_ABORT,
+    REMOVE,
+    ABORT,
+    TOO_FEW,
+    SKIP,
+    NO_CHANCE
+)
+
 namespace track { class SplitBlob; }
 
 namespace cmn { namespace CPULabeling { struct ListCache_t; }}
@@ -14,15 +24,6 @@ namespace track {
 
 namespace split {
 
-ENUM_CLASS(Action,
-    KEEP,
-    KEEP_ABORT,
-    REMOVE,
-    ABORT,
-    TOO_FEW,
-           SKIP,
-    NO_CHANCE
-)
 
 using Action_t = Action::Class;
 

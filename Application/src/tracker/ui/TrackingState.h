@@ -102,6 +102,9 @@ struct TrackingState {
 private:
     // This token is valid as long as TrackingState is alive.
     std::shared_ptr<CancellationToken> _cancelToken{ std::make_shared<CancellationToken>() };
+    struct StateOperationToken {};
+    // Queued prompts and workers keep their operation pending until released.
+    std::weak_ptr<StateOperationToken> _save_state_pending, _load_state_pending;
     std::mutex _tracking_mutex;
     std::queue<std::function<void()>> _tracking_callbacks, _apply_callbacks;
     

@@ -106,10 +106,6 @@ std::unordered_map<std::string, Description> options_doc_strings = {
         "Timestamp",
         "The exact timestamp of the current frame."
     }},
-    {"frame", {
-        "Frame number",
-        "The sequential index of the current frame in the dataset."
-    }},
     {"missing", {
         "Missing data flag",
         "Indicates whether data is missing for the current frame (1 if missing, 0 if available)."
@@ -367,6 +363,11 @@ struct DrawExportOptions::Data {
                 .short_description = "YOLO keypoint Y coord",
                 .long_description = "This represents the Y-component of a keypoint provided by a YOLO (or similar) network. You can manually add these `poseY[n]` points, or let TRex automatically add them based on network output."
             };
+        } else if(utils::beginsWith(param, "poseV")) {
+            return doc_strings::Description{
+                .short_description = "YOLO keypoint visibility",
+                .long_description = "This represents the visibility of a keypoint provided by a YOLO (or similar) network. You can manually add these `poseV[n]` points, or let TRex automatically add them based on network output."
+            };
         }
         
         return std::nullopt;
@@ -494,12 +495,14 @@ struct DrawExportOptions::Data {
                             REQUIRE_AT_LEAST(1, action);
                             WorkProgress::add_queue("Selecting folder", [action](){
                                 auto parm = action.parameters.front();
-                                auto folder = action.parameters.size() == 1 ? action.parameters.back() : file::cwd().str();
+                                auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                                 if(not file::Path{folder}.is_folder())
                                     folder = {};
                                 
                                 auto dir = pfd::select_folder("Select a folder", folder).result();
-                                GlobalSettings::get(parm).get().set_value_from_string(dir);
+                                GlobalSettings::write([&](Configuration& config) {
+                                    config.values[parm].get().set_value_from_string(dir);
+                                });
                                 std::cout << "Selected "<< parm <<": " << dir << "\n";
                             });
                         }),
@@ -521,7 +524,9 @@ struct DrawExportOptions::Data {
                                 throw InvalidArgumentException("No parameter ",parm," in global settings.");
                             
                             auto value = action.last();
-                            GlobalSettings::get(parm).get().set_value_from_string(value);
+                            GlobalSettings::write([&](Configuration& config) {
+                                config.values[parm].get().set_value_from_string(value);
+                            });
                         })
                     };
 
@@ -599,7 +604,7 @@ struct DrawExportOptions::Data {
         }();
         
         base.wrap_object(parent);
-        parent.set_scale(base.scale().reciprocal());
+        //parent.set_scale(base.scale().reciprocal());
         //
         if(not previous_graphs
            || *previous_graphs != graphs_map
@@ -619,14 +624,21 @@ struct DrawExportOptions::Data {
             }
 
             auto functions = Output::Library::functions();
-            auto pose_fields = default_config::add_missing_pose_fields();
             std::set<std::string> pose_fields_set;
-            if(not pose_fields.empty())
-            {
-                for(auto &[name, mods] : pose_fields) {
-                    functions.emplace_back(name);
-                    pose_fields_set.emplace(utils::lowercase(name));
+            
+            try {
+                auto pose_fields = default_config::add_missing_pose_fields();
+                if(not pose_fields.empty())
+                {
+                    for(auto &[name, mods] : pose_fields) {
+                        functions.emplace_back(name);
+                        pose_fields_set.emplace(utils::lowercase(name));
+                    }
                 }
+                
+            } catch(const std::exception& e) {
+                if(READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t) == track::detect::ObjectDetectionFormat::poses)
+                    SceneManager::set_switching_error(e.what());
             }
             
             std::sort(functions.begin(), functions.end());

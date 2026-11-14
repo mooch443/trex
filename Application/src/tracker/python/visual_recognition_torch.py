@@ -5,7 +5,7 @@ This module provides:
 - Thread-backed prefetching for DataLoader iteration
 - Training loop with AMP, validation callback, and early stopping via a
   project-specific "uniqueness" metric
-- Checkpoint save/load helpers supporting both state_dict and TorchScript
+- Checkpoint save/load helpers supporting state_dict, torch.export and legacy TorchScript
 
 External callers generally pass images as NumPy arrays (HxWxC), while models
 internally consume NCHW tensors via a wrapper defined in
@@ -17,6 +17,7 @@ import gc
 import torch
 import json
 import os
+import tempfile
 import threading
 from queue import Queue
 
@@ -25,13 +26,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
-import torchmetrics
-from tqdm import tqdm
 from typing import Optional
 
-from trex_utils import UserCancelException, UserSkipException, save_pytorch_model_as_jit
+from trex_utils import UserCancelException, UserSkipException, save_pytorch_model_as_export
 
 # Local imports
 import os
@@ -48,9 +46,12 @@ except Exception:
         def choose_device(): return os.environ.get("TREX_DEFAULT_DEVICE", "cpu")
         @staticmethod
         def setting(_name, _default=None): return _default
+        @staticmethod
+        def tqdm(*args, **kwargs):
+            from tqdm import tqdm as _tqdm
+            return _tqdm(*args, **kwargs)
     TRex = _TRexStub()
 
-from visual_identification_network_torch import ModelFetcher
 import trex_utils
 from trex_utils import _first_shape, _as_batched_np, load_checkpoint_from_file, check_checkpoint_compatibility, ConfigurationError
 
@@ -94,7 +95,7 @@ def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
     """Persist the model in two forms and attach training metadata.
 
     - Writes `<output_path><suffix>_dict.pth`: Python checkpoint with `state_dict` and `metadata`.
-    - Writes `<output_path><suffix>_model.pth`: TorchScript export via `save_pytorch_model_as_jit`.
+    - Writes `<output_path><suffix>_model.pt2`: inference graph via `torch.export`.
 
     Metadata includes input_shape (W,H,C), num_classes, video_name, epoch,
     uniqueness (float), and model_type.
@@ -111,21 +112,29 @@ def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
             'model_type': str(network_version),
         }
     }
-    TRex.log(f"# [saving] saving model state dict to {output_path+suffix}_dict.pth")
-    try:
+    with tempfile.TemporaryDirectory(dir=os.path.dirname(output_path) or ".") as directory:
+        checkpoint_path = os.path.join(directory, "weights.pth")
+        export_path = os.path.join(directory, "model.pt2")
+        TRex.log(f"# [saving] saving model state dict to {output_path+suffix}_dict.pth")
         checkpoint['state_dict'] = model.state_dict()
-        torch.save(checkpoint, output_path+suffix+"_dict.pth")
-    except Exception as e:
-        TRex.warn("Error saving model: " + str(e))
+        torch.save(checkpoint, checkpoint_path)
 
-    TRex.log(f"# [saving] saving complete model to {output_path+suffix}_model.pth")
-    try:
-        #checkpoint['model'] = model
-        #checkpoint['state_dict'] = model.state_dict()
-        # save as a jit model
-        save_pytorch_model_as_jit(model, output_path+suffix+"_model.pth", checkpoint['metadata'])
-    except Exception as e:
-        TRex.warn("Error saving complete model: " + str(e))
+        TRex.log(f"# [saving] saving complete model to {output_path+suffix}_model.pt2")
+        try:
+            save_pytorch_model_as_export(model, export_path, checkpoint['metadata'])
+        except Exception as e:
+            TRex.warn("Error saving complete model: " + str(e))
+            export_path = None
+
+        # No older graph may take precedence over the newly saved weights.
+        for model_suffix in ("_model.pt2", "_model.pth"):
+            try:
+                os.remove(output_path + suffix + model_suffix)
+            except FileNotFoundError:
+                pass
+        os.replace(checkpoint_path, output_path + suffix + "_dict.pth")
+        if export_path is not None:
+            os.replace(export_path, output_path + suffix + "_model.pt2")
         
     TRex.log("# [saving] saved states to "+output_path+suffix+" with accuracy of "+str(accuracy))
 
@@ -161,7 +170,7 @@ class TRexImageDataset(Dataset):
     - Accepts X as np.ndarray (N,H,W,C) or list of HxWxC ndarrays
     - Applies transforms on CHW float in [0,1], then converts back to NHWC [0,255]
     """
-    def __init__(self, X, Y, transform: transforms.Compose | None = None, device = None):
+    def __init__(self, X, Y, transform: "transforms.Compose | None" = None, device = None):
         self.X = X
         self.Y = Y if isinstance(Y, np.ndarray) else np.asarray(Y, dtype=np.int64)
         self.transform = transform
@@ -690,6 +699,8 @@ class ValidationCallback:
 
 def get_default_network():
     """Instantiate and return the selected model via ModelFetcher on the active device."""
+    from visual_identification_network_torch import ModelFetcher
+
     global image_channels
     global image_width, image_height, classes, learning_rate, network_version
 
@@ -717,7 +728,7 @@ def get_loaded_weights():
     return loaded_weights.to_string()
 
 
-def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
+def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint, *, strict=False):
     """
     Applies weights from the checkpoint to the given target_model,
     checking compatibility based on metadata if available.
@@ -744,6 +755,11 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
                 metadata=metadata,
                 context="target model"
             )
+            if strict and metadata and metadata.get("model_type") not in (None, str(network_version)):
+                raise ConfigurationError(
+                    f"Cannot continue training model {metadata['model_type']} with architecture {network_version}. "
+                    "Select the matching visual_identification_version."
+                )
         # Prefer an explicit state_dict over a serialized model
         if "state_dict" in checkpoint and checkpoint["state_dict"] is not None:
             TRex.log("The checkpoint has a state_dict...")
@@ -764,8 +780,8 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
         if target_model is None:
             target_model = get_default_network()
         
-        # Load in relaxed mode to tolerate BN↔GN or minor head changes
-        missing, unexpected = target_model.load_state_dict(state_dict, strict=False)
+        # Training requires matching weights; legacy inference tolerates BN↔GN changes.
+        missing, unexpected = target_model.load_state_dict(state_dict, strict=strict)
         if missing or unexpected:
             TRex.warn(f"load_state_dict(strict=False): missing={missing}, unexpected={unexpected}")
         TRex.log("Checkpoint weights applied successfully to target model.")
@@ -773,12 +789,11 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
     except Exception as e:
         raise Exception("Failed to load state dict into target model: " + str(e))
 
-def load_model_from_file(file_path: str, device: str, new_model: torch.nn.Module = None) -> tuple[torch.nn.Module, dict]:
-    """Load a checkpoint and return a trainable model when possible.
+def load_model_from_file(file_path: str, device: str, new_model: torch.nn.Module = None, *, for_training=False) -> tuple[torch.nn.Module, dict]:
+    """Use the saved graph for inference, or reconstruct a model for training.
 
-    Preferred path: instantiate the current-code model and apply the checkpoint's
-    `state_dict` (after compatibility checks). Fallback: use a serialized model
-    from the checkpoint or sibling `*_model.pth` (may be inference-only).
+    Weights-only checkpoints require the Python architecture even for inference.
+    Training reconstruction failures are reported instead of returning an inference graph.
 
     Returns: (model, checkpoint_dict).
     """
@@ -786,46 +801,19 @@ def load_model_from_file(file_path: str, device: str, new_model: torch.nn.Module
 
     cp = load_checkpoint_from_file(file_path, device=device)
 
-    # Preferred path: apply state_dict into a fresh model (trainable)
+    if not for_training and isinstance(cp, dict) and cp.get("model") is not None:
+        check_checkpoint_compatibility(
+            image_width, image_height, image_channels, classes,
+            cp.get("metadata"), context="inference model"
+        )
+        TRex.log("Using saved model directly for inference.")
+        return cp["model"].to(device).eval(), cp
+
     try:
-        if new_model is None:
-            TRex.log("Instantiating new model...")
-            new_model = get_default_network()
-        TRex.log("Applying checkpoint weights to new model (state_dict-first)...")
-        new_model = apply_checkpoint_to_model(new_model, cp)
-        TRex.log("Loaded model from checkpoint state dict.")
+        new_model = apply_checkpoint_to_model(new_model, cp, strict=for_training)
         return new_model, cp
-    except ConfigurationError as e:
-        TRex.warn("Compatibility check failed for state_dict path: " + str(e))
     except Exception as e:
-        TRex.warn("State_dict application failed: " + str(e))
-
-    # Fallback path: use serialized model if available
-    ts_cp = None
-    if isinstance(cp, dict) and cp.get("model", None) is not None:
-        ts_cp = cp
-    else:
-        # Try sibling "*_model.pth" path if provided file was weights-only
-        try:
-            if file_path.endswith(".pth") and not file_path.endswith("_model.pth"):
-                ts_path = file_path[:-4] + "_model.pth"
-                TRex.log(f"Trying serialized-model fallback from {ts_path}...")
-                ts_cp = load_checkpoint_from_file(ts_path, device=device)
-        except Exception as e2:
-            TRex.warn("Serialized-model fallback load failed: " + str(e2))
-
-    if isinstance(ts_cp, dict) and ts_cp.get("model", None) is not None:
-        ts_model = ts_cp["model"]
-        try:
-            # Ensure correct device; jit.load already mapped via device, but `.to` is safe.
-            ts_model = ts_model.to(device)
-        except Exception:
-            pass
-        TRex.warn("Using serialized model fallback (may be untrainable).")
-        return ts_model, ts_cp
-
-    # No viable fallback
-    raise Exception("Failed to load model: state_dict path failed and no serialized-model fallback available.")
+        raise RuntimeError("Cannot reconstruct model from checkpoint state dict: " + str(e)) from e
 
 def unload_weights():
     """Clear the current model/weights and free caches."""
@@ -840,11 +828,12 @@ def unload_weights():
 
 def load_weights(path: Optional[str] = None) -> str:
     """
-    Load weights with a simple ordered fallback:
-      1) <base>_dict.pth (preferred weights-only)
-      2) <base>.pth (legacy weights-only)
-      3) <base>_model.pth (serialized full model)
-    Tries to apply state_dict to a fresh Python model; otherwise adopts the serialized model.
+    Load an inference model, preferring the saved graph:
+      1) <base>_model.pt2 (exported inference model)
+      2) <base>_model.pth (legacy TorchScript model)
+      3) <base>_dict.pth (weights-only fallback)
+      4) <base>.pth (legacy checkpoint)
+    An explicit *_dict.pth path also prefers its sibling graph when available.
     """
     global output_path, model, loaded_checkpoint, loaded_weights
 
@@ -858,10 +847,13 @@ def load_weights(path: Optional[str] = None) -> str:
 
     # Build candidate list
     candidates: list[str]
-    if path.endswith(".pth"):
+    if path.endswith("_dict.pth"):
+        base = path[:-9]
+        candidates = [base + "_model.pt2", base + "_model.pth", path]
+    elif path.endswith((".pth", ".pt2", ".pt")):
         candidates = [path]
     else:
-        candidates = [path + "_dict.pth", path + ".pth", path + "_model.pth"]
+        candidates = [path + "_model.pt2", path + "_model.pth", path + "_dict.pth", path + ".pth"]
 
     chosen_cp = None
     chosen_path = None
@@ -869,32 +861,16 @@ def load_weights(path: Optional[str] = None) -> str:
 
     for cand in candidates:
         try:
-            cp = load_checkpoint_from_file(cand, device=device)
+            model_candidate, cp = load_model_from_file(cand, device=device)
         except Exception as e:
             TRex.log(f"Failed to load from {cand}: {e}")
             last_error = e
             continue
 
-        # Try state_dict application first
-        try:
-            model_candidate = apply_checkpoint_to_model(model, cp)
-            model = model_candidate
-            chosen_cp = cp
-            chosen_path = cand
-            break
-        except Exception as e_apply:
-            TRex.warn(f"State_dict application failed for {cand}: {e_apply}")
-            # If cp has a serialized model, adopt it as inference-only fallback
-            if isinstance(cp, dict) and cp.get("model", None) is not None:
-                try:
-                    model = cp["model"].to(device)
-                except Exception:
-                    model = cp["model"]
-                chosen_cp = cp
-                chosen_path = cand
-                TRex.warn("Using serialized model (inference-only).")
-                break
-            # else continue to next candidate
+        model = model_candidate
+        chosen_cp = cp
+        chosen_path = cand
+        break
 
     if chosen_cp is None or chosen_path is None or model is None:
         raise Exception(f"No usable checkpoint found. Last error: {last_error}")
@@ -924,7 +900,7 @@ def load_weights(path: Optional[str] = None) -> str:
 def find_available_weights(path: str = None) -> str:
     """List sibling weight files for a base path and return a JSON array of serialized TRex.VIWeights strings.
 
-    Recognized (priority order): `<path>_dict.pth`, `<path>_model.pth`, `<path>.pth`.
+    Recognized: `<path>_model.pt2`, `<path>_model.pth`, `<path>_dict.pth`, `<path>.pth`.
     Each array element is itself a JSON string; the `loaded` field is true for the currently loaded path.
     Returns "[]" if nothing valid is found.
     """
@@ -934,13 +910,14 @@ def find_available_weights(path: str = None) -> str:
     if path is None:
         path = output_path
 
-    # check the extension of this file and see whether it is a .pth file
-    if path.endswith(".pth"):
+    # An explicit checkpoint path selects just that file.
+    if path.endswith((".pth", ".pt2", ".pt")):
         candidate_files = [path]
     else:
         candidate_files = [
-            path + "_dict.pth",
+            path + "_model.pt2",
             path + "_model.pth",
+            path + "_dict.pth",
             path + ".pth"
         ]
     
@@ -1040,6 +1017,8 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
     CrossEntropy over logits; periodically evaluates on `val_loader`; reports
     progress via `callback` and respects its early-stopping signal.
     """
+    import torchmetrics
+
     global get_abort_training
     num_classes = len(settings["classes"])
 
@@ -1095,7 +1074,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         # Wrap DataLoader with ThreadedLoader to prefetch in background
         it_loader = ThreadedLoader(train_loader, max_prefetch=int(os.environ.get("TREX_PREFETCH", "2")))
         
-        for batch, (inputs, targets) in tqdm(enumerate(it_loader), total=len(it_loader)):
+        for batch, (inputs, targets) in TRex.tqdm(enumerate(it_loader), total=len(it_loader)):
             #inputs = transform(inputs.permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
             assert isinstance(inputs, torch.Tensor), f"Expected inputs to be a torch.Tensor, got {type(inputs)}"
             assert isinstance(targets, torch.Tensor), f"Expected targets to be a torch.Tensor, got {type(targets)}"
@@ -1298,6 +1277,12 @@ def start_learning():
     device = TRex.choose_device()
     assert device is not None
 
+    if run_training and loaded_checkpoint is not None:
+        try:
+            model = apply_checkpoint_to_model(None, loaded_checkpoint, strict=True)
+        except Exception as e:
+            raise RuntimeError("Cannot continue training from this checkpoint: " + str(e)) from e
+
     move_range = min(0.05, 2 / min(image_width, image_height))
     TRex.log("setting move_range as " + str(move_range))
     TRex.log(f"# [run] Input data: {len(X)} training samples, {len(X_val)} validation samples.")
@@ -1323,18 +1308,21 @@ def start_learning():
     }
 
     # Data augmentation setup
-    transform = transforms.Compose([
-        #transforms.RandomRotation(degrees=5),
-        transforms.RandomAffine(degrees=5, translate=(move_range, move_range)),
-        transforms.ColorJitter(brightness=(0.85, 1.15),
-                                contrast=(0.85, 1.15),
-                                saturation=(0.85, 1.15),
-                                hue=(-0.05, 0.05),
-                               ),
-        #transforms.RandomHorizontalFlip(),
-        #transforms.RandomVerticalFlip(),
-        #transforms.RandomResizedCrop((image_height, image_width), scale=(0.95, 1.05)),
-    ])
+    transform = None
+    if run_training:
+        from torchvision import transforms
+        transform = transforms.Compose([
+            #transforms.RandomRotation(degrees=5),
+            transforms.RandomAffine(degrees=5, translate=(move_range, move_range)),
+            transforms.ColorJitter(brightness=(0.85, 1.15),
+                                    contrast=(0.85, 1.15),
+                                    saturation=(0.85, 1.15),
+                                    hue=(-0.05, 0.05),
+                                   ),
+            #transforms.RandomHorizontalFlip(),
+            #transforms.RandomVerticalFlip(),
+            #transforms.RandomResizedCrop((image_height, image_width), scale=(0.95, 1.05)),
+        ])
 
     # Expect a list of per-image ndarrays (HxWxC)
     assert isinstance(X, list)
@@ -1417,12 +1405,13 @@ def start_learning():
 
     assert model is not None, "Model is not initialized."
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    #optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    if run_training:
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        #optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-    #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1, verbose=True)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+        #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1, verbose=True)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
     mi = 0
     for i, c in zip(np.arange(len(classes)), classes):
@@ -1494,11 +1483,11 @@ def start_learning():
                 # Prefer new _dict.pth name; fall back to legacy .pth
                 try:
                     TRex.log(f"Loading weights from {output_path+'_progress_dict.pth'} in step {accumulation_step}")
-                    model, cp = load_model_from_file(output_path+'_progress_dict.pth', device=device, new_model = model)
+                    model, cp = load_model_from_file(output_path+'_progress_dict.pth', device=device, new_model = model, for_training=True)
                 except Exception as e_load_new:
                     TRex.warn(f"Failed to load _progress_dict.pth: {e_load_new}; trying legacy _progress.pth")
                     TRex.log(f"Loading weights from {output_path+'_progress.pth'} in step {accumulation_step}")
-                    model, cp = load_model_from_file(output_path+'_progress.pth', device=device, new_model = model)
+                    model, cp = load_model_from_file(output_path+'_progress.pth', device=device, new_model = model, for_training=True)
                 loaded_checkpoint = cp
                 loaded_weights = TRex.VIWeights(
                     path = output_path+'_progress_dict.pth' if os.path.exists(output_path+'_progress_dict.pth') else output_path+'_progress.pth',
@@ -1529,6 +1518,8 @@ def start_learning():
                     TRex.log(f"Best uniqueness of step {accumulation_step}: {best_accuracy_worst_class}")
             except:
                 TRex.warn("loading weights failed")
+
+            load_weights(output_path + "_progress")
 
         elif settings["accumulation_step"] == -2:
             TRex.warn("could not improve upon previous steps.")

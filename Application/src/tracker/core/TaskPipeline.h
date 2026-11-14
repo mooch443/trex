@@ -1,5 +1,6 @@
 #pragma once
 #include <commons.pc.h>
+#include <core/TileCoordinates.h>
 #include <misc/PackLambda.h>
 #include <misc/Image.h>
 #include <pv.h>
@@ -87,7 +88,7 @@ public:
 struct SegmentationData {
     Image::Ptr image;
     pv::Frame frame;
-    std::vector<Bounds> tiles;
+    std::vector<track::SourceRect> tiles;
     
     struct Assignment {
         size_t clid;

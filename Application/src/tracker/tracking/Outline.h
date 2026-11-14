@@ -450,6 +450,8 @@ namespace track {
     public:
         //! Ensures the globals are loaded
         static void check_constants();
+        
+        static bool approximate_outline(const std::vector<Vec2>&, uint8_t, std::vector<Vec2>& output);
     };
     
 //#pragma pack(push, 1)

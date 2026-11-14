@@ -30,8 +30,8 @@ template<> void Data::read(blob::Prediction& pred) {
         //Print("pose::N = ", N / 2u);
         pred.pose.points.resize(N / 2u);
         for(size_t i=0; i<N / 2u; i++) {
-            read<uint16_t>(pred.pose.points[i].x);
-            read<uint16_t>(pred.pose.points[i].y);
+            read<uint16_t>(pred.pose.points[i]._x);
+            read<uint16_t>(pred.pose.points[i]._y);
         }
         
         if(version >= pv::Version::V_11) {
@@ -78,8 +78,8 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
     
     write<uint8_t>(narrow_cast<uint8_t>(val.pose.size() * 2, tag::fail_on_error{}));
     for(auto &pt : val.pose.points) {
-        write<uint16_t>(pt.x);
-        write<uint16_t>(pt.y);
+        write<uint16_t>(pt._x);
+        write<uint16_t>(pt._y);
     }
     
     write<uint8_t>(val.outlines.lines.size());
@@ -168,7 +168,7 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
 {
 }
 
-    File::~File() {
+    File::~File() noexcept {
         {
             std::unique_lock guard(_task_list_mutex); // try to lock once to sync
             for(auto & [i, ptr] : _task_list)
@@ -178,7 +178,23 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
                 _task_variable.wait_for(guard, std::chrono::milliseconds(1));
         }
         
-        close();
+        try {
+            close();
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception while closing ", _filename, " during pv::File destruction: ", ex.what());
+            try {
+                DataFormat::close();
+            } catch(...) {
+                FormatExcept("Cannot close the underlying data handle for ", _filename, " during pv::File destruction.");
+            }
+        } catch(...) {
+            FormatExcept("Unknown exception while closing ", _filename, " during pv::File destruction.");
+            try {
+                DataFormat::close();
+            } catch(...) {
+                FormatExcept("Cannot close the underlying data handle for ", _filename, " during pv::File destruction.");
+            }
+        }
     }
 
     Frame::Frame(const Frame &other)
@@ -306,9 +322,6 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
             use_differences = BOOL_SETTING(use_differences);
             _callback = GlobalSettings::register_callbacks({"use_differences"}, [](auto) {
                 use_differences = BOOL_SETTING(use_differences);
-            });
-            GlobalSettings::register_shutdown_callback([](auto){
-                _callback.collection.reset();
             });
         });
         
@@ -554,7 +567,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
        c > 0)
     {
         assert(pixel_count * c == pixels.size());
-    } else {
+    } else if(encoding() != meta_encoding_t::binary) {
         assert(pixel_count == pixels.size());
     }
 #endif
@@ -769,7 +782,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
 
             }
             else {
-                Print("Compression of ",pack.size()," bytes failed.");
+                FormatWarning("Compression of ",pack.size()," bytes failed.");
             }
         }
     }
@@ -794,6 +807,16 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
             throw U_EXCEPTION("File not opened when reading header ", _filename, ".");
         
         _header.read(*this);
+
+        if(bool(_mode & FileMode::MODIFY) && _header.version < Version::current) {
+            // Rejected modifications must not reach the write-on-close path.
+            DataFormat::close();
+            _open_for_modifying = false;
+            _tried_to_open = false;
+            throw U_EXCEPTION("Cannot modify PV", static_cast<int>(_header.version) + 1,
+                              " file ", _filename, ". Convert it to PV",
+                              static_cast<int>(Version::current) + 1, " first.");
+        }
 
         const auto average_channels = _header.encoding == meta_encoding_t::binary
                                         ? 1u
@@ -1002,6 +1025,17 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 map["meta_real_width"] = Float2_t();
                 
                 if(not metadata.empty()) {
+                    if(version <= Version::V_15) {
+                        // Legacy metadata wraps each serialized value in one extra string layer.
+                        const auto values = Meta::fromStr<std::map<std::string, std::string>>(metadata);
+                        metadata = "{";
+                        for(const auto& [key, value] : values) {
+                            if(metadata.size() > 1)
+                                metadata += ",";
+                            metadata += Meta::toStr(key) + ":" + value;
+                        }
+                        metadata += "}";
+                    }
                     GlobalSettings::write([&](Configuration& config) {
                         sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &config.values, {}, {});
                     });
@@ -1016,15 +1050,15 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                         meta_real_width = 30;
                     
                     Float2_t cm_per_pixel = meta_real_width / resolution.width;
-                    Print("Missing the `cm_per_pixel` key, adding it based on ", meta_real_width, " and ", resolution, " => ", cm_per_pixel);
+                    prefixed_print("pv", "Missing the `cm_per_pixel` key, adding it based on ", meta_real_width, " and ", resolution, " => ", cm_per_pixel);
                     map["cm_per_pixel"] = cm_per_pixel;
                 }
                 
                 try {
-                    std::map<std::string, std::string> jsons;
+                    glz::generic jsons = glz::generic::object_t{};
                     for(const auto& key : map.keys()) {
                         try {
-                            jsons.emplace(key, map.at(key).get().valueString());
+                            jsons[key] = map.at(key).get().to_json();
                             
                         } catch(const std::exception& ex) {
                             FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
@@ -1156,7 +1190,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         if(mask) {
             ref.write(uint64_t(mask->size()));
             ref.write_data(mask->size(), (char*)mask->data());
-            Print("Written mask with ", mask->cols,"x",mask->rows);
+            prefixed_print("pv", "Written mask with ", mask->cols,"x",mask->rows);
         }
         else {
             ref.write(uint64_t(0));
@@ -1164,10 +1198,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
     }
 
     void File::set_metadata(const sprite::Map &diff) {
-        std::map<std::string, std::string> jsons;
+        glz::generic jsons = glz::generic::object_t{};
+        //std::map<std::string, std::string> jsons;
         for(const auto& key : diff.keys()) {
             try {
-                jsons.emplace(key, diff.at(key).get().valueString());
+                jsons[key] = diff.at(key).get().to_json();
+                //jsons.emplace(key, diff.at(key).get().valueString());
                 
             } catch(const std::exception& ex) {
                 FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
@@ -1185,7 +1221,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         ref.seek(index_offset);
         assert(index_offset == ref.tell());
         
-        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            prefixed_print("pv", "Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
         //Print("Index table (",index_table.size(),"): ", index_table);
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
@@ -1217,16 +1254,23 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
-        Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            prefixed_print("pv", "Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
         
         ref.truncate();
     }
 
 const cv::Size& File::size() const {
+    if(not bool(_mode & FileMode::WRITE))
+        _check_opened();
+    
     std::unique_lock lock(_lock);
     return _header.resolution;
 }
 Frame_t File::length() const {
+    if(not bool(_mode & FileMode::WRITE))
+        _check_opened();
+    
     std::unique_lock lock(_lock);
     return Frame_t(_header.num_frames);
 }
@@ -1258,6 +1302,8 @@ Frame_t File::length() const {
         auto str = get_info_rich_text(full);
         str = utils::find_replace(str, "<b>", "");
         str = utils::find_replace(str, "</b>", "");
+        str = utils::find_replace(str, "<str>", "");
+        str = utils::find_replace(str, "</str>", "");
         return str;
     }
     
@@ -1338,12 +1384,13 @@ Frame_t File::length() const {
             ss << "N/A" << std::endl;
         }
 
-        ss << "<b>Video source:</b> ";
+        ss << "<b>Video source:</b> <str>";
         if (_header.source.has_value()) {
             ss << utils::ShortenText(_header.source.value(), 1000) << std::endl;
         } else {
             ss << "unknown" << std::endl;
         }
+        ss << "</str>";
         
         ss << "<b>Framerate:</b> " << std::setw(0) << framerate() << "fps (" << float(_header.average_tdelta) / 1000.f << "ms)";
         
@@ -1533,7 +1580,13 @@ Frame_t File::length() const {
             throw U_EXCEPTION("Do not stop writing on a file that was not open for writing (",_filename,").");
         write(uint64_t(0));
         _header.update(*this);
-        print_info();
+        try {
+            print_info();
+        } catch(const std::exception& ex) {
+            FormatWarning("Cannot print PV info while closing ", _filename, ": ", ex.what());
+        } catch(...) {
+            FormatWarning("Cannot print PV info while closing ", _filename, ".");
+        }
     }
 
 void File::stop_modifying() {
@@ -1547,7 +1600,13 @@ void File::stop_modifying() {
 
     write(uint64_t(0));
     header().update(*this);
-    print_info();
+    try {
+        print_info();
+    } catch(const std::exception& ex) {
+        FormatWarning("Cannot print PV info while closing ", _filename, ": ", ex.what());
+    } catch(...) {
+        FormatWarning("Cannot print PV info while closing ", _filename, ".");
+    }
 }
     
     void File::read_frame(Frame& frame, Frame_t frameIndex) {
@@ -1665,7 +1724,7 @@ void File::stop_modifying() {
     }
 
     void fix_file(File& file) {
-        Print("Starting file copy and fix (",file.filename(),")...");
+        prefixed_print("pv", "Starting file copy and fix (",file.filename(),")...");
         
         auto copy = File::Write<FileMode::WRITE | FileMode::OVERWRITE>(
             (std::string)file.filename()+"_fix",
@@ -1675,15 +1734,17 @@ void File::stop_modifying() {
         copy.set_offsets(file.crop_offsets());
         copy.set_average(file.average());
         
-        auto keys = file.header().metadata.has_value()
-            ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value()).keys()
-            : std::vector<std::string>{};
+        sprite::Map parsed_values = file.header().metadata.has_value()
+                ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value())
+                : sprite::Map{};
+        
+        auto keys = parsed_values.keys();
         if(file.header().metadata.has_value()) {
             GlobalSettings::write([&](Configuration& config) {
                 sprite::parse_values(sprite::MapSource{ file.filename() }, config.values, file.header().metadata.value(), nullptr, {}, {});
             });
         }
-        SETTING(meta_write_these) = keys;
+        SETTING(meta_write_these) = std::vector<std::string>{keys.begin(), keys.end()};
         
         if(file.has_mask())
             copy.set_mask(file.mask());
@@ -1701,11 +1762,11 @@ void File::stop_modifying() {
                 try {
                     frame.read_from(file, idx, file.header().encoding);
                 } catch(...) {
-                    Print("Could not read past ", idx,".");
+                    prefixed_print("pv", "Could not read past ", idx,".");
                     break;
                 }
                 
-                Print(frame);
+                //Print(frame);
                 
                 if (raw_prev_timestamp.valid()
                     && frame.timestamp() < raw_prev_timestamp)
@@ -1729,7 +1790,7 @@ void File::stop_modifying() {
                 copy.add_individual(std::move(frame));
                 
                 if (idx.get() % 1000 == 0) {
-                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                    prefixed_print("pv", "Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
                 }
             }
             
@@ -1758,14 +1819,14 @@ void File::stop_modifying() {
                 copy.add_individual(std::move(frame));
                 
                 if (idx.get() % 1000 == 0) {
-                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                    prefixed_print("pv", "Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
                 }
             }
         }
         
         copy.close();
         
-        Print("Written fixed file.");
+        prefixed_print("pv", "Written fixed file.");
     }
     
     void File::try_compress() {
@@ -1787,7 +1848,8 @@ void File::stop_modifying() {
         sprite::Map map;
         if(header().metadata.has_value())
             sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), nullptr, {}, {});
-        SETTING(meta_write_these) = map.keys();
+        auto keys = map.keys();
+        SETTING(meta_write_these) = std::vector<std::string>{ keys.begin(), keys.end() };
         
         pv::Frame frame;
         for (Frame_t i=0_f; i<length(); ++i) {
@@ -1797,13 +1859,11 @@ void File::stop_modifying() {
             copy.add_individual(std::move(frame));
             
             if (i.get() % 1000 == 0) {
-                Print("Frame ", i," / ",length(),"...");
+                prefixed_print("pv", "Frame ", i," / ",length(),"...");
             }
         }
         
         copy.stop_writing();
-        
-        Print("Written");
         
         {
             print_info();
@@ -1823,7 +1883,7 @@ void File::stop_modifying() {
             throw U_EXCEPTION("Must be open for writing.");
     
         if(_header.metadata.has_value()) {
-            Print("Updating metadata...");
+            prefixed_print("pv", "Updating metadata...");
             //auto metadata = _header.generate_metadata();
             write(_header.metadata.value(), _header.meta_offset());
         }
@@ -1912,7 +1972,7 @@ void File::stop_modifying() {
         
         std::sort(pixel_values.begin(), pixel_values.end());
         auto p = percentile(pixel_values, percent);
-        Print("Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
+        prefixed_print("pv", "Took ", timer.elapsed(),"s to calculate percentiles in ",num_frames," frames.");
         //auto str = Meta::toStr(samples);
         return p;
     }

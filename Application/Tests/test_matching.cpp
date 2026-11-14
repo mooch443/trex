@@ -12,10 +12,10 @@
 #include <core/DetectionTypes.h>
 #include <core/GPURecognitionTypes.h>
 #include <misc/RBSettings.h>
+#include <misc/default_settings.h>
 #include <python/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/HistorySplit.h>
-#include <grabber/misc/default_config.h>
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
@@ -33,6 +33,11 @@ using namespace track::detect;
 
 using namespace default_config;
 
+auto& tracker() {
+    static std::shared_ptr<track::Tracker> _tracker;
+    return _tracker;
+}
+
 // A utility function to reset global settings relevant to our tests.
 // (Optional, but can help avoid cross-test pollution.)
 namespace {
@@ -47,9 +52,10 @@ buffers::TileBuffers::Buffers_t& testTileBuffers() {
 static void resetGlobalSettings()
 {
     GlobalSettings::write([&](Configuration& config) {
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
+    // Test-side FAST_SETTING reads need an initialized cache in this executable.
+    Settings::init();
 
     Python::configure_runtime(
         GlobalSettings::instance(),
@@ -87,8 +93,8 @@ static void resetGlobalSettings()
     SETTING(track_threshold) = Settings::track_threshold_t(50);
     
     track::Identity::Reset();
-    if(track::Tracker::instance())
-        track::Tracker::instance()->initialize_slows();
+    if(tracker())
+        tracker()->initialize_slows();
 }
 
 namespace {
@@ -319,6 +325,10 @@ std::string termites_image_path() {
     return std::string(TREX_TEST_FOLDER) + "/../../images/termites_three.png";
 }
 
+std::string test_video_path() {
+    return (std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string();
+}
+
 struct SyntheticSplitFrame {
     PPFrame frame;
     pv::bid original_root;
@@ -356,9 +366,9 @@ SyntheticSplitFrame make_synthetic_split_frame(Frame_t frame_index = 0_f) {
     return data;
 }
 
-std::unique_ptr<Tracker> make_gray_tracker(const Size2& resolution) {
+std::shared_ptr<Tracker> make_gray_tracker(const Size2& resolution) {
     cv::Mat background = cv::Mat::zeros(int(resolution.height), int(resolution.width), CV_8UC1);
-    return std::make_unique<Tracker>(Image::Make(background), meta_encoding_t::gray, 1.f);
+    return Tracker::Make(Image::Make(background), meta_encoding_t::gray, 1.f);
 }
 
 void configure_system_tracking_settings() {
@@ -372,7 +382,9 @@ void seed_tracker_with_first_frame(pv::File& video, Tracker& tracker) {
     PPFrame pp;
     pv::Frame frame;
     video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              tracker.frames(), *tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     tracker.add(pp);
 }
 
@@ -512,6 +524,34 @@ TEST(PrecomputeTest, LoadTable)
     EXPECT_NEAR(b.pos().y, 120.0_F, 1e-3);
 }
 
+TEST(DefaultConfigTest, DocumentationSurvivesCopiesAndMoves) {
+    Configuration original;
+    {
+        settings::Adding adding(original);
+        adding.add<settings::ParameterCategoryType::TRACKING>("enum", ObjectDetectionFormat::boxes, "Detected geometry.");
+        adding.add<settings::ParameterCategoryType::TRACKING>("season", SeasonType::SUMMER, "Season.");
+        adding.add<settings::ParameterCategoryType::TRACKING>("value", 42, "Integer.");
+    }
+    const auto expected = original.docs;
+    Configuration copied = original;
+    Configuration assigned;
+    assigned = original;
+    original = Configuration{};
+
+    Configuration moved = std::move(copied);
+    Configuration move_assigned;
+    move_assigned = std::move(assigned);
+    for(const auto* config : {&moved, &move_assigned}) {
+        EXPECT_EQ(config->docs, expected);
+        ASSERT_EQ(config->doc_generators.size(), expected.size());
+        for(const auto& [name, doc] : expected) {
+            const auto& generator = config->doc_generators.at(name);
+            EXPECT_EQ(generator(std::nullopt), doc);
+            EXPECT_EQ(generator(uint8_t{255}), doc);
+        }
+    }
+}
+
 // ------------------------------------------------------------
 //  TEST #1: find_user_defined_pose_fields
 // ------------------------------------------------------------
@@ -520,11 +560,12 @@ TEST(DefaultConfigTest, FindUserDefinedPoseFields)
     resetGlobalSettings();
 
     // Simulate that the user has manually added these fields:
-    // "poseX0", "poseY1", and some other random fields like "X", "SPEED"
+    // "poseX0", "poseY1", "poseV2", and some other random fields like "X", "SPEED"
     std::vector<std::pair<std::string, std::vector<std::string>>> fields = {
         {"poseX0", {}},
         {"X", {"RAW"}},
         {"poseY1", {"RAW"}},
+        {"poseV2", {"RAW"}},
         {"SPEED", {"RAW"}},
         {"poseXabc", {}},   // will fail to parse the index "abc" => gets ignored
         {"poseY255", {}}    // 255 is out of range for a uint8_t cast if desired (but let's assume in range for example)
@@ -537,11 +578,12 @@ TEST(DefaultConfigTest, FindUserDefinedPoseFields)
     auto indexes = find_user_defined_pose_fields(SETTING(output_fields).value<
         std::vector<std::pair<std::string, std::vector<std::string>>>>());
 
-    // We expect to see indexes: 0, 1, and 255 in the set
+    // We expect to see indexes: 0, 1, 2, and 255 in the set
     // (The "poseXabc" fails to parse, so it is ignored.)
-    ASSERT_EQ(indexes.size(), size_t(3));
+    ASSERT_EQ(indexes.size(), size_t(4));
     EXPECT_TRUE(indexes.count(0));
     EXPECT_TRUE(indexes.count(1));
+    EXPECT_TRUE(indexes.count(2));
     EXPECT_TRUE(indexes.count(255));
 }
 
@@ -557,21 +599,24 @@ TEST(DefaultConfigTest, ListAutoPoseFields_Default)
     SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
 
     // Now, list_auto_pose_fields() should generate:
-    // poseX0, poseY0, poseX1, poseY1, poseX2, poseY2 and return indexes {0, 1, 2}.
+    // X/Y/V fields for each joint, with each index repeated three times.
     auto [indexes, result] = list_auto_pose_fields();
 
     // Verify the indexes vector.
-    ASSERT_EQ(indexes.size(), size_t(6));
+    ASSERT_EQ(indexes.size(), size_t(9));
     EXPECT_EQ(indexes[0], 0u);
     EXPECT_EQ(indexes[1], 0u);
-    EXPECT_EQ(indexes[2], 1u);
+    EXPECT_EQ(indexes[2], 0u);
     EXPECT_EQ(indexes[3], 1u);
-    EXPECT_EQ(indexes[4], 2u);
-    EXPECT_EQ(indexes[5], 2u);
+    EXPECT_EQ(indexes[4], 1u);
+    EXPECT_EQ(indexes[5], 1u);
+    EXPECT_EQ(indexes[6], 2u);
+    EXPECT_EQ(indexes[7], 2u);
+    EXPECT_EQ(indexes[8], 2u);
 
     // Verify the auto-generated pose fields.
-    ASSERT_EQ(result.size(), size_t(6));
-    std::set<std::string> expected_fields = {"poseX0", "poseY0", "poseX1", "poseY1", "poseX2", "poseY2"};
+    ASSERT_EQ(result.size(), size_t(9));
+    std::set<std::string> expected_fields = {"poseX0", "poseY0", "poseV0", "poseX1", "poseY1", "poseV1", "poseX2", "poseY2", "poseV2"};
     for (const auto& [field_name, transforms] : result)
     {
         EXPECT_TRUE(expected_fields.count(field_name)) << "Unexpected field: " << field_name;
@@ -590,31 +635,63 @@ TEST(DefaultConfigTest, ListAutoPoseFields_WithPartialNames)
     // Set the global keypoint format to 3 keypoints with 2 dimensions each.
     SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
     // Provide keypoint names for only the first 2 keypoints.
-    SETTING(detect_keypoint_names) = KeypointNames{ std::vector<std::string>{"nose", "left_eye"}};
+    SETTING(detect_keypoint_names) = KeypointNames{ std::map<size_t, std::string>{{0, "nose"}, {1, "left_eye"}}};
 
     // Expected:
-    // Index 0: "nose_X", "nose_Y"
-    // Index 1: "left_eye_X", "left_eye_Y"
-    // Index 2: default naming "poseX2", "poseY2"
+    // Index 0: "poseX_nose", "poseY_nose", "poseV_nose"
+    // Index 1: "poseX_left_eye", "poseY_left_eye", "poseV_left_eye"
+    // Index 2: default naming "poseX2", "poseY2", "poseV2"
     auto [indexes, result] = list_auto_pose_fields();
 
     // Verify the indexes vector.
-    ASSERT_EQ(indexes.size(), size_t(6));
+    ASSERT_EQ(indexes.size(), size_t(9));
     EXPECT_EQ(indexes[0], 0u);
     EXPECT_EQ(indexes[1], 0u);
-    EXPECT_EQ(indexes[2], 1u);
+    EXPECT_EQ(indexes[2], 0u);
     EXPECT_EQ(indexes[3], 1u);
-    EXPECT_EQ(indexes[4], 2u);
-    EXPECT_EQ(indexes[5], 2u);
+    EXPECT_EQ(indexes[4], 1u);
+    EXPECT_EQ(indexes[5], 1u);
+    EXPECT_EQ(indexes[6], 2u);
+    EXPECT_EQ(indexes[7], 2u);
+    EXPECT_EQ(indexes[8], 2u);
 
     // Verify the auto-generated pose fields.
-    ASSERT_EQ(result.size(), size_t(6));
-    std::set<std::string> expected_fields = {"nose_X", "nose_Y", "left_eye_X", "left_eye_Y", "poseX2", "poseY2"};
+    ASSERT_EQ(result.size(), size_t(9));
+    std::set<std::string> expected_fields = {"poseX_nose", "poseY_nose", "poseV_nose", "poseX_left_eye", "poseY_left_eye", "poseV_left_eye", "poseX2", "poseY2", "poseV2"};
     for (const auto& [field_name, transforms] : result)
     {
         EXPECT_TRUE(expected_fields.count(field_name)) << "Unexpected field: " << field_name;
         ASSERT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
+    }
+}
+
+TEST(DefaultConfigTest, SparsePoseNamesPreserveIndices) {
+    resetGlobalSettings();
+    SETTING(detect_keypoint_format) = KeypointFormat{4, 2};
+    SETTING(detect_keypoint_names) = KeypointNames{
+        .names = std::map<size_t, std::string>{{1, "head"}, {3, "tail"}}
+    };
+
+    const auto [indexes, fields] = list_auto_pose_fields();
+    EXPECT_EQ(indexes, (std::vector<size_t>{0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3}));
+    ASSERT_EQ(fields.size(), 12u);
+    EXPECT_EQ(fields.at(0).first, "poseX0");
+    EXPECT_EQ(fields.at(2).first, "poseV0");
+    EXPECT_EQ(fields.at(3).first, "poseX_head");
+    EXPECT_EQ(fields.at(5).first, "poseV_head");
+    EXPECT_EQ(fields.at(6).first, "poseX2");
+    EXPECT_EQ(fields.at(8).first, "poseV2");
+    EXPECT_EQ(fields.at(9).first, "poseX_tail");
+    EXPECT_EQ(fields.at(11).first, "poseV_tail");
+    for(auto format : {KeypointFormat{4, 2}, KeypointFormat{}}) {
+        SETTING(detect_keypoint_format) = format;
+        for(const auto component : {'X', 'Y', 'V'}) {
+            EXPECT_EQ(find_user_defined_pose_fields({
+                {std::string("pose") + component + "_head", {}},
+                {std::string("pose") + component + "_tail", {}}}),
+                (std::set<uint8_t>{1, 3}));
+        }
     }
 }
 
@@ -655,16 +732,18 @@ TEST(DefaultConfigTest, AddMissingPoseFields)
     // Calling add_missing_pose_fields() should generate missing fields for indexes 0 and 2.
     auto new_pose_fields = add_missing_pose_fields();
 
-    // Expect "poseX0", "poseY0", "poseX2", "poseY2" (4 fields total).
-    ASSERT_EQ(new_pose_fields.size(), size_t(4));
+    // Expect X/Y/V fields for indexes 0 and 2 (6 fields total).
+    ASSERT_EQ(new_pose_fields.size(), size_t(6));
 
-    bool foundX0 = false, foundY0 = false, foundX2 = false, foundY2 = false;
+    bool foundX0 = false, foundY0 = false, foundV0 = false, foundX2 = false, foundY2 = false, foundV2 = false;
     for (const auto& [field_name, transforms] : new_pose_fields)
     {
         if (field_name == "poseX0") foundX0 = true;
         if (field_name == "poseY0") foundY0 = true;
+        if (field_name == "poseV0") foundV0 = true;
         if (field_name == "poseX2") foundX2 = true;
         if (field_name == "poseY2") foundY2 = true;
+        if (field_name == "poseV2") foundV2 = true;
         
         ASSERT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
@@ -672,193 +751,10 @@ TEST(DefaultConfigTest, AddMissingPoseFields)
 
     EXPECT_TRUE(foundX0);
     EXPECT_TRUE(foundY0);
+    EXPECT_TRUE(foundV0);
     EXPECT_TRUE(foundX2);
     EXPECT_TRUE(foundY2);
-}
-
-TEST(YOLOFilenameTest, ValidFilenames) {
-    EXPECT_TRUE(yolo::is_default_model("yolo11n.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11n"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11n-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11n-pose"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11n-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11m.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11m"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11m-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11m-pose"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11m-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11m-seg"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11x.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11x-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo11x-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov10b.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov10l.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov10m.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov10n.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov10s.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov10x.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov3-sppu.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov3-tinyu.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov3u.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5l6u.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5lu.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5m6u.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5mu.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5n6u.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5nu.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5s6u.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5su.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5x6u.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov5xu.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l-cls.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l-human.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l-obb.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l-oiv7.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l-v8loader.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8l.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m-cls.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m-human.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m-obb.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m-oiv7.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m-v8loader.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8m.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n-cls.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n-human.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n-obb.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n-oiv7.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n-v8loader.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8n.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s-cls.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s-human.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s-obb.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s-oiv7.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s-v8loader.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8s.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-cls.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-human.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-obb.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-oiv7.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-pose-p6.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-pose.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x-v8loader.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x6-oiv7.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov8x6.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov9c-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov9c.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov9e-seg.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov9e.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov9m.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov9s.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolov9t.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo12.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo12345m.pt")); // larger versions drop the v
-    EXPECT_TRUE(yolo::is_default_model("yolo80x.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo22b.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo45l.pt")); // Missing hyphen
-    EXPECT_TRUE(yolo::is_default_model("yolo20l-obb.pt")); // Hyphen not allowed in this position
-    EXPECT_TRUE(yolo::is_default_model("yolov8x6-500.pt"));
-}
-
-TEST(YOLOFilenameTest, InvalidFilenames) {
-    
-    EXPECT_FALSE(yolo::is_default_model("yolov8l-world-cc3m.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8l-world.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8l-worldv2-cc3m.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8l-worldv2.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8m-world.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8m-worldv2.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8s-world.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8s-worldv2.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8x-world.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolov8x-worldv2.pt"));
-    
-    EXPECT_FALSE(yolo::is_default_model("yolov7a.pt"));
-    EXPECT_FALSE(yolo::is_default_model("yolo10.pt")); // Missing 'v'
-    EXPECT_FALSE(yolo::is_default_model("yolov.pt")); // Missing version number
-    EXPECT_FALSE(yolo::is_default_model("yolov10.ptx")); // Extra characters after .pt
-    EXPECT_FALSE(yolo::is_default_model("yolov10_b.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov10!.pt")); // Special character not allowed
-    EXPECT_FALSE(yolo::is_default_model("abc_yolov10.pt")); // Extra prefix not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov10.pt ")); // Trailing space not allowed
-    EXPECT_FALSE(yolo::is_default_model(" yolov10.pt")); // Leading space not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolovv10.pt")); // Double 'v'
-    EXPECT_FALSE(yolo::is_default_model("yolov10-pt")); // Missing dot before 'pt'
-    EXPECT_FALSE(yolo::is_default_model("yolov8x6-pose!.pt")); // Special character '!' not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8x- world.pt")); // Space not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov3tiny.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov5mu.px")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov5n_6u.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8n.seg.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8x-world_pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8-l.pt")); // Hyphen not in correct position
-    EXPECT_FALSE(yolo::is_default_model("yolo_v8m.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8_x.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov_10b.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov-10l.pt")); // Hyphen not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov10 m.pt")); // Space not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov10n.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov10x..pt")); // Double dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8l_world.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8lworld.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov8-lworldv2.pt")); // Hyphen not in correct position
-    EXPECT_FALSE(yolo::is_default_model("yolov8lworldv2-pt")); // Hyphen not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8lm.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov8mcl.s.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8mpose.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov8m.seg.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8.m-obb.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8mworld.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov8-n.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(yolo::is_default_model("yolov8n_cls.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8npose.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov8n.seg-pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8n.world.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov_8s.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8s_obb.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8s-.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(yolo::is_default_model("yolov8s_worldpt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8s-worldv2.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov8-s.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(yolo::is_default_model("yolov8x_cl.s.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8xworld.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov8x_pose.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8x..seg.pt")); // Double dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8x6.oiv7.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov8x-6-500.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(yolo::is_default_model("yolov8x6.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov9c_seg.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov9c.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolov9_e.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov9.e-seg.pt")); // Extra dot not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov9m_.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolov9ms.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov9_t.pt")); // Underscore not allowed
-    EXPECT_FALSE(yolo::is_default_model("yolo12-x.pt")); // Hyphen not allowed in this position
-    EXPECT_FALSE(yolo::is_default_model("yolo14world.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolo15-pose.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolo100seg.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolo99nworld.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov8xtiny.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov3large.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov1small.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolo11human.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolo100pt")); // Missing dot before 'pt'
-    EXPECT_FALSE(yolo::is_default_model("yolo56pose.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolo19seg.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolo100m.ptx")); // Incorrect extension
-    EXPECT_FALSE(yolo::is_default_model("yolo77k.pt")); // Missing hyphen
-    EXPECT_FALSE(yolo::is_default_model("yolov77n.pt")); // Extra v
-    EXPECT_FALSE(yolo::is_default_model("yolo202.ptx")); // Incorrect extension
+    EXPECT_TRUE(foundV2);
 }
 
 TEST(TestValidModels, Valid) {
@@ -890,6 +786,29 @@ TEST(TestValidModels, Valid) {
 
 TEST(TestValidModels, ExistingPtPathWithSpaces) {
     const auto native_path = std::filesystem::temp_directory_path() / "trex model with spaces.pt";
+    {
+        std::ofstream model_file(native_path, std::ios::binary);
+        ASSERT_TRUE(model_file.good());
+    }
+
+    struct Cleanup {
+        std::filesystem::path path;
+        ~Cleanup() {
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
+    } cleanup{native_path};
+
+    const file::Path model_path(native_path.string());
+    ASSERT_TRUE(yolo::valid_model(model_path));
+    EXPECT_NO_THROW(track::detect::ModelConfig(
+        track::detect::ModelTaskType::detect,
+        false,
+        model_path.str()));
+}
+
+TEST(TestValidModels, ExistingRfdetrPthPath) {
+    const auto native_path = std::filesystem::temp_directory_path() / "rf-detr-small.pth";
     {
         std::ofstream model_file(native_path, std::ios::binary);
         ASSERT_TRUE(model_file.good());
@@ -1560,7 +1479,7 @@ TEST(TestLines, Threshold) {
     cv::Mat gray;
     convert_to_r3g3b2<3>(black->get(), gray);
     //cv::cvtColor(black->get(), gray, cv::COLOR_BGR2GRAY);
-    Background bg(Image::Make(gray), meta_encoding_t::r3g3b2);
+    Background bg(Bounds(0, 0, gray.cols, gray.rows), Image::Make(gray), meta_encoding_t::r3g3b2);
     cv::circle(black->get(), Vec2(90,80), 25, gui::Cyan, -1);
     cv::rectangle(black->get(), Vec2(100,100), Vec2(125,125), gui::Purple, -1);
     
@@ -1677,16 +1596,23 @@ INSTANTIATE_TEST_SUITE_P(TestPairing, TestPairing,
 
 struct TrackerAndVideo {
     pv::File video;
-    Tracker tracker;
+    std::shared_ptr<Tracker> _tracker;
+    Tracker& tracker;
     
     TrackerAndVideo()
         : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string()),
-          tracker(video)
+          _tracker(track::Tracker::Make(video)),
+          tracker(*_tracker)
     {
+        ::tracker() = _tracker;
         video.set_project_name("Test");
         video.print_info();
         
         SETTING(frame_rate) = uint32_t(video.framerate());
+    }
+    
+    ~TrackerAndVideo() {
+        ::tracker() = nullptr;
     }
 };
 
@@ -1713,10 +1639,12 @@ TEST_F(TestSystemTracker, TrackingTest) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     data->tracker.add(pp);
     
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     ASSERT_EQ(IndividualManager::num_individuals(), 8u);
 }
 
@@ -1729,11 +1657,122 @@ TEST_F(TestSystemTracker, PreprocessFramePreservesAndPartitionsAllRoots) {
     ASSERT_FALSE(expected_roots.empty());
     
     PPFrame pp;
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto observed = observe_ppframe(pp);
     ASSERT_TRUE(verify_unique_partition(observed, "preprocess_frame partition"));
     ASSERT_TRUE(verify_root_conservation(expected_roots, observed, "preprocess_frame"));
+}
+
+TEST(TrackingInvariant, PreprocessFrameHonorsHistorySplitPolicy) {
+    resetGlobalSettings();
+    SETTING(track_do_history_split) = false;
+
+    pv::File video(test_video_path());
+    auto tracker = Tracker::Make(video);
+    pv::Frame skip_input;
+    pv::Frame apply_input;
+    video.read_frame(skip_input, 0_f);
+    video.read_frame(apply_input, 0_f);
+
+    PPFrame skipped;
+    Tracker::preprocess_frame(std::move(skip_input), skipped, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
+    EXPECT_FALSE(skipped._finalized);
+    EXPECT_EQ(skipped.resolution(), tracker->frames().video_size());
+
+    PPFrame applied;
+    Tracker::preprocess_frame(std::move(apply_input), applied, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Apply);
+    EXPECT_TRUE(applied._finalized);
+    EXPECT_EQ(applied.resolution(), tracker->frames().video_size());
+}
+
+TEST(TrackingInvariant, PreprocessFrameUsesRepositoryStartFrame) {
+    resetGlobalSettings();
+    SETTING(track_size_filter) = Settings::track_size_filter_t({Ranged{1, 1}});
+
+    pv::File video(test_video_path());
+    auto tracker = Tracker::Make(video);
+    tracker->frames().set_end_frame(1_f);
+
+    pv::Frame start_input;
+    pv::Frame later_input;
+    video.read_frame(start_input, 1_f);
+    video.read_frame(later_input, 1_f);
+    ASSERT_FALSE(collect_raw_root_ids(start_input).empty());
+
+    tracker->frames().set_start_frame(1_f);
+    PPFrame at_repository_start;
+    Tracker::preprocess_frame(std::move(start_input), at_repository_start, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
+
+    tracker->frames().set_start_frame(0_f);
+    PPFrame after_repository_start;
+    Tracker::preprocess_frame(std::move(later_input), after_repository_start, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
+
+    const auto has_outside_range_noise = [](const PPFrame& frame) {
+        bool found = false;
+        frame.transform_noise([&found](const pv::Blob& blob) {
+            found = found || blob.reason() == pv::FilterReason::OutsideRange;
+        });
+        return found;
+    };
+    EXPECT_FALSE(has_outside_range_noise(at_repository_start));
+    EXPECT_TRUE(has_outside_range_noise(after_repository_start));
+}
+
+TEST(TrackingInvariant, FrameRateChangePreservesFrameRepositoryContents) {
+    resetGlobalSettings();
+    auto repo = data::FrameRepository::Make(Size2(640, 480));
+    repo->set_start_frame(10_f);
+    repo->set_end_frame(11_f);
+    repo->add_next_frame(FrameProperties(10_f, 0.0, timestamp_t{uint64_t(0)}));
+    repo->add_next_frame(FrameProperties(11_f, 0.04, timestamp_t{uint64_t(40000)}));
+    repo->write([](data::FrameRepository::WriteAccess access) {
+        access.consec.emplace_back(10_f, 11_f);
+    });
+
+    SETTING(frame_rate) = Settings::frame_rate_t{50};
+
+    EXPECT_EQ(repo->size(), 2u);
+    EXPECT_EQ(repo->start_frame(), 10_f);
+    EXPECT_EQ(repo->end_frame(), 11_f);
+    repo->read([](data::FrameRepository::SafeReadAccess access) {
+        ASSERT_EQ(access.consec.size(), 1u);
+        EXPECT_EQ(access.consec.front().start, 10_f);
+        EXPECT_EQ(access.consec.front().end, 11_f);
+    });
+    EXPECT_NEAR(repo->time_delta(20_f, 22_f), 2.0 / 50.0, 1e-12);
+}
+
+TEST_F(TestSystemTracker, FrameCacheHandlesRepositoryPredecessorBoundaries) {
+    seed_tracker_with_first_frame(data->video, data->tracker);
+    const auto fish = IndividualManager::individual_by_id(first_individual_id());
+    ASSERT_TRUE(fish);
+    const auto first = data->tracker.frames().properties(0_f);
+    ASSERT_TRUE(first);
+    const double step = 1.0 / FAST_SETTING(frame_rate);
+    const double time = first->time() + step;
+
+    auto cache = fish.value()->cache_for_frame(data->tracker.frames(), std::nullopt, 1_f, time);
+    ASSERT_TRUE(cache);
+    EXPECT_NEAR(cache->local_tdelta, step, 1e-6);
+
+    auto repo = data::FrameRepository::Make(data->tracker.frames().video_size());
+    repo->set_start_frame(1_f);
+    repo->set_end_frame(1_f);
+    repo->add_next_frame(FrameProperties(1_f, time, timestamp_t{uint64_t(time * 1000000)}));
+    cache = fish.value()->cache_for_frame(*repo, std::nullopt, 1_f, time);
+    ASSERT_TRUE(cache);
+    EXPECT_EQ(cache->local_tdelta, 0);
 }
 
 TEST(TrackingInvariant, ForcedHistorySplitStillRepresentsOriginalRoots) {
@@ -1748,7 +1787,8 @@ TEST(TrackingInvariant, ForcedHistorySplitStillRepresentsOriginalRoots) {
     manual_splits[synthetic.frame.index()].insert(synthetic.original_root);
     SETTING(manual_splits) = manual_splits;
     
-    HistorySplit{synthetic.frame, PPFrame::NeedGrid::NoNeed, nullptr};
+    HistorySplit{tracker->frames(), *tracker->background(), synthetic.frame,
+                 NeedGrid::NoNeed, nullptr};
     
     const auto observed = observe_ppframe(synthetic.frame);
     ASSERT_TRUE(verify_unique_partition(observed, "forced HistorySplit partition"));
@@ -1772,12 +1812,12 @@ TEST(TrackingInvariant, TrackerAddWithForcedSplitStillRepresentsOriginalRoots) {
     ASSERT_TRUE(verify_unique_partition(observe_ppframe(synthetic.frame), "Tracker::add forced split remaining PPFrame partition"));
     const auto observed = observe_tracking_state(synthetic.frame, synthetic.frame.index());
     ASSERT_TRUE(verify_root_conservation({synthetic.original_root}, observed, "Tracker::add forced split"));
-    ASSERT_EQ(tracker->number_frames(), 1u);
+    ASSERT_EQ(tracker->frames().size(), 1u);
 }
 
 TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjects) {
     seed_tracker_with_first_frame(data->video, data->tracker);
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     
     SETTING(track_max_speed) = Settings::track_max_speed_t(50);
     auto fish_id = first_individual_id();
@@ -1785,7 +1825,9 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 1_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto expected_roots = observe_ppframe(pp).roots();
     ASSERT_FALSE(expected_roots.empty());
@@ -1795,7 +1837,11 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
     auto anchor = pp.bdx_to_ptr(chosen_blob_id);
     ASSERT_TRUE(anchor != nullptr);
     
+    ASSERT_EQ(FAST_SETTING(track_max_speed), READ_SETTING(track_max_speed, Settings::track_max_speed_t));
+    ASSERT_EQ(FAST_SETTING(cm_per_pixel), READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t));
     const auto radius_px = float(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+    ASSERT_TRUE(std::isfinite(radius_px)) << "track_max_speed radius=" << radius_px;
+    ASSERT_GT(radius_px, 0.f);
     const auto fake_bdx = make_fake_bid_outside_radius(pp, *anchor, radius_px);
     
     auto manual_matches = Settings::manual_matches_t{};
@@ -1818,7 +1864,7 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
 
 TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
     seed_tracker_with_first_frame(data->video, data->tracker);
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     
     SETTING(track_do_history_split) = false;
     SETTING(track_max_speed) = Settings::track_max_speed_t(50);
@@ -1827,14 +1873,20 @@ TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 1_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto chosen_blob_id = first_regular_blob_id(pp);
     ASSERT_TRUE(chosen_blob_id.valid());
     auto anchor = pp.bdx_to_ptr(chosen_blob_id);
     ASSERT_TRUE(anchor != nullptr);
     
+    ASSERT_EQ(FAST_SETTING(track_max_speed), READ_SETTING(track_max_speed, Settings::track_max_speed_t));
+    ASSERT_EQ(FAST_SETTING(cm_per_pixel), READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t));
     const auto radius_px = float(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+    ASSERT_TRUE(std::isfinite(radius_px)) << "track_max_speed radius=" << radius_px;
+    ASSERT_GT(radius_px, 0.f);
     const auto fake_bdx = make_fake_bid_inside_radius(pp, *anchor, radius_px);
     
     const auto before = observe_ppframe(pp);
@@ -1853,7 +1905,7 @@ TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
 
 TEST_F(TestSystemTracker, ExistingManualMatchAssignsRequestedBlobToRequestedFish) {
     seed_tracker_with_first_frame(data->video, data->tracker);
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     
     SETTING(track_max_speed) = Settings::track_max_speed_t(50);
     auto fish_id = first_individual_id();
@@ -1861,7 +1913,9 @@ TEST_F(TestSystemTracker, ExistingManualMatchAssignsRequestedBlobToRequestedFish
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 1_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto expected_roots = observe_ppframe(pp).roots();
     ASSERT_FALSE(expected_roots.empty());
@@ -2071,7 +2125,7 @@ TEST(TestSplitting, Basic) {
     
     auto root = std::string(TREX_TEST_FOLDER)+"/../../images";
     cv::Mat background = cv::Mat::zeros(1024, 1024, CV_8UC1);
-    Background bg(Image::Make(background), meta_encoding_t::gray);
+    Background bg(Bounds(0, 0, background.cols, background.rows), Image::Make(background), meta_encoding_t::gray);
     
     cv::Mat termites = cv::imread(root+"/termites_three.png");
     ASSERT_EQ(termites.empty(), false);
@@ -2098,26 +2152,74 @@ TEST(TestSplitting, Basic) {
 }
 
 
-TEST(PredictionFilterTests, Basic) {
+TEST(PredictionFilterTests, TemporaryClassesPreserveConfiguredSettings) {
     resetGlobalSettings();
-    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t {
-        cmn::blob::ObjectClass_t {
-            {0, "dog"},
-            {1, "bird"},
-            {2, "fish"},
-            {42, "toothbrush"}
+    EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+
+    TemporaryClassNames inspection([] {
+        return yolo::names::owner_map_t{{0, "person"}, {1, "dog"}};
+    });
+
+    EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[0]");
+    GlobalSettings::write([](Configuration& config) {
+        config.values["detect_only_classes"].get().set_value_from_string("[person]");
+    });
+    EXPECT_EQ(READ_SETTING(detect_only_classes, PredictionFilter).toStr(), "[0]");
+    const auto excluded = PredictionFilter::fromStr("-[person]");
+    EXPECT_FALSE(excluded.allowed(0));
+    EXPECT_TRUE(excluded.allowed(1));
+    EXPECT_THROW(PredictionFilter::fromStr("[unknown]"), std::exception);
+    EXPECT_FALSE(READ_SETTING(detect_classes, blob::MaybeObjectClass_t).has_value());
+
+    auto worker = std::async(std::launch::async, [] {
+        try {
+            (void)PredictionFilter::fromStr("[person]");
+            return false;
+        } catch(const std::exception&) {
+            return true;
         }
-    };
-    
-    auto filter = PredictionFilter::fromStr(R"([0,2,toothbrush])");
-    Print(filter);
-    ASSERT_EQ("[0,2,42]", filter.toStr());
-    
-    filter = PredictionFilter::fromStr(R"(-[dog,2,toothbrush])");
-    Print(filter);
-    ASSERT_EQ("-[0,2,42]", filter.toStr());
-    
-    filter = PredictionFilter::fromStr(R"(-[dog,2,toothbrush,dog])");
-    Print(filter);
-    ASSERT_EQ("-[0,2,42]", filter.toStr());
+    });
+    EXPECT_TRUE(worker.get());
+
+    SETTING(detect_classes) = blob::MaybeObjectClass_t{blob::ObjectClass_t{{4, "person"}}};
+    EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[4]");
+    EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+    EXPECT_EQ(READ_SETTING(detect_classes, blob::MaybeObjectClass_t),
+              (blob::MaybeObjectClass_t{blob::ObjectClass_t{{4, "person"}}}));
+}
+
+TEST(PredictionFilterTests, TemporaryClassesRestoreLookupAcrossScopes) {
+    resetGlobalSettings();
+
+    {
+        yolo::names::owner_map_t classes{{0, "person"}};
+        TemporaryClassNames inspection([&] { return classes; });
+        EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[0]");
+
+        {
+            TemporaryClassNames loading;
+            EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+            classes = {{1, "dog"}};
+            EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+        }
+        EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+        EXPECT_EQ(PredictionFilter::fromStr("[dog]").toStr(), "[1]");
+
+        try {
+            TemporaryClassNames loading;
+            EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+            throw std::runtime_error("Failed settings load");
+        } catch(const std::runtime_error&) {}
+        EXPECT_EQ(PredictionFilter::fromStr("[dog]").toStr(), "[1]");
+    }
+
+    {
+        TemporaryClassNames next_scene([] {
+            return yolo::names::owner_map_t{{2, "person"}};
+        });
+        EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+        EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[2]");
+    }
+    EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+    EXPECT_EQ(PredictionFilter::fromStr("[0]").toStr(), "[0]");
 }

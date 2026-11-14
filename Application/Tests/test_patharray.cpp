@@ -10,6 +10,18 @@
 
 using namespace cmn;
 
+namespace cmn::file {
+std::ostream& operator<<(std::ostream& os, const file::Path& dt)
+{
+    os << dt.str();
+    return os;
+}
+}
+
+void PrintTo(const std::vector<file::Path>& params, std::ostream* os) {
+    *os << Meta::toStr(params);
+}
+
 TEST(SpriteMapTest, Basic) {
     sprite::Map map;
     map.set_print_by_default(true);
@@ -28,7 +40,7 @@ struct TrivialType {
     std::string toStr() const { throw std::exception(); }
     static TrivialType fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "TrivialType"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct NonTrivialType {
@@ -38,7 +50,7 @@ struct NonTrivialType {
     std::string toStr() const { throw std::exception(); }
     static NonTrivialType fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "NonTrivialType"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct TrivialTypeWithoutNonEquals {
@@ -47,7 +59,7 @@ struct TrivialTypeWithoutNonEquals {
     std::string toStr() const { throw std::exception(); }
     static TrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "TrivialTypeWithoutNonEquals"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct NonTrivialTypeWithoutNonEquals {
@@ -56,7 +68,7 @@ struct NonTrivialTypeWithoutNonEquals {
     std::string toStr() const { throw std::exception(); }
     static NonTrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "NonTrivialTypeWithoutNonEquals"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 TEST(ValueStoreTest, TrivialTypeWithNotEqualOperator) {
@@ -781,11 +793,7 @@ TEST(PathArrayTest, ParsePath_Array) {
 TEST(PathArrayTest, ParsePath_ArrayFormat) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
         std::set<file::Path> find_files(const file::Path& ) const override {
-#if defined(_WIN32)
-            return { file::Path("path\\to\\file1"), file::Path("C:\\other\\path") };
-#else
             return { file::Path("path/to/file1"), file::Path("/other/path") };
-#endif
         }
 
         bool is_folder(const file::Path& ) const override {
@@ -796,20 +804,44 @@ TEST(PathArrayTest, ParsePath_ArrayFormat) {
             return find_files("").count(path) > 0;
         }
     };
+    
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>(R"(["path/to/file1","/other/path"])");
+    EXPECT_EQ(parsed_paths.size(), 2);
+    
 #if defined(_WIN32)
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>("[\"path\\to\\file1\",\"C:\\other\\path\"]");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path\to\file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(\other\path)");
 #else
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>("[\"path/to/file1\",\"/other/path\"]");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path/to/file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(/other/path)");
 #endif
+}
 
+// Test pattern matching with array
+TEST(PathArrayTest, ParsePath_ArrayFormatWindows) {
+    struct LocalMockFilesystem : public file::FilesystemInterface {
+        std::set<file::Path> find_files(const file::Path& ) const override {
+            return { file::Path("path\\to\\file1"), file::Path("C:\\other\\path") };
+        }
+
+        bool is_folder(const file::Path& ) const override {
+            return true;
+        }
+
+        bool exists(const file::Path& path) const override {
+            return find_files("").count(path) > 0;
+        }
+    };
+    
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>(R"(["path\\to\\file1","C:\\other\\path"])");
     EXPECT_EQ(parsed_paths.size(), 2);
 
 #if defined(_WIN32)
-    EXPECT_EQ(parsed_paths[0].str(), "path\\to\\file1");
-    EXPECT_EQ(parsed_paths[1].str(), "C:\\other\\path");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path\to\file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(C:\other\path)");
 #else
-    EXPECT_EQ(parsed_paths[0].str(), "path/to/file1");
-    EXPECT_EQ(parsed_paths[1].str(), "/other/path");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path/to/file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(C:/other/path)");
 #endif
 }
 
@@ -928,7 +960,7 @@ TEST(PathConcatenation, EmptyLhs) {
 //#if defined(WIN32)
 //    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
 //#else
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()) + "relative");  // Empty lhs should result in only rhs
+    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
 //#endif
 }
 
@@ -946,7 +978,7 @@ TEST(PathConcatenation, BothEmpty) {
 //#if defined(WIN32)
 //    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
 //#else
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()));
+    EXPECT_EQ((lhs / rhs).str(), "");
 //#endif
 }
 
@@ -1089,7 +1121,7 @@ TEST(PathConcatenation, AbsoluteRhsError) {
 TEST(PathConcatenation, BothEmpty2) {
     Path lhs("");
     Path rhs("");
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()));  // Both paths empty should result in empty
+    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
 }
 
 // Test concatenation with empty rhs and lhs having a trailing separator
@@ -1145,14 +1177,6 @@ TEST(PathArrayTest, SinglePathConstructor) {
     file::_PathArray<MockFilesystem> paths("path/to/file");
     EXPECT_EQ(paths.get_paths().size(), 1);  // Expect one path
     EXPECT_EQ(paths.get_paths().front().str(), file::make_path("path", "to", "file"));  // Check the path is correct
-}
-
-// Test constructor with array of paths as string
-TEST(PathArrayTest, ArrayOfStringConstructor) {
-    file::_PathArray<MockFilesystem> paths("[\"path/to/file1\", \"path/to/file2\"]");
-    EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
-    EXPECT_EQ(paths.get_paths()[0].str(), file::make_path("path", "to", "file1"));  // Check the first path
-    EXPECT_EQ(paths.get_paths()[1].str(), file::make_path("path", "to", "file2"));  // Check the second path
 }
 
 // Test constructor with vector of strings

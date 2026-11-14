@@ -1,6 +1,7 @@
 #pragma once
 #include <commons.pc.h>
 #include <misc/Path.h>
+#include <core/default_config.h>
 
 namespace track::detect::yolo::names {
 
@@ -17,18 +18,27 @@ std::optional<cmn::blob::Pose::Skeleton> get_skeleton(uint8_t clid, const std::o
 
 namespace track::detect {
 
-ENUM_CLASS(ObjectDetectionType, none, yolo, sam3, background_subtraction, precomputed);
-ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
+// Registers a fallback on this thread until scope exit; an empty lookup suppresses it.
+class TREX_EXPORT TemporaryClassNames {
+    std::function<yolo::names::owner_map_t()> _lookup;
+    TemporaryClassNames* _previous;
 
-using ObjectDetectionType_t = std::optional<ObjectDetectionType::Class>;
-using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
+    static yolo::names::owner_map_t current();
+    friend struct PredictionFilter;
+
+public:
+    explicit TemporaryClassNames(std::function<yolo::names::owner_map_t()> lookup = {});
+    ~TemporaryClassNames();
+    TemporaryClassNames(const TemporaryClassNames&) = delete;
+    TemporaryClassNames& operator=(const TemporaryClassNames&) = delete;
+};
 
 struct PredictionFilter {
     std::vector<uint16_t> detect_only;
     std::optional<std::vector<uint16_t>> _inverted_from;
     
     std::string toStr() const;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     static consteval std::string_view class_name() { return "PredictionFilter"; }
     
     static std::vector<uint16_t> invert(const std::vector<uint16_t>& ids, const yolo::names::map_t& detect_classes);
@@ -88,7 +98,7 @@ struct KeypointFormat {
     uint8_t n_dims{0};
     
     constexpr bool operator==(const KeypointFormat&) const = default;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static KeypointFormat fromStr(cmn::StringLike auto&& str) {
         if(str == "null") {
@@ -107,20 +117,32 @@ struct KeypointFormat {
 };
 
 struct KeypointNames {
-    std::optional<std::vector<std::string>> names;
+    std::optional<std::map<size_t, std::string>> names;
     
     std::optional<std::string> name(size_t index) const;
     
     constexpr bool operator==(const KeypointNames&) const = default;
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static KeypointNames fromStr(cmn::StringLike auto&& str) {
-        if(str == "null") {
+        auto sv = cmn::utils::string_like_view(std::forward<decltype(str)>(str));
+        if(sv == "null" || sv.empty()) {
             return KeypointNames{};
         }
-        auto names = cmn::Meta::fromStr<std::vector<std::string>>(str);
+        
+        if(sv.front() == '['
+           || sv.back() == ']')
+        {
+            auto array = cmn::Meta::fromStr<std::vector<std::string>>(sv);
+            KeypointNames names{.names = std::map<size_t, std::string>{}};
+            for(size_t i = 0; i < array.size(); ++i) {
+                (*names.names)[i] = std::move(array[i]);
+            }
+            return names;
+        }
+        
         return KeypointNames{
-            .names = names
+            .names = cmn::Meta::fromStr<std::map<size_t, std::string>>(sv)
         };
     }
     bool valid() const {
@@ -172,7 +194,7 @@ struct DetectResolution {
         }
     }
     
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
     std::string toStr() const;
     static consteval std::string_view class_name() { return "DetectResolution"; }
 };
@@ -182,6 +204,8 @@ namespace yolo {
 /// that can be automatically retrieved from the ultralytics repo
 bool is_valid_default_model(const std::string&);
 
+cmn::file::Path current_detect_model_path();
+std::vector<cmn::file::Path> detect_model_candidates(cmn::file::Path detect_model);
 bool valid_model(const cmn::file::Path&, const cmn::file::FilesystemInterface& = cmn::file::RealFilesystem{});
 bool is_default_model(const cmn::file::Path&);
 std::string default_model();
@@ -220,7 +244,7 @@ struct VIWeights {
     std::string toStr() const;
     static VIWeights fromStr(const std::string&);
     static consteval std::string_view class_name() { return "VIWeights"; }
-    glz::json_t to_json() const;
+    glz::generic to_json() const;
 };
 
 }

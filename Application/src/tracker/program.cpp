@@ -2,6 +2,7 @@
 #include <gui/IMGUIBase.h>
 #include <gui/DrawStructure.h>
 #include <misc/GlobalSettings.h>
+#include <misc/CommandLine.h>
 #include <file/DataLocation.h>
 #include <gui/types/Button.h>
 #include <gui/types/Checkbox.h>
@@ -12,14 +13,16 @@
 #include <processing/PVBlob.h>
 #include <processing/DLList.h>
 
-int main() {
+int main(int argc, char** argv) {
     using namespace cmn;
     using namespace cmn::gui;
     file::DataLocation::create();
     GlobalSettings::create();
     SETTING(terminate) = false;
+    CommandLine::init(argc, argv);
+    CommandLine::instance().cd_home();
     
-    Image image(300, 300, 1);
+    Image image = std::move(*Image::Zeros(300, 300, 1));
     cv::circle(image.get(), Vec2(50, 50), 10, White, -1);
     cv::imshow("raw", image.get());
     

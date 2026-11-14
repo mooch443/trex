@@ -43,6 +43,8 @@ if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         CXX_VISIBILITY_PRESET default
         C_VISIBILITY_PRESET default
         VISIBILITY_INLINES_HIDDEN OFF
+        # Post-build dylib aliases do not produce compilation inputs for consumers.
+        XCODE_ATTRIBUTE_EAGER_COMPILATION_ALLOW_SCRIPTS YES
     )
     target_compile_options(trex_python_staging PRIVATE -fvisibility=default)
     # Apple ld already errors on undefined symbols by default.
@@ -94,6 +96,8 @@ if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         CXX_VISIBILITY_PRESET default
         C_VISIBILITY_PRESET default
         VISIBILITY_INLINES_HIDDEN OFF
+        # Post-build dylib aliases do not produce compilation inputs for consumers.
+        XCODE_ATTRIBUTE_EAGER_COMPILATION_ALLOW_SCRIPTS YES
     )
     target_compile_options(trex_python PRIVATE -fvisibility=default)
     # Apple ld already errors on undefined symbols by default.

@@ -3,6 +3,7 @@
 #include <misc/colors.h>
 #include <gui/GuiTypes.h>
 #include <gui/DrawBase.h>
+#include <gui/DrawStructure.h>
 
 namespace cmn::gui {
 
@@ -31,22 +32,41 @@ void Skelett::update() {
             auto& bone = _pose.points.at(i);
             auto& circle = _circles.at(i);
             
-            if (bone.valid()) {
-                if(not circle)
-                    circle = new Circle{};
+            if (bone.valid())
+            {
+                bool hovered{false};
                 
-                circle->create(Loc{ bone },
-                               LineClr{ _color },
-                               Radius{ 5 },
-                               FillClr{ _color.alpha(75) },
-                               min(Scale{1}, sca),
-                               Clickable{_show_text});
-                advance_wrap(*circle);
-                
-                auto hovered = circle->hovered();
-                if(hovered) {
-                    circle->set(FillClr{_color.alpha(150)});
-                    circle->set(LineClr{White.alpha(150)});
+                if(bone.visible()) {
+                    if(not circle)
+                        circle = new Circle{};
+                    
+                    circle->create(Loc{ bone },
+                                   LineClr{ _color },
+                                   Radius{ 5 },
+                                   FillClr{ _color.alpha(75) },
+                                   min(Scale{1}, sca),
+                                   PointerEvents{pointer::Events::Hover},
+                                   Clickable{false});
+                    advance_wrap(*circle);
+                    
+                    hovered = circle->hovered();
+                    if(hovered) {
+                        circle->set(FillClr{_color.alpha(150)});
+                        circle->set(LineClr{White.alpha(150)});
+                    }
+                    
+                } else {
+                    if(not circle)
+                        circle = new Circle{};
+                    
+                    circle->create(Loc{ bone },
+                                   LineClr{ _color },
+                                   Radius{ 5 },
+                                   FillClr{ Gray.alpha(75) },
+                                   min(Scale{1}, sca),
+                                   //PointerEvents{pointer::Events::Hover},
+                                   Clickable{false});
+                    advance_wrap(*circle);
                 }
                 
                 if(_show_text || hovered) {
@@ -55,7 +75,7 @@ void Skelett::update() {
                         name = Meta::toStr(i);
                     
                     texts.emplace_back([this, name = name.value(), bone, sca, hovered](){
-                        add<Text>(Str{ name }, Loc{ (Vec2)bone - Vec2(0,5 + Base::default_line_spacing(font)).mul(sca) }, Origin{ 0.5,1 }, TextClr{ Color::blend(White, _color) }, sca, font, Rotation{0}, Text::Shadow_t{hovered});
+                        add<Text>(Str{ name }, Loc{ (Vec2)bone - Vec2(0,5 + Base::default_line_spacing(font)).mul(sca) }, Origin{ 0.5,1 }, TextClr{ Color::blend(White, _color) }, sca, Font_t{font}, Rotation{0}, Text::Shadow_t{hovered});
                     });
                 }
             }
@@ -85,7 +105,7 @@ void Skelett::update() {
                             add<Text>(Str(c.name),
                                       loc,
                                       TextClr(Cyan.alpha(200)),
-                                      font,
+                                      Font_t{font},
                                       sca,
                                       Origin(0.5),
                                       a);
@@ -112,7 +132,7 @@ void Skelett::update() {
                         name = Meta::toStr(i);
                     
                     texts.emplace_back([this, bone, name = name.value(), sca]() {
-                        add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, sca, font);
+                        add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, sca, Font_t{font});
                     });
                 }
                 

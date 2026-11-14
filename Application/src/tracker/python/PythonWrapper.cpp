@@ -577,7 +577,8 @@ void configure_runtime(
     void* instance,
     void* tile_buffers,
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
-    std::function<void()> close_fn
+    std::function<void()> close_fn,
+    std::function<void(const std::string&)> warning_fn
 ) {
     GlobalSettings::instance(settings);
     file::DataLocation::set_instance(data_location);
@@ -591,8 +592,16 @@ void configure_runtime(
         throw SoftException("trex_python did not register runtime configuration callbacks.");
     impl.set_settings(settings, data_location, instance, tile_buffers);
     impl.set_display_function(std::move(show_fn), std::move(close_fn));
+    if (impl.set_runtime_warning_function) {
+        if (!warning_fn) {
+            warning_fn = [](const std::string& message) {
+                FormatWarning(message);
+            };
+        }
+        impl.set_runtime_warning_function(std::move(warning_fn));
+    }
 
-    Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
+    //Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
 }
 
 void check_correct_thread_id() {
@@ -637,21 +646,21 @@ bool valid(const std::string& name, const std::string& m) {
     return impl.valid(name, m);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function) {
     auto& impl = active_python_impl();
     if (!impl.run_no_args)
         throw SoftException("trex_python did not register run(module, function).");
     return impl.run_no_args(module_name, function);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const std::string& parm) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const std::string& parm) {
     auto& impl = active_python_impl();
     if (!impl.run_string_arg)
         throw SoftException("trex_python did not register run(module, function, string).");
     return impl.run_string_arg(module_name, function, parm);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const glz::json_t& parm) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const glz::generic& parm) {
     auto& impl = active_python_impl();
     if (!impl.run_json_arg)
         throw SoftException("trex_python did not register run(module, function, json).");

@@ -202,7 +202,13 @@ MANUAL_SYMBOL_EXCLUSIONS = {
     ("gui/DrawSFBase.h", "cmn::gui::SFBase"): "sfml_build_gated",
     ("gui/HttpClient.h", "cmn::gui::HttpClient"): "http_build_gated",
     ("gui/LabeledField.h", "cmn::gui::has_set"): "wrong_namespace_parser_artifact",
+    ("gui/dyn/Context.h", "cmn::gui::dyn::COMMONS_EXPORT"): "export_macro_parser_artifact",
+    ("gui/dyn/Context.h", "cmn::gui::dyn::detail::local_setting_from_json"): "internal_detail_helper",
     ("gui/types/Entangled.h", "cmn::gui::detail::set"): "requires_expression_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::HasSetEach"): "wrong_namespace_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::HasCreateSetArgs"): "wrong_namespace_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::AllowDirectMakeArgs"): "wrong_namespace_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::HasMakeArgs"): "wrong_namespace_parser_artifact",
     ("gui/types/Drawable.h", "cmn::gui::Handler"): "internal_forward_decl_only",
     ("gui/types/ListItemTypes.h", "cmn::gui::TREX_TYPE_EXPORT"): "macro_parser_artifact",
     ("misc/colors.h", "cmn::gui::cmn::cmap::Viridis"): "wrong_namespace_parser_artifact",
@@ -244,6 +250,20 @@ MANUAL_SYMBOLS = {
     ],
     "gui/LabeledField.h": [
         Symbol("gui/LabeledField.h", "commons.gui", "cmn::gui::dyn", "has_set", "class_template", "using"),
+    ],
+    "gui/dyn/Context.h": [
+        Symbol("gui/dyn/Context.h", "commons.gui.dyn", "cmn::gui::dyn", "LocalSettingTypes", "class", "using"),
+        Symbol("gui/dyn/Context.h", "commons.gui.dyn", "cmn::gui::dyn", "CurrentObjectHandler", "struct", "using"),
+        Symbol("gui/dyn/Context.h", "commons.gui.dyn", "cmn::gui::dyn", "Context", "struct", "using"),
+    ],
+    "gui/types/Layout.h": [
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "Layout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "PlaceinLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "HorizontalLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "VerticalLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "FloatingLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "GridInfo", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "GridLayout", "class", "using"),
     ],
     "misc/colors.h": [
         Symbol("misc/colors.h", "commons.misc", "cmn::cmap", "Viridis", "class", "using"),
@@ -422,6 +442,14 @@ def parse_macro_invocations(header: str, module: str, text: str) -> tuple[list[S
     scope_stack: list[tuple[list[str], int]] = []
     brace_depth = 0
     lines = text.splitlines()
+    cleaned = strip_comments_and_literals(strip_preprocessor_blocks(text))
+    enum_invocations = {
+        cleaned.count("\n", 0, match.start()) + 1: match
+        for match in re.finditer(
+            r"\bENUM_CLASS\s*\(\s*((?:[A-Za-z_]\w*\s*::\s*)*)\s*,\s*([A-Za-z_]\w*)",
+            cleaned,
+        )
+    }
     in_macro_definition = False
     for line_no, raw_line in enumerate(lines, start=1):
         line = re.sub(r"//.*", "", raw_line)
@@ -452,8 +480,8 @@ def parse_macro_invocations(header: str, module: str, text: str) -> tuple[list[S
                 if "ALIAS" in pattern:
                     symbols.append(Symbol(header, module, current_namespace, f"{name}Tag", "struct", "using"))
 
-        for match in re.finditer(r"\bENUM_CLASS\s*\(\s*([A-Za-z_]\w*)", line):
-            name = match.group(1)
+        if match := enum_invocations.get(line_no):
+            name = re.sub(r"\s+", "", match.group(1)) + match.group(2)
             enum_namespace = f"{current_namespace}::{name}" if current_namespace else name
             symbols.append(Symbol(header, module, enum_namespace, "Class", "enum_class", "using"))
             exclusions.append(
@@ -569,6 +597,22 @@ def parse_regular_symbols(header: str, module: str, text: str) -> tuple[list[Sym
 
     while i < len(tokens):
         tok = tokens[i]
+        if tok in {
+            "ENUM_CLASS", "ENUM_CLASS_HAS_DOCS", "ENUM_CLASS_HAS_DOCS_NAMESPACE",
+            "ENUM_CLASS_DOCS", "ENUM_CLASS_DOCS_NAMESPACE", "ATTRIBUTE_ALIAS",
+            "NUMBER_ALIAS", "CREATE_STRUCT",
+        } and i + 1 < len(tokens) and tokens[i + 1] == "(":
+            # Declaration macros do not require a trailing semicolon.
+            depth = 1
+            i += 2
+            while i < len(tokens) and depth:
+                if tokens[i] == "(":
+                    depth += 1
+                elif tokens[i] == ")":
+                    depth -= 1
+                i += 1
+            pending_template = False
+            continue
         if tok == "{":
             push_scope("block")
             i += 1

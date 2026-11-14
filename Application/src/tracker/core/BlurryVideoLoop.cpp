@@ -21,9 +21,16 @@ BlurryVideoLoop::BlurryVideoLoop(const std::string& name)
 }
 
 void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
-    auto video_changed = not _source || between_equals(allowances, 1, 15)
-        ? _video_path.get()
-        : _video_path.getIfChanged();
+    auto video_changed = _video_path.getIfChanged();
+    if(video_changed) {
+        allowances = 0;
+    } else if(
+       not _source
+       && between_equals(allowances, 0, 15))
+    {
+        video_changed = _video_path.get();
+    }
+    
     if(video_changed.has_value())
     {
         // video has changed! need to update
@@ -53,9 +60,6 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                         
                         ThreadManager::getInstance().notify(gid);
                     }
-                    
-                    _intial_resolution_promise.set_value({});
-                    _intial_resolution_promise = {};
                 }
                 
             } else if(path == file::PathArray{"basler"}) {
@@ -67,19 +71,13 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                     _last_image_timer.reset();
                 } else {
                     FormatWarning("[blurry] Failed to create Basler camera: ", created.error().user_message, " / ", created.error().diagnostic);
-                    _intial_resolution_promise.set_value({});
-                    _intial_resolution_promise = {};
                 }
 #else
                 FormatWarning("[blurry] Basler source requested, but WITH_PYLON is disabled in this build.");
-                _intial_resolution_promise.set_value({});
-                _intial_resolution_promise = {};
 #endif
                 
             } else if(path.empty()) {
                 // we cant do anything
-                _intial_resolution_promise.set_value({});
-                _intial_resolution_promise = {};
                 
             } else if(path.get_paths().size() == 1
                       && path.get_paths().front().has_extension("pv"))
@@ -95,32 +93,45 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                 _next_frame = 0_f;
                 
             } else {
-                VideoSource video(path);
-                video.set_colors(ImageMode::RGBA);
-                tmp = std::unique_ptr<AbstractBaseVideoSource>(new VideoSourceVideoSource{ std::move(video) });
-                tmp->set_loop(true);
-                _next_frame = 0_f;
+                auto test = VideoSource::TestVideoSource(path);
+                if(test) {
+                    VideoSource video(path);
+                    video.set_colors(ImageMode::RGBA);
+                    tmp = std::unique_ptr<AbstractBaseVideoSource>(new VideoSourceVideoSource{ std::move(video) });
+                    tmp->set_loop(true);
+                    _next_frame = 0_f;
+                } else {
+                    allowances = 100;
+                }
             }
             
-            if(tmp) {
-                allowances = 0;
-                _last_image_timer.reset();
-                
-                _resolution = tmp->size();
-                _intial_resolution_promise.set_value(tmp->size());
-                _intial_resolution_promise = {};
-                _source = std::move(tmp);
-                _video_updated = true;
-                intermediate = nullptr;
-                
+        } catch(...) {
+            // could not load...
+            tmp = nullptr;
+            allowances = 100;
+        }
+        
+        if(not tmp) {
+            /// could not load a video file, set promise and source
+            _source.reset();
+            _intial_resolution_promise.set_value({});
+            _intial_resolution_promise = {};
+        } else {
+            _source = std::move(tmp);
+            
+            allowances = 0;
+            _last_image_timer.reset();
+            _video_updated = true;
+            intermediate = nullptr;
+            _resolution = _source->size();
+            
+            {
                 std::unique_lock guard(image_mutex);
                 return_image = {};
                 transfer_image = {};
             }
             
-        } catch(...) {
-            // could not load
-            _intial_resolution_promise.set_value({});
+            _intial_resolution_promise.set_value(_source->size());
             _intial_resolution_promise = {};
         }
     }

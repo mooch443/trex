@@ -1,5 +1,6 @@
 #include "TrackletInformation.h"
 #include <tracking/Individual.h>
+#include <tracking/Stuffs.h>
 
 namespace track {
 
@@ -62,4 +63,3 @@ long_t TrackletInformation::posture_stuff(Frame_t frame) const {
 }
 
 }
-

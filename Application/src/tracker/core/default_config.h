@@ -9,6 +9,17 @@ namespace pv {
 class File;
 }
 
+ENUM_CLASS(track::detect::, ObjectDetectionType, none, yolo, sam3, background_subtraction, precomputed);
+ENUM_CLASS(track::detect::, ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
+
+ENUM_CLASS_HAS_DOCS_NAMESPACE(track::detect::, ObjectDetectionType)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(track::detect::, ObjectDetectionFormat)
+
+namespace track::detect {
+using ObjectDetectionType_t = std::optional<ObjectDetectionType::Class>;
+using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
+}
+
 namespace default_config {
     using namespace cmn;
 
@@ -22,10 +33,12 @@ namespace default_config {
     bool execute_settings_file(const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
 
     void warn_deprecated(const file::Path& source, sprite::Map& map);
-    void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
-    bool is_deprecated(const std::string& key);
+
+    template<typename StringType = std::string_view>
+    void warn_deprecated(const file::Path& source, const std::map<StringType, std::string>& keys);
+    bool is_deprecated(std::string_view key);
     const Deprecations& deprecations();
-    std::string replacement(const std::string& key);
+    std::string replacement(std::string_view key);
 
     struct Config {
         std::map<std::string, const sprite::PropertyType*> map;
@@ -47,55 +60,59 @@ namespace default_config {
         template<typename U> static int Test(...);
         static const bool Has = sizeof(Test<T>(0)) == sizeof(char);
     };*/
+}
 
-    ENUM_CLASS(heatmap_normalization_t, none, value, cell, variance)
-    ENUM_CLASS_HAS_DOCS(heatmap_normalization_t)
+ENUM_CLASS(default_config::, heatmap_normalization_t, none, value, cell, variance)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, heatmap_normalization_t)
 
-    ENUM_CLASS(individual_image_normalization_t, none, moments, posture, legacy)
-    ENUM_CLASS_HAS_DOCS(individual_image_normalization_t)
+ENUM_CLASS(default_config::, individual_image_normalization_t, none, moments, posture, legacy)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, individual_image_normalization_t)
 
+
+ENUM_CLASS(default_config::, gpu_verbosity_t, silent, full, oneline)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, gpu_verbosity_t)
+
+ENUM_CLASS(default_config::, gui_recording_format_t, avi, mp4, jpg, png)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, gui_recording_format_t)
+
+ENUM_CLASS(default_config::, peak_mode_t, pointy, broad)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, peak_mode_t)
+
+ENUM_CLASS(default_config::, matching_mode_t, tree, approximate, hungarian, benchmark, automatic, none)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, matching_mode_t)
+
+ENUM_CLASS(default_config::, output_format_t, csv, npz)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, output_format_t)
+
+ENUM_CLASS(default_config::, output_invalid_t, inf, nan)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, output_invalid_t)
+
+ENUM_CLASS(default_config::, app_update_check_t, none, manually, automatically)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, app_update_check_t)
+
+ENUM_CLASS(default_config::, blob_split_algorithm_t, threshold, threshold_approximate, fill, none)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, blob_split_algorithm_t)
+
+ENUM_CLASS(default_config::, visual_identification_version_t, current, v200, v119, v118_3, v110, v100, convnext_base, vgg_16, vgg_19, mobilenet_v3_small, mobilenet_v3_large, inception_v3, resnet_50_v2, efficientnet_b0, resnet_18)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, visual_identification_version_t)
+
+ENUM_CLASS(default_config::, TRexTask_t, none, track, convert, annotate, rst)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, TRexTask_t)
+
+ENUM_CLASS(default_config::, gpu_torch_device_t, automatic, cuda, mps, cpu)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, gpu_torch_device_t)
+
+ENUM_CLASS(default_config::, detect_pose_bbx_t, yolo, keypoints)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, detect_pose_bbx_t)
+
+namespace default_config {
     individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class = individual_image_normalization_t::none);
-
-    ENUM_CLASS(gpu_verbosity_t, silent, full, oneline)
-    ENUM_CLASS_HAS_DOCS(gpu_verbosity_t)
-    
-    ENUM_CLASS(gui_recording_format_t, avi, mp4, jpg, png)
-    ENUM_CLASS_HAS_DOCS(gui_recording_format_t)
-    
-    ENUM_CLASS(peak_mode_t, pointy, broad)
-    ENUM_CLASS_HAS_DOCS(peak_mode_t)
-
-    ENUM_CLASS(matching_mode_t, tree, approximate, hungarian, benchmark, automatic, none)
-    ENUM_CLASS_HAS_DOCS(matching_mode_t)
-
-    ENUM_CLASS(output_format_t, csv, npz)
-    ENUM_CLASS_HAS_DOCS(output_format_t)
-
-    ENUM_CLASS(output_invalid_t, inf, nan)
-    ENUM_CLASS_HAS_DOCS(output_invalid_t)
-
-    ENUM_CLASS(app_update_check_t, none, manually, automatically)
-    ENUM_CLASS_HAS_DOCS(app_update_check_t)
-
-    ENUM_CLASS(blob_split_algorithm_t, threshold, threshold_approximate, fill, none)
-    ENUM_CLASS_HAS_DOCS(blob_split_algorithm_t)
-
-    ENUM_CLASS(visual_identification_version_t, current, v200, v119, v118_3, v110, v100, convnext_base, vgg_16, vgg_19, mobilenet_v3_small, mobilenet_v3_large, inception_v3, resnet_50_v2, efficientnet_b0, resnet_18)
-    ENUM_CLASS_HAS_DOCS(visual_identification_version_t)
-
-    ENUM_CLASS(TRexTask_t, none, track, convert, annotate, rst)
-    ENUM_CLASS_HAS_DOCS(TRexTask_t)
-
-    ENUM_CLASS(gpu_torch_device_t, automatic, cuda, mps, cpu)
-    ENUM_CLASS_HAS_DOCS(gpu_torch_device_t)
-
-    ENUM_CLASS(detect_pose_bbx_t, yolo, keypoints)
-    ENUM_CLASS_HAS_DOCS(detect_pose_bbx_t)
 
     using TRexTask = TRexTask_t::Class;
 
 /**
- * Finds all numeric pose indexes from user-defined "poseX##" / "poseY##" fields in the given output fields.
+ * Finds keypoint indexes from user-defined X/Y/V pose fields, using numeric names
+ * ("poseX0", "poseY0", "poseV0") or configured names ("poseX_head", "poseY_head", "poseV_head").
  *
  * @param output_fields The list of existing fields, e.g. from SETTING(output_fields).
  * @return A set of numeric indexes that the user has added.
@@ -103,29 +120,25 @@ namespace default_config {
 std::set<uint8_t> find_user_defined_pose_fields(const std::vector<std::pair<std::string, std::vector<std::string>>>& output_fields);
 
 /**
- * Generates all auto-detected pose fields using either the provided keypoint names (if any)
- * for the first N keypoints, and default naming ("poseX#/poseY#") for the remaining keypoints.
+ * Generates X/Y/V pose fields using "poseX_<name>", "poseY_<name>", "poseV_<name>"
+ * for named keypoints, and "poseX<index>", "poseY<index>", "poseV<index>" for unnamed keypoints.
  *
  * @return A vector of all possible pose fields.
  */
 std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<std::string>>>> list_auto_pose_fields();
 
 /**
- * Given a list of user-defined pose indexes (e.g. from find_user_defined_pose_fields()),
- * returns only the "missing" fields that the user has NOT defined, from the full
- * list of automatically generated fields (from list_auto_pose_fields()).
+ * Returns auto-generated pose fields for keypoint indexes that have no manually
+ * defined pose component in the current output_fields setting.
  *
- * @return A vector of newly needed poseX/poseY fields.
+ * @return A vector of newly needed X/Y/V pose fields.
  */
 std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_fields();
 
 
 }
 
-namespace cmn::gui {
-ENUM_CLASS(mode_t, blobs, tracking, optical_flow)
-
-}
+ENUM_CLASS(cmn::gui::, mode_t, raw, tracking, annotate)
 
 namespace cmn {
 ENUM_CLASS_HAS_DOCS(meta_encoding_t)

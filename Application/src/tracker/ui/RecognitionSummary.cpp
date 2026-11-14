@@ -1,4 +1,5 @@
 #include "RecognitionSummary.h"
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <ml/VisualIdentification.h>
 #include <ui/GUICache.h>
@@ -8,7 +9,7 @@ using namespace track;
 namespace py = Python;
 
 namespace cmn::gui {
-    void RecognitionSummary::update(gui::DrawStructure& base) {
+    void RecognitionSummary::update(const data::FrameRepository& frames, gui::DrawStructure& base) {
         auto & cache = GUICache::instance();
         
         const float interface_scale = gui::interface_scale();
@@ -40,14 +41,14 @@ namespace cmn::gui {
         sidebar_width += 3 * margin;
 
         obj.set_origin(Vec2(0.5));
-        obj.set_bounds(Bounds(Vec2(Tracker::average().cols, Tracker::average().rows) * 0.5f,
+        obj.set_bounds(Bounds(Vec2(frames.video_size()) * 0.5f,
                               Size2(sidebar_width * 1.5f, Base::default_line_spacing(font) + margin + title_height) + Size2(margin * 2) + bar_width * Size2(output_size, sorted.size())));
         obj.set(FillClr{Black.alpha(150)});
 
         if(!cache.recognition_updated) {
             obj.update([&] (Entangled& base) {
                 std::vector<float> outputs;
-                base.add<Text>(Str("recognition summary"), Loc(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), TextClr(White), title_font);
+                base.add<Text>(Str("recognition summary"), Loc(obj.width() * 0.5f, margin + (title_height - margin) * 0.5f), TextClr(White), Font_t{title_font});
                 
                 size_t counter = 0, j = 0;
                 std::map<Idx_t, size_t> fdx_to_idx;
@@ -106,14 +107,14 @@ namespace cmn::gui {
                 
                 size_t row = 0;
                 for(auto id : sorted) {
-                    base.add<Text>(Str(Identity::Temporary(id).name()), Loc(pos + Vec2(0, bar_width) * row), TextClr(White), side_font);
+                    base.add<Text>(Str(Identity::Temporary(id).name()), Loc(pos + Vec2(0, bar_width) * row), TextClr(White), Font_t{side_font});
                     ++row;
                 }
                 
                 // draw horizontal bar (matched fish from network)
                 pos = Vec2(margin) + Vec2(sidebar_width + bar_width * 0.5f, bounds.height + margin + Base::default_line_spacing(font) * 0.5f + title_height);
                 for(size_t idx = 0; idx < output_size; ++idx) {
-                    base.add<Text>(Str(Meta::toStr(idx)), Loc(pos), TextClr(White), bottom_font);
+                    base.add<Text>(Str(Meta::toStr(idx)), Loc(pos), TextClr(White), Font_t{bottom_font});
                     pos += Vec2(bar_width, 0);
                 }
             });

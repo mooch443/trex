@@ -1,4 +1,5 @@
 #include "WorkProgress.h"
+#include <misc/GlobalSettings.h>
 #include <core/BackgroundTask.h>
 #include <gui/GuiTypes.h>
 #include <gui/types/StaticText.h>
@@ -99,18 +100,18 @@ struct WorkProgress::WorkGUIObjects {
         Box(0, 0, 0, 0),
         FillClr{Black.alpha(150)},
         CornerFlags_t(false, false, true, true),
-        ZIndex{1}
+        ZIndex{100}
     };
     StaticText static_desc{
         Str("description"), 
-        Font(0.6, Align::Center),
+        Font_t(0.6, Align::Center),
         Margins{5,5,5,5}
     };
     //static StaticText static_additional("", Vec2(), Size2(-1), Font(0.7, Align::Center));
     Button static_button{Str{"abort"}, Box(0, 0, 100, 35)};
     Button custom_static_button{Str{"custom"}, Box(0, 0, 100, 35)};
     Entangled _additional;
-    Entangled work_progress{ZIndex{2}};
+    Entangled work_progress{ZIndex{101}};
     VerticalLayout layout;
     
     WorkGUIObjects& operator=(const WorkGUIObjects&) = delete;
@@ -205,6 +206,14 @@ void WorkProgress::start() {
                     item.fn();
                 } catch(const std::exception& ex) {
                     FormatWarning("Caught an exception in the work queue: ", ex.what());
+
+                    if(BOOL_SETTING(nowindow) || BOOL_SETTING(auto_train_on_startup)) {
+                        /// Startup automation has no interactive recovery path;
+                        /// all wait conditions must observe the failed state.
+                        SETTING(error_terminate) = true;
+                        SETTING(terminate) = true;
+                        SETTING(auto_quit) = false;
+                    }
                 }
                 //std::this_thread::sleep_for(std::chrono::seconds(10));
                 lock.lock();
@@ -499,7 +508,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         }
         
         static long_t abort_handler = -1, custom_handler = -1;
-        section->set_scale(base.scale().reciprocal());
+        //section->set_scale(base.scale().reciprocal());
         
         const Vec2 bg_offset{0};
         gui->static_background.set_bounds(Bounds(-bg_offset, Size2(screen_dimensions.width, screen_dimensions.height).mul(section->scale().reciprocal())));
@@ -519,7 +528,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         gui->work_progress.update([&](Entangled& base){
             const float margin = 5;
             
-            auto text = base.add<Text>(Str(_item), Loc(offset), TextClr(225,225,225,255), Font(0.8, Style::Bold), Origin(0.5, 0));
+            auto text = base.add<Text>(Str(_item), Loc(offset), TextClr(225,225,225,255), Font_t(0.8, Style::Bold), Origin(0.5, 0));
             offset.y += text->height() + margin;
             width = max(width, text->width());
             

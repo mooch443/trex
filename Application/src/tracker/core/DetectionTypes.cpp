@@ -3,10 +3,29 @@
 #include <core/SoftException.h>
 #include <misc/GlobalSettings.h>
 #include <misc/CropOffsets.h>
+#include <file/DataLocation.h>
 
 using namespace cmn;
 
 namespace track::detect {
+
+namespace {
+thread_local TemporaryClassNames* _active = nullptr;
+}
+
+TemporaryClassNames::TemporaryClassNames(std::function<yolo::names::owner_map_t()> lookup)
+    : _lookup(std::move(lookup)), _previous(std::exchange(_active, this))
+{
+}
+
+TemporaryClassNames::~TemporaryClassNames() {
+    assert(_active == this);
+    _active = _previous;
+}
+
+yolo::names::owner_map_t TemporaryClassNames::current() {
+    return _active && _active->_lookup ? _active->_lookup() : yolo::names::owner_map_t{};
+}
 
 bool PredictionFilter::allowed(uint16_t clid) const {
     if(_inverted_from)
@@ -22,7 +41,7 @@ std::string PredictionFilter::toStr() const {
     return Meta::toStr(detect_only);
 }
 
-glz::json_t PredictionFilter::to_json() const {
+glz::generic PredictionFilter::to_json() const {
     return toStr(); /// we return a string here because it will include the - sign that is not valid JSON
 }
 
@@ -47,8 +66,24 @@ std::optional<uint16_t> PredictionFilter::class_id_for(std::string_view search, 
     return std::nullopt;
 }
 PredictionFilter PredictionFilter::fromStr(std::string_view sv) {
-    const yolo::names::map_t detect_classes = yolo::names::get_map();
+    const auto classes = GlobalSettings::read([](const Configuration& config) {
+        const auto configured = config.values.at("detect_classes").value<blob::MaybeObjectClass_t>();
+        if(configured && not configured->empty())
+            return *configured;
+        return TemporaryClassNames::current();
+    });
+    yolo::names::map_t detect_classes;
+    for(const auto& [id, name] : classes)
+        detect_classes.emplace(id, name);
     std::vector<uint16_t> only_detect;
+    std::string decoded;
+    
+    if(utils::contains(sv, '\'') || utils::contains(sv, '"')) {
+        decoded.reserve(sv.size());
+        utils::fast_fromstr(decoded, sv);
+        
+        sv = std::string_view(decoded);
+    }
     
     bool invert = false;
     if(utils::beginsWith(sv, '-')) {
@@ -90,16 +125,16 @@ std::string KeypointNames::toStr() const {
     return cmn::Meta::toStr(names.value());
 }
 
-glz::json_t KeypointNames::to_json() const {
+glz::generic KeypointNames::to_json() const {
     if(not valid())
-        return glz::json_t::null_t{};
+        return glz::generic::null_t{};
     return cvt2json(names.value());
 }
 
 std::optional<std::string> KeypointNames::name(size_t index) const {
-    if(not names || names->size() <= index)
+    if(not names || not names->contains(index))
         return std::nullopt;
-    return names.value()[index];
+    return names.value().at(index);
 }
 
 std::string KeypointFormat::toStr() const {
@@ -108,9 +143,9 @@ std::string KeypointFormat::toStr() const {
     return "[" + cmn::Meta::toStr(n_points) + "," + cmn::Meta::toStr(n_dims) + "]";
 }
 
-glz::json_t KeypointFormat::to_json() const {
+glz::generic KeypointFormat::to_json() const {
     if(not valid())
-        return glz::json_t::null_t{};
+        return glz::generic::null_t{};
     return { n_points, n_dims };
 }
 
@@ -164,15 +199,21 @@ vec_t get_vector() {
         return easy_cp_names_vector.value();
     }
     
-    std::unique_lock g(names_mutex);
-    auto& names = raw_names();
     std::vector<std::string_view> cp;
-    cp.reserve(names.size());
-    
-    for(auto &[key, value] : names)
-        cp.emplace_back(value);
-    
-    easy_cp_names_vector = cp;
+    std::unique_lock g(names_mutex);
+
+    if(names_owner.has_value()) {
+        auto& names = raw_names();
+        cp.reserve(names.size());
+        
+        for(auto &[key, value] : names)
+            cp.emplace_back(value);
+        
+        easy_cp_names_vector = cp;
+    } else {
+        easy_cp_names_vector.reset();
+    }
+
     return cp;
 }
 
@@ -188,14 +229,19 @@ map_t get_map() {
     }
     
     std::unique_lock g(names_mutex);
-    auto& names = raw_names();
-    std::map<uint16_t, std::string_view> cp;
-    
-    for(auto &[key, value] : names)
-        cp.emplace(key, value);
-    
-    easy_cp_names_reference = cp;
-    return cp;
+    if(names_owner.has_value()) {
+        auto& names = raw_names();
+        std::map<uint16_t, std::string_view> cp;
+        
+        for(auto &[key, value] : names)
+            cp.emplace(key, value);
+        
+        easy_cp_names_reference = cp;
+        return cp;
+    } else {
+        easy_cp_names_reference.reset();
+        return {};
+    }
 }
 
 std::optional<cmn::blob::Pose::Skeleton> get_skeleton(
@@ -238,12 +284,18 @@ bool is_valid_default_model(const std::string& filename) {
                 "|\\d{3,}"         // Any version number with 3 or more digits
             "))"
         ")"
-        "([blmnxsucet]|x6|sp|lu|mu|xu)?"  // Optional suffixes
         "("
-            "(\\d|[sn])+u"                // Optional pattern
+            "([blmnxsucet]|x6|sp|lu|mu|xu)" // Model size or variant
+            "("
+                "(\\d|[sn])+u"
+                "|"
+                "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|sem|v8loader|\\d+)+"
+            ")?"
             "|"
-            "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\\d+)+"
-        ")?"
+            "(\\d|[sn])+u"
+            "|"
+            "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|sem|v8loader|\\d+)+"
+        ")"
         "(\\.pt)?"
         "$"
     );
@@ -254,11 +306,55 @@ std::string default_model() {
     return "yolo26n.pt";
 }
 
+std::vector<file::Path> detect_model_candidates(file::Path path) {
+    std::vector<file::Path> result;
+    if(path.is_absolute()) {
+        result.emplace_back(path);
+        return result;
+    }
+
+    if(is_default_model(path) && not path.has_extension())
+        path = path.add_extension("pt");
+
+    auto candidate = path;
+    result.emplace_back(candidate);
+
+    candidate = file::DataLocation::parse("output", candidate);
+    if(auto v = candidate.canonical();
+       v)
+    {
+        result.emplace_back(*v);
+    } else
+        result.emplace_back(candidate);
+
+    return result;
+}
+
+file::Path current_detect_model_path() {
+    auto path = READ_SETTING_WITH_DEFAULT(detect_model, file::Path{});
+    if(path.empty() || path.is_absolute())
+        return path;
+
+    if(is_default_model(path) && not path.has_extension())
+        path = path.add_extension("pt");
+
+    auto candidate = path;
+    if(candidate.exists())
+        return candidate;
+
+    candidate = file::DataLocation::parse("output", candidate);
+    if(candidate.exists())
+        return candidate;
+
+    return path;
+}
+
 bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {
     if(is_default_model(path))
         return true;
     
-    if(fs.exists(path) && path.has_extension("pt"))
+    if(fs.exists(path)
+       && (path.has_extension("pt") || path.has_extension("pth")))
         return true;
     
     return false;
@@ -270,7 +366,7 @@ bool is_default_model(const file::Path& path) {
 
 }
 
-glz::json_t DetectResolution::to_json() const {
+glz::generic DetectResolution::to_json() const {
     return { height, width };
 }
 std::string DetectResolution::toStr() const {
@@ -301,6 +397,10 @@ Size2 get_model_image_size() {
         
     } else if (detection_type() == ObjectDetectionType::yolo) {
         const auto region_resolution = READ_SETTING(region_resolution, track::detect::DetectResolution);
+
+        if(BOOL_SETTING(detect_requires_exact_input_size)) {
+            return Size2(detect_resolution.width, detect_resolution.height);
+        }
         
         Size2 size;
         const double ratio = double(meta_video_size.height) / double(meta_video_size.width);
@@ -335,7 +435,7 @@ const Bone& Keypoint::bone(size_t index) const {
 blob::Pose Keypoint::toPose() const {
     std::vector<blob::Pose::Point> coords;
     for (auto& b : bones)
-        coords.push_back(blob::Pose::Point(b.x, b.y));
+        coords.push_back(blob::Pose::Point(b.x, b.y, true));
     return blob::Pose{
         .points = std::move(coords)
     };
@@ -349,15 +449,15 @@ std::string VIWeights::toStr() const {
     return glz::write_json(to_json()).value();
 }
 
-glz::json_t VIWeights::to_json() const {
-    glz::json_t json = std::initializer_list<std::pair<const char*, glz::json_t>>{
+glz::generic VIWeights::to_json() const {
+    glz::generic json = std::initializer_list<std::pair<const char*, glz::generic>>{
         {"path", _path.to_json()},
-        {"uniqueness", _uniqueness ? glz::json_t(_uniqueness.value()) : nullptr},
+        {"uniqueness", _uniqueness ? glz::generic(_uniqueness.value()) : nullptr},
         {"loaded", _loaded},
         {"status", _status},
-        {"modified", _modified ? glz::json_t(_modified.value()) : nullptr},
+        {"modified", _modified ? glz::generic(_modified.value()) : nullptr},
         {"resolution", _resolution ? cvt2json(_resolution.value()) : nullptr},
-        {"num_classes", _num_classes ? glz::json_t(_num_classes.value()) : nullptr}
+        {"num_classes", _num_classes ? glz::generic(_num_classes.value()) : nullptr}
     };
     return json;
 }

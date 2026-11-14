@@ -490,6 +490,21 @@ def parse_regular_symbols(header: str, module: str, text: str) -> tuple[list[Sym
 
     while i < len(tokens):
         tok = tokens[i]
+        if tok == "ENUM_CLASS_HAS_DOCS" and i + 1 < len(tokens) and tokens[i + 1] == "(":
+            # Enum documentation traits do not declare functions and must
+            # not consume a following namespace or alias as a function statement.
+            i += 2
+            depth = 1
+            while i < len(tokens) and depth:
+                if tokens[i] == "(":
+                    depth += 1
+                elif tokens[i] == ")":
+                    depth -= 1
+                i += 1
+            if i < len(tokens) and tokens[i] == ";":
+                i += 1
+            pending_template = False
+            continue
         if tok == "{":
             push_scope("block")
             i += 1

@@ -4,8 +4,8 @@
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
-#include <ui/SettingsInitializer.h>
+#include <ui/GuiSettings.h>
+#include <core/SettingsPaths.h>
 
 using namespace cmn::gui;
 using namespace cmn;
@@ -46,11 +46,11 @@ timestamp_t RecentItemJSON::t_created() const {
     }
 }
 
-glz::json_t RecentItemJSON::to_json() const {
-    glz::json_t obj{};
+glz::generic RecentItemJSON::to_json() const {
+    glz::generic obj{};
     obj["name"] = name;
 
-    glz::json_t settings{};
+    glz::generic settings{};
     for (auto& key : _options.keys()) {
         if(not is_writable_key(key))
             continue;
@@ -85,7 +85,7 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
     //    return;
     //}
     auto basename = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_output_name(config.values, config.values.at("source"), config.values.at("filename"), true);
+        return settings::find_output_name(config.values, config.values.at("source"), true);
     });
     
     if(basename.empty())
@@ -255,9 +255,10 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 item.modified = timestamp_t::now().get();
                 item.settings = {};
                 for(auto &key : item._options.keys())
-                    item.settings[key] = item._options.at(key).get().to_json();
+                    item.settings[(std::string)key] = item._options.at(key).get().to_json();
                     //config.at(key).get().copy_to(item._options);
                 //config.write_to(item._options);
+                prefixed_print("recent", "Updating recent item ", item);
                 return;
             }
         }
@@ -276,8 +277,11 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
         config.at(key).get().copy_to(item._options);
     }
     for(auto &key : item._options.keys())
-        item.settings[key] = item._options.at(key).get().to_json();
+        item.settings[(std::string)key] = item._options.at(key).get().to_json();
     //config.write_to(item._options);
+    
+    prefixed_print("recent", "Adding recent item ", item);
+    
     _file.entries.emplace_back(std::move(item));
 }
 
@@ -289,15 +293,21 @@ void RecentItems::write() {
         
         {
             auto f = path.fopen("wb");
-            auto dump = glz::write_json(_file);
-            if(not dump.has_value())
-                throw U_EXCEPTION("Cannot write recent files to ", path);
-            fwrite(dump->c_str(), sizeof(uchar), dump->length(), f.get());
+            if (f) {
+                auto dump = glz::write_json(_file);
+                if (not dump.has_value())
+                    throw U_EXCEPTION("Cannot write recent files to ", path);
+                f.write(dump->c_str(), dump->length());
+            }
+            else {
+                FormatExcept("Cannot write recent files to ", path);
+            }
         }
 
         //Print("Updated recent files: ", dump.c_str());
         
         auto destination = file::DataLocation::parse("app", ".trex_recent_files");
+        prefixed_print("recent", "Saving recent files at ", destination);
         try {
             if(not destination.exists()) {
                 /// do nothing

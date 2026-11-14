@@ -19,6 +19,7 @@ using ::cmn::gui::dyn::CurrentObjectHandler;
 using ::cmn::gui::dyn::CustomElement;
 using ::cmn::gui::dyn::DefaultSettings;
 using ::cmn::gui::dyn::LabeledField;
+using ::cmn::gui::dyn::LocalSettingTypes;
 }
 
 // gui/dyn/ParseText.h

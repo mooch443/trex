@@ -1,4 +1,5 @@
 #include "DrawGraph.h"
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <tracking/Individual.h>
 #include <gui/DrawStructure.h>
@@ -55,7 +56,7 @@ void PropertiesGraph::Graph::set_parent(SectionInterface*parent)
             attr::Size{30,30},
             Str{"<sym>✕</sym>"},
             FillClr{100,50,50,255},
-            TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
+            TextClr{White}, Font_t{0.55}, Margins{-5,0,0,0}, Origin{1,0}
         })
     {
         _graph.reset_bg();
