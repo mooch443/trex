@@ -508,7 +508,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         }
         
         static long_t abort_handler = -1, custom_handler = -1;
-        section->set_scale(base.scale().reciprocal());
+        //section->set_scale(base.scale().reciprocal());
         
         const Vec2 bg_offset{0};
         gui->static_background.set_bounds(Bounds(-bg_offset, Size2(screen_dimensions.width, screen_dimensions.height).mul(section->scale().reciprocal())));

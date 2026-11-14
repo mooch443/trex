@@ -2,6 +2,10 @@
 
 #include <pv.h>
 
+namespace track {
+class Tracker;
+}
+
 namespace cmn::gui {
 class DrawStructure;
 
@@ -10,7 +14,7 @@ struct DrawAnnotationExportOptions {
     Data* _data;
 
 public:
-    DrawAnnotationExportOptions(std::shared_ptr<pv::File>);
+    DrawAnnotationExportOptions(std::shared_ptr<pv::File>, std::shared_ptr<track::Tracker>);
     ~DrawAnnotationExportOptions();
     void draw(DrawStructure&);
 };

@@ -164,8 +164,8 @@
                           "corners": ["left"],
                           "size": "[370,{label_height}]",
                           "font": {"size": 0.48},
-                          "fill": [50, 50, 50, 200],
-                          "line": [100, 100, 100, 50],
+                          "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                          "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                           "color": [255, 255, 255],
                           "placeholder": "{info.default_output_directory}"
                         },
@@ -256,7 +256,7 @@
                           "fill":[50,200,230,0],
                           "line":[50,200,230,200],
                           "size":[200,30],
-                          "drag":"set-local:tag-frame:{*:{/:{mouse_relative.x}:200}:{length}}"
+                          "drag":"set-local:tag-frame:{saturate:{*:{/:{mouse_relative.x}:200}:{length}}:0:{max:0:{-:{length}:1}}}"
                         },
                         {
                           "type":"each",
@@ -267,7 +267,7 @@
                             "fill":"{if:{||:{equal:{local.tag-frame}:{i}}:{hovered}}:[255,255,255,100]:[200,200,200,100]}",
                             "pos":"[{*:200:{/:{i}:{length}}},0]",
                             "size":"[5,30]",
-                            "click":"set-local:tag-frame:{i}"
+                            "click":"set-local:tag-frame:{saturate:{i}:0:{max:0:{-:{length}:1}}}"
                           }
                         }
                       ]
@@ -306,10 +306,10 @@
                       "label":{
                           "corners":["all"],
                           "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                          "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                          "font":{"size":0.5}
+                          "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}"
                       },
                       "pad":[0,0,-1,-1],
+                      "font":{"size":0.5},
                       "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                       "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
                       "size":"[{*:0.5:{content_width}},30]"
@@ -322,9 +322,9 @@
                       "label":{
                           "corners":["all"],
                           "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                          "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                          "font":{"size":0.5}
+                          "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}"
                       },
+                      "font":{"size":0.5},
                       "pad":[0,0,-1,-1],
                       "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                       "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
@@ -377,20 +377,22 @@
               "font": {"size": 0.5, "style": "bold"},
               "fill": "{if:{||:{selected}:{hovered}}:[70,45,45,220]:[50,35,35,210]}",
               "line": "{if:{||:{selected}:{hovered}}:[230,160,150,220]:[120,100,100,90]}",
-              "size": [90, 32]
+              "size": [90, 32],
+              "corners":"{if:{||:{&&:{equal:{local.tab}:0}:{info.has_annotations}}:{&&:{equal:{local.tab}:1}:{num_behavior_annotations_made}}}:['left']:['all']}"
             },
             {
               "type": "condition",
-              "var": "{info.has_annotations}",
+              "var": "{||:{&&:{equal:{local.tab}:0}:{info.has_annotations}}:{&&:{equal:{local.tab}:1}:{num_behavior_annotations_made}}}",
               "then": {
                 "type": "button",
                 "text": "Export",
                 "action": "{if:{equal:{local.tab}:0}:export:export-behavior}",
-                "disabled": "{not:{info.can_export}}",
+                "disabled": "{&&:{equal:{local.tab}:0}:{not:{info.can_export}}}",
                 "font": {"size": 0.5, "style": "bold"},
                 "fill": "{if:{||:{selected}:{hovered}}:[55,90,60,230]:[45,75,50,220]}",
                 "line": "{if:{||:{selected}:{hovered}}:[120,220,150,230]:[100,120,100,100]}",
-                "size": [90, 32]
+                "size": [90, 32],
+                "corners":["right"]
               }
             }
           ]

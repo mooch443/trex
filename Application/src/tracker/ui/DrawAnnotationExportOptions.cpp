@@ -47,9 +47,10 @@ struct DrawAnnotationExportOptions::Data {
     glz::generic _info;
     
     std::shared_ptr<pv::File> _video;
+    std::shared_ptr<Tracker> _tracker;
 
-    Data(std::shared_ptr<pv::File>&& video)
-        : parent(Box(120, 90, 0, 0)), _video(std::move(video))
+    Data(std::shared_ptr<pv::File>&& video, std::shared_ptr<Tracker>&& tracker)
+        : parent(Box(120, 90, 0, 0)), _video(std::move(video)), _tracker(std::move(tracker))
     {
         parent.set_draggable();
         parent.update([&](Entangled& e) {
@@ -282,7 +283,10 @@ struct DrawAnnotationExportOptions::Data {
 
                             try {
                                 track::annotation_export::export_tag_annotations(
-                                    track::annotation_export::TagDatasetConfig{.video_file = _video});
+                                    track::annotation_export::TagDatasetConfig{
+                                        .tracker = _tracker,
+                                        .video_file = _video
+                                    });
                                 //Print("Exported annotation dataset to ", summary.output_directory, ".");
                                 SETTING(gui_show_annotation_export_options) = false;
                             } catch(const std::exception& e) {
@@ -317,14 +321,14 @@ struct DrawAnnotationExportOptions::Data {
 
         parent.set(ZIndex{10});
         graph.wrap_object(parent);
-        parent.set_scale(graph.scale().reciprocal());
+        //parent.set_scale(graph.scale().reciprocal());
         _gui.update(graph, &_layout);
         parent.auto_size(Margin{10, 10});
     }
 };
 
-DrawAnnotationExportOptions::DrawAnnotationExportOptions(std::shared_ptr<pv::File> video)
-    : _data(new Data(std::move(video)))
+DrawAnnotationExportOptions::DrawAnnotationExportOptions(std::shared_ptr<pv::File> video, std::shared_ptr<Tracker> tracker)
+    : _data(new Data(std::move(video), std::move(tracker)))
 {
 }
 

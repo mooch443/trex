@@ -372,19 +372,19 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
     
     static StaticText text(Str("Select individuals to preview their images using the settings shown below. Adjusting these settings here will affect <b>visual identification</b>, <b>categorization</b> and <b>tracklet images</b>.\n\nTry to keep images as small as possible, while still capturing all important details."), Loc(offset), SizeLimit(240, 0), Font_t(0.65));
     static Button button(Str("x"), Box(5, 5, 25, 25));
-    button.set_scale(graph.scale().reciprocal());
+    //button.set_scale(graph.scale().reciprocal());
     offset.x += button.local_bounds().width + 10;
     
     preview_data().preview.update([&](Entangled& e) {
         ExternalImage *ptr{nullptr};
-        auto bds = e.add<Text>(Str("Image settings"), offset, TextClr(White.alpha(200)), Font_t(0.75, Style::Bold), Scale(graph.scale().reciprocal()))->local_bounds();
+        auto bds = e.add<Text>(Str("Image settings"), offset, TextClr(White.alpha(200)), Font_t(0.75, Style::Bold)/*, Scale(graph.scale().reciprocal())*/)->local_bounds();
         
         offset.y += bds.height + 10;
         offset.x = 5;
         
         if(cache.selected.empty()) {
             text.set_pos(offset);
-            text.set_scale(graph.scale().reciprocal());
+            //text.set_scale(graph.scale().reciprocal());
             e.advance_wrap(text);
             offset.y += text.local_bounds().height;
             offset.x = 5;
@@ -428,10 +428,10 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
             if(!pos || image->empty())
                 continue;
             
-            auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);
+            auto scale = /*graph.scale().reciprocal().mul*/Vec2(200.0 / image->cols, 200.0 / image->rows);
             ptr = e.add<ExternalImage>(std::move(image), offset, scale);
             
-            e.add<Text>(Str(Identity::Temporary(idx).name()), Loc(offset + Vec2(5, 2)), TextClr(White.alpha(200)), Font_t(0.5), Scale(graph.scale().reciprocal()));
+            e.add<Text>(Str(Identity::Temporary(idx).name()), Loc(offset + Vec2(5, 2)), TextClr(White.alpha(200)), Font_t(0.5)/*, Scale(graph.scale().reciprocal())*/);
             
             offset.x += ptr->local_bounds().width + 5;
             if(offset.x >= size.width * 0.25) {
@@ -449,7 +449,7 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
         
         e.advance_wrap(button);
         
-        preview_data().layout.set_scale(graph.scale().reciprocal());
+        //preview_data().layout.set_scale(graph.scale().reciprocal());
         preview_data().layout.set_pos(offset);
         e.advance_wrap(preview_data().layout);
     });

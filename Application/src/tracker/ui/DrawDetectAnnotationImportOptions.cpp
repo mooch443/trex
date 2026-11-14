@@ -455,7 +455,7 @@ struct DrawDetectAnnotationImportOptions::Data {
         update_info();
 
         graph.wrap_object(parent);
-        parent.set_scale(graph.scale().reciprocal());
+        //parent.set_scale(graph.scale().reciprocal());
         _gui.update(graph, &_layout);
         parent.auto_size(Margin{10, 10});
     }

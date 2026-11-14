@@ -4069,6 +4069,122 @@ TEST(ParseArrayParts, WithDifferentTypes) {
     ASSERT_EQ(result3.size(), 3);
 }
 
+TEST(LoopArrayParts, MatchesRawArrayParts) {
+    const std::pair<std::string_view, std::vector<std::string_view>> cases[] = {
+        {"", {}},
+        {" \t\r\n ", {}},
+        {"single", {"single"}},
+        {" a ,\tb , c\n", {"a", "b", "c"}},
+        {"[a,b,c]", {"[a,b,c]"}},
+        {R"(a,[b,{"c":[1,2]}],(d,e),f)", {"a", R"([b,{"c":[1,2]}])", "(d,e)", "f"}},
+        {R"("b,c",'d,e',"",'')", {R"("b,c")", "'d,e'", R"("")", "''"}},
+        {R"("b\",c",'d\',e',f)", {R"("b\",c")", R"('d\',e')", "f"}},
+        {R"("b\\",'c\\',d)", {R"("b\\")", R"('c\\')", "d"}},
+        {R"("[a,b]'",'{c,d}"',e)", {R"("[a,b]'")", R"('{c,d}"')", "e"}},
+        {"a，b,c", {"a，b", "c"}},
+        {"a,b]", {"a", "b]"}},
+        {",a", {"", "a"}},
+        {"a, ,b", {"a", "", "b"}},
+        {"a,b, ", {"a", "b", ""}},
+        {",,", {"", "", ""}}
+    };
+    for(const auto& [input, expected] : cases) {
+        SCOPED_TRACE(input);
+        std::vector<std::string_view> parts;
+        const auto count = loop_array_parts<',', false>(input, [&](size_t index, std::string_view part) {
+            EXPECT_EQ(index, parts.size());
+            parts.push_back(part);
+        });
+        EXPECT_EQ(parts, expected);
+        EXPECT_EQ(count, parts.size());
+        EXPECT_EQ(parse_array_parts(input), expected);
+    }
+}
+
+TEST(LoopArrayParts, SupportsCustomDelimiter) {
+    std::vector<std::string_view> parts;
+    const auto callback = [&](size_t index, std::string_view part) {
+        EXPECT_EQ(index, parts.size());
+        parts.push_back(part);
+    };
+    const auto input = R"( a,b ; [c;d] ; "e;f" ; (g;h) ; )";
+    const auto count = loop_array_parts<';'>(input, callback);
+    EXPECT_EQ(parts, (std::vector<std::string_view>{"a,b", "[c;d]", R"("e;f")", "(g;h)"}));
+    EXPECT_EQ(count, parts.size());
+    parts.clear();
+    const auto raw_count = loop_array_parts<';', false>(input, callback);
+    EXPECT_EQ(parts, (std::vector<std::string_view>{"a,b", "[c;d]", R"("e;f")", "(g;h)", ""}));
+    EXPECT_EQ(raw_count, parts.size());
+}
+
+TEST(LoopArrayParts, CountsOnlyEmittedParts) {
+    const std::pair<std::string_view, std::vector<std::string_view>> cases[] = {
+        {"", {}},
+        {" \t\r\n ", {}},
+        {"a", {"a"}},
+        {"a,b", {"a", "b"}},
+        {"a,b,", {"a", "b"}},
+        {"a,b,   ", {"a", "b"}},
+        {R"("",'',[],[a,,b],)", {R"("")", "''", "[]", "[a,,b]"}}
+    };
+    for(const auto& [input, expected] : cases) {
+        SCOPED_TRACE(input);
+        std::vector<std::string_view> parts;
+        const auto count = loop_array_parts(input, [&](size_t index, std::string_view part) {
+            EXPECT_EQ(index, parts.size());
+            parts.push_back(part);
+        });
+        EXPECT_EQ(parts, expected);
+        EXPECT_EQ(count, parts.size());
+    }
+}
+
+TEST(LoopArrayParts, RejectsLeadingInteriorAndRepeatedTrailingEmptyParts) {
+    for(std::string_view input : {",a", " ,a", "a,,b", "a, ,b", "a,b,,", "a,b, , ", ",", ",,"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(loop_array_parts(input, [](size_t, std::string_view) {}), illegal_syntax);
+    }
+}
+
+TEST(LoopArrayParts, BorrowsInputDuringCallback) {
+    std::string input = " alpha , beta ";
+    const auto check = [&](auto&& source) {
+        size_t calls = 0;
+        EXPECT_EQ(loop_array_parts(source, [&](size_t index, std::string_view part) {
+            EXPECT_EQ(index, calls++);
+            EXPECT_EQ(part, index == 0 ? "alpha" : "beta");
+            EXPECT_EQ(part.data(), input.data() + (index == 0 ? 1 : 9));
+        }), 2u);
+        EXPECT_EQ(calls, 2u);
+    };
+    check(input);
+    check(std::as_const(input));
+    check(std::string_view(input));
+    check(input.c_str());
+    const char* null_input = nullptr;
+    EXPECT_EQ(loop_array_parts(null_input, [](size_t, std::string_view) { ADD_FAILURE(); }), 0u);
+
+    std::vector<std::string> parts;
+    EXPECT_EQ(loop_array_parts(std::string(80, 'a') + ", beta", [&](size_t index, std::string_view part) {
+        EXPECT_EQ(index, parts.size());
+        parts.emplace_back(part);
+    }), 2u);
+    EXPECT_EQ(parts, (std::vector<std::string>{std::string(80, 'a'), "beta"}));
+}
+
+TEST(LoopArrayParts, PropagatesCallbackException) {
+    for(size_t fail_at : {0u, 1u, 2u}) {
+        SCOPED_TRACE(fail_at);
+        size_t calls = 0;
+        EXPECT_THROW(loop_array_parts("a,b,c", [&](size_t index, std::string_view) {
+            EXPECT_EQ(index, calls++);
+            if(index == fail_at)
+                throw std::runtime_error("callback failed");
+        }), std::runtime_error);
+        EXPECT_EQ(calls, fail_at + 1);
+    }
+}
+
 TEST(ParseArrayParts, AccessArrayPart) {
     struct TestCase {
         std::string_view input;
@@ -4081,7 +4197,7 @@ TEST(ParseArrayParts, AccessArrayPart) {
         {"single", ',', {"single"}},
         {"a,b,c", ',', {"a", "b", "c"}},
         {" a , b , c ", ',', {"a", "b", "c"}},
-        {"  ", ',', {""}},
+        {"  ", ',', {}},
         {",,", ',', {"", "", ""}},
         {"a,,c,", ',', {"a", "", "c", ""}},
         {"[a,b,c]", ',', {"[a,b,c]"}},
@@ -4231,9 +4347,6 @@ TEST(ParseArrayParts, IgnoresDelimiterInsideParentheses)
 
     auto result = parse_array_parts(input);
 
-    // This currently FAILS:
-    // result is ["(a", "b)", "c"] because '(' and ')' are not tracked
-    // in the internal `brackets` stack.
     ASSERT_EQ(result, expected);
 }
 
@@ -4364,6 +4477,63 @@ TEST(ContainerEmptyElementContract, StringVectorInteriorEmptyThrows) {
 TEST(ContainerEmptyElementContract, StringVectorTrailingOnlyAllowed) {
     EXPECT_EQ(Meta::fromStr<std::vector<std::string>>("[element,element 2,last,]"),
               (std::vector<std::string>{"element", "element 2", "last"}));
+}
+
+TEST(MetaTest, FixedSizeReadersCheckCardinality) {
+    using Pair = std::pair<std::string, std::string>;
+    using Tuple = std::tuple<int, std::string>;
+    using Array = std::array<int, 2>;
+    EXPECT_EQ(Meta::fromStr<Pair>("[,tail]"), (Pair{"", "tail"}));
+    EXPECT_EQ(Meta::fromStr<Pair>("[head,]"), (Pair{"head", ""}));
+    EXPECT_EQ(Meta::fromStr<Tuple>(R"([3,"a,b"])"), (Tuple{3, "a,b"}));
+    EXPECT_EQ(Meta::fromStr<cv::Range>(std::string("[1,3]")), cv::Range(1, 3));
+    EXPECT_EQ(Meta::fromStr<cv::Size>("[1,3]"), cv::Size(1, 3));
+    EXPECT_EQ(Meta::fromStr<cv::Rect>("[1,2,3,4]"), cv::Rect(1, 2, 3, 4));
+
+    for(const std::string input : {"[]", "[1]", "[1,2,3]"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(Meta::fromStr<Pair>(input), std::invalid_argument);
+        EXPECT_THROW(Meta::fromStr<Tuple>(input), illegal_syntax);
+        EXPECT_THROW(Meta::fromStr<Array>(input), std::invalid_argument);
+        EXPECT_THROW(Meta::fromStr<cv::Range>(input), std::invalid_argument);
+        EXPECT_THROW(Meta::fromStr<cv::Size>(input), std::invalid_argument);
+    }
+    for(const auto input : {"[]", "[1,2,3]", "[1,2,3,4,5]"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(Meta::fromStr<cv::Rect>(input), std::invalid_argument);
+    }
+    EXPECT_THROW(Meta::fromStr<Tuple>("[1,a,]"), illegal_syntax);
+    EXPECT_TRUE((Meta::fromStr<std::array<int, 0>>("[]").empty()));
+    EXPECT_THROW((Meta::fromStr<std::array<int, 0>>("[1]")), std::invalid_argument);
+    EXPECT_EQ(Meta::fromStr<std::tuple<>>("[]"), std::tuple<>{});
+    EXPECT_THROW(Meta::fromStr<std::tuple<>>("[1]"), illegal_syntax);
+}
+
+TEST(MetaTest, MapReaderPreservesEntryBoundaries) {
+    using Map = std::map<std::string, std::string>;
+    EXPECT_EQ(Meta::fromStr<Map>(R"({:empty key,"empty value":,"a:b":"c,d",})"),
+              (Map{{"", "empty key"}, {"empty value", ""}, {"a:b", "c,d"}}));
+    using Nested = std::map<int, std::vector<int>>;
+    EXPECT_EQ(Meta::fromStr<Nested>(R"({"1":[2,3,],2:[]})"),
+              (Nested{{1, {2, 3}}, {2, {}}}));
+    for(const auto input : {"{a}", "{a:b:c}"}) {
+        SCOPED_TRACE(input);
+        EXPECT_THROW(Meta::fromStr<Map>(input), std::invalid_argument);
+    }
+}
+
+TEST(ContainerEmptyElementContract, QueuePreservesOrderAndEmptyElementRules) {
+    auto values = Meta::fromStr<std::queue<int>>("[3,1,2,]");
+    ASSERT_EQ(values.size(), 3u);
+    for(const int expected : {3, 1, 2}) {
+        EXPECT_EQ(values.front(), expected);
+        values.pop();
+    }
+    EXPECT_TRUE(Meta::fromStr<std::queue<int>>("[]").empty());
+    EXPECT_THROW(Meta::fromStr<std::queue<int>>("[1,,2]"), illegal_syntax);
+    auto sorted = Meta::fromStr<std::priority_queue<int>>("[1,3,2,]");
+    ASSERT_EQ(sorted.size(), 3u);
+    EXPECT_EQ(sorted.top(), 3);
 }
 
 // === truncate – defensive programming ======================================

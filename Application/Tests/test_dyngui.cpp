@@ -607,6 +607,119 @@ TEST(DynamicGUIButtonTest, KeepsInlineConditionTextAndActionInSyncAcrossMissingS
     EXPECT_EQ(fallback_actions, 0u);
 }
 
+TEST(DynamicGUISystemVariables, RejectsUnsafeNumericInputs) {
+    Context context;
+    for(const auto& props : std::vector<VarProps>{
+        {.name = "mod", .parameters = {"1", "0"}},
+        {.name = "mod", .parameters = {"1", "0.5"}},
+        {.name = "mod", .parameters = {"-9223372036854775808", "-1"}},
+        {.name = "mod", .parameters = {"nan", "2"}},
+        {.name = "mod", .parameters = {"1", "inf"}},
+        {.name = "int", .parameters = {"nan"}},
+        {.name = "int", .parameters = {"inf"}},
+        {.name = "int", .parameters = {"9223372036854775808"}},
+        {.name = "int", .parameters = {"-9223372036854777856"}},
+        {.name = "clrAlpha", .parameters = {"[1,2,3]", "nan"}},
+        {.name = "clrAlpha", .parameters = {"[1,2,3]", "-1"}},
+        {.name = "clrAlpha", .parameters = {"[1,2,3]", "256"}},
+        {.name = "cmap", .parameters = {"blacktopink", "nan"}},
+        {.name = "cmap", .parameters = {"wheel", "inf"}},
+        {.name = "cmap", .parameters = {"wheel", "-1"}},
+        {.name = "cmap", .parameters = {"wheel", "4294967296"}}
+    }) {
+        SCOPED_TRACE(props.toStr());
+        EXPECT_THROW(context.system_variables().at(props.name)->value_string(props), std::invalid_argument);
+    }
+
+    State state;
+    EXPECT_EQ(parse_text("{int:-1.5}", context, state), "-1");
+    EXPECT_EQ(parse_text("{int:-9223372036854775808}", context, state), "-9223372036854775808");
+    EXPECT_EQ(parse_text("{mod:5.5:2.5}", context, state), "1");
+    EXPECT_EQ(parse_text("{mod:4294967296:4294967297}", context, state), "4294967296");
+    EXPECT_EQ(parse_text("{saturate:5:0:10}", context, state), "5");
+    EXPECT_THROW(parse_text("{saturate:5:10:0}", context, state), std::invalid_argument);
+}
+
+TEST(DynamicGUISystemVariables, ChecksMissingAndEmptyInputs) {
+    Context context;
+    for(const auto& props : std::vector<VarProps>{
+        {.name = "lower"},
+        {.name = "upper"},
+        {.name = "erase", .parameters = {"0", ""}},
+        {.name = "empty", .parameters = {""}},
+        {.name = "keys", .parameters = {"   "}},
+        {.name = "contains", .parameters = {"key", "   "}}
+    }) {
+        SCOPED_TRACE(props.toStr());
+        EXPECT_THROW(context.system_variables().at(props.name)->value_string(props), std::invalid_argument);
+    }
+    for(const auto& props : std::vector<VarProps>{
+        {.name = "lower", .parameters = {""}},
+        {.name = "upper", .parameters = {""}},
+        {.name = "substr", .parameters = {"0", ""}},
+        {.name = "pad_string", .parameters = {"0", ""}},
+        {.name = "padl_string", .parameters = {"0", ""}}
+    }) {
+        SCOPED_TRACE(props.toStr());
+        EXPECT_EQ(context.system_variables().at(props.name)->value_string(props), "");
+    }
+    const VarProps empty_for{.name = "for", .parameters = {"   ", "{i}"}};
+    EXPECT_EQ(context.system_variables().at("for")->value_string(empty_for), "[]");
+    State state;
+    EXPECT_EQ(parse_text("{flatten:[[1,]]}", context, state), Meta::toStr(std::vector<std::string>{"1"}));
+    EXPECT_EQ(parse_text("{pad_string:3:''}", context, state), "   ");
+    EXPECT_EQ(parse_text("{padl_string:3:''}", context, state), "   ");
+}
+
+TEST(DynamicGUISystemVariables, BoundsGeneratedRangesAndStrings) {
+    Context context;
+    State state;
+    EXPECT_EQ(parse_text("{range:2147483646:2147483647:2}", context, state), Meta::toStr(std::vector<int>{2147483646}));
+    EXPECT_EQ(parse_text("{range:1:6:2}", context, state), Meta::toStr(std::vector<int>{1, 3, 5}));
+    for(const auto& props : std::vector<VarProps>{
+        {.name = "range", .parameters = {"0", "1000001"}},
+        {.name = "pad_string", .parameters = {"1000001", "x"}},
+        {.name = "padl_string", .parameters = {"1000001", "x"}},
+        {.name = "pad_string", .parameters = {"500002", "ab", "x"}},
+        {.name = "padl_string", .parameters = {"500002", "ab", "x"}},
+        {.name = "repeat", .parameters = {"255", std::string(4000, 'x')}}
+    }) {
+        SCOPED_TRACE(props.name);
+        EXPECT_THROW(context.system_variables().at(props.name)->value_string(props), std::invalid_argument);
+    }
+    EXPECT_EQ(parse_text("{pad_string:3:ab:x}", context, state), "xabab");
+    EXPECT_EQ(parse_text("{padl_string:3:ab:x}", context, state), "ababx");
+}
+
+TEST(DynamicGUISystemVariables, RebindsCallbacksAfterContextCopyAndMove) {
+    const auto check = [](Context& context, int value) {
+        context._last_mouse = Vec2(value);
+        context.local_settings["value"] = value;
+        State state;
+        EXPECT_EQ(parse_text("{mouse}", context, state), Meta::toStr(Vec2(value)));
+        EXPECT_EQ(parse_text("{local.value}", context, state), Meta::toStr(value));
+        EXPECT_EQ(parse_text("{for:[1]:{local.value}}", context, state), "[" + Meta::toStr(value) + "]");
+    };
+
+    std::optional<Context> copied;
+    {
+        Context source;
+        check(source, 1);
+        copied.emplace(source);
+        check(*copied, 2);
+    }
+    check(*copied, 3);
+    Context moved(std::move(*copied));
+    copied.reset();
+    check(moved, 4);
+    Context assigned;
+    check(assigned, 5);
+    assigned = moved;
+    check(assigned, 6);
+    assigned = std::move(moved);
+    check(assigned, 7);
+}
+
 TEST(DynamicGUISystemVariables, RelativeMouseUsesCurrentOrNamedElementTransform) {
     DynamicGUI gui{
         .path = file::Path(TREX_TEST_FOLDER) / "dyngui_set_local.json"

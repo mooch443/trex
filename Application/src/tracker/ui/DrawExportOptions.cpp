@@ -604,7 +604,7 @@ struct DrawExportOptions::Data {
         }();
         
         base.wrap_object(parent);
-        parent.set_scale(base.scale().reciprocal());
+        //parent.set_scale(base.scale().reciprocal());
         //
         if(not previous_graphs
            || *previous_graphs != graphs_map

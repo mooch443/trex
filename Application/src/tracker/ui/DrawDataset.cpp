@@ -214,10 +214,10 @@ DrawDataset::~DrawDataset() {}
     }
     
     void DrawDataset::update() {
-        if(parent() && parent()->stage()) {
-            if(!parent()->stage()->scale().empty())
-                set_scale(parent()->stage()->scale().reciprocal());
-        }
+        //if(parent() && parent()->stage()) {
+        //    if(!parent()->stage()->scale().empty())
+        //        set_scale(parent()->stage()->scale().reciprocal());
+        //}
         
         if(not content_changed())
             return;

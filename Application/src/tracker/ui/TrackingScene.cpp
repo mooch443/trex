@@ -1771,7 +1771,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
 
     if(GUI_SETTINGS(gui_show_annotation_export_options)) {
         if(not _data->_annotation_export_options)
-            _data->_annotation_export_options = std::make_unique<DrawAnnotationExportOptions>(_state->video);
+            _data->_annotation_export_options = std::make_unique<DrawAnnotationExportOptions>(_state->video, _state->tracker);
         _data->_annotation_export_options->draw(graph);
 
     } else if(_data->_annotation_export_options) {

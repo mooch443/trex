@@ -1143,13 +1143,13 @@ void BlobView::draw(const DisplayParameters& parm)
                 tag_list->set(Placeholder_t{"Add tag at "+Meta::toStr(blob_pos)+"..."});
             }
             
-            popup->set_scale(parm.graph.scale().reciprocal());
+            //popup->set_scale(parm.graph.scale().reciprocal());
             popup->auto_size();
             popup->set_children(std::vector<Layout::Ptr>{
                 list,
                 tag_list
             });
-            popup->set(ZIndex{100});
+            popup->set(ZIndex{5});
 
             parm.graph.wrap_object(*popup);
 
