@@ -105,8 +105,8 @@ struct ImportPreview {
 FrameIndexParseResult parse_source_index_from_image_stem(std::string_view stem);
 /// Parses a YOLO dataset and returns a non-mutating preview for `scope`.
 ImportPreview preview_yolo_import(const ImportOptions&, ImportScope);
-/// Parses a COCO dataset and returns a non-mutating preview.
-ImportPreview preview_coco_import(const ImportOptions&);
+/// Parses a COCO dataset and returns a non-mutating preview for `scope`.
+ImportPreview preview_coco_import(const ImportOptions&, ImportScope = import_scope_t::all_videos);
 /// Dispatches to the parser selected by `ImportOptions::format`.
 ImportPreview preview_dataset_import(const ImportOptions&, ImportScope);
 /// Merges a parsed preview into `existing`, renumbering annotation UIDs and

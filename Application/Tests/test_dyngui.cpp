@@ -918,6 +918,9 @@ TEST(DynamicGUILocalSettings, InvalidAliasReportsAvailableAliases) {
 }
 
 TEST(DynamicGUILocalSettings, ExistingGlobalSettingsStillCreateSettingsWidgets) {
+    auto restore = GlobalSettings::read([](const Configuration& config) {
+        return GlobalSettings::snapshot(config);
+    });
     SETTING(dyngui_test_global_setting) = std::string("global");
 
     constexpr std::string_view json = R"json(

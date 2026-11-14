@@ -1236,7 +1236,7 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
     return preview;
 }
 
-ImportPreview preview_coco_import(const ImportOptions& options) {
+ImportPreview preview_coco_import(const ImportOptions& options, ImportScope scope) {
     ImportPreview preview;
     preview.dataset_file = options.dataset_file;
 
@@ -1386,11 +1386,13 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
             auto mapping = map_image_to_source_index(image, config, csv_mapping, source_selection.selected, has_csv_mapping, preview);
             if(!mapping)
                 continue;
-            image_mappings[image_id] = *mapping;
             if(mapping->current_source) {
                 if(auto frame = to_annotation_frame(mapping->source_index, options, preview.errors, preview.warnings, image.path); frame)
                     mapped_frames[image_id] = *frame;
             }
+            if(scope == import_scope_t::current_video && !mapped_frames.contains(image_id))
+                continue;
+            image_mappings[image_id] = *mapping;
         }
         require_any_mapped_image(images, preview);
 
@@ -1529,7 +1531,7 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
 
 ImportPreview preview_dataset_import(const ImportOptions& options, ImportScope scope) {
     return options.format == dataset::format_t::coco
-        ? preview_coco_import(options)
+        ? preview_coco_import(options, scope)
         : preview_yolo_import(options, scope);
 }
 

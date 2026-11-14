@@ -528,21 +528,28 @@ void Segmenter::open_output_file() {
                 _output_file->reset_to_frame(_output_file->length());
                 _overlayed_video->reset_to_frame(_video_conversion_range.start + _output_file->length());
             } else {
-                _output_file = nullptr;
+                throw RuntimeError("Cannot resume an empty PV file. Explicitly start over to replace it.");
             }
             
         } catch(...) {
-            // probably a broken file...
+            // Failed resume attempts must not write a new index/header on close
+            // or authorize replacing the existing file.
             try {
+                if(_output_file)
+                    _output_file->DataFormat::close();
                 _output_file = nullptr;
             } catch(...) {
                 FormatExcept("Cannot close the file properly...");
             }
+            throw;
         }
     }
     
     if(not _output_file) {
-        _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, meta_encoding);
+        if(start_over && start_over.value())
+            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, meta_encoding);
+        else
+            _output_file = pv::File::Make<pv::FileMode::WRITE>(_output_file_name, meta_encoding);
         
         std::unique_lock vlock(_mutex_video);
         _overlayed_video->reset_to_frame(_video_conversion_range.start);

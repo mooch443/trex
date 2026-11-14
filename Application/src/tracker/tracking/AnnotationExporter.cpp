@@ -361,20 +361,17 @@ void append_yolo_metadata(YamlNode& yaml, const AnnotationMap& annotations, cons
     auto map = track::detect::yolo::names::get_map();
     size_t nc = 0;
     
-    if(not map.empty()) {
-        for(auto &[id, name] : map) {
-            names[id] = std::string(name);
-            nc = max(narrow_cast<size_t>(id) + 1, nc);
+    for(const auto& [id, name] : map) {
+        (void)name;
+        ids.insert(id);
+    }
+    for(auto id : ids) {
+        if(map.contains(id)) {
+            names[narrow_cast<int64_t>(id)] = std::string(map.at(id));
+        } else {
+            names[narrow_cast<int64_t>(id)] = "class_" + Meta::toStr(id);
         }
-    } else {
-        for(auto id : ids) {
-            if(map.contains(id)) {
-                names[narrow_cast<int64_t>(id)] = std::string(map.at(id));
-            } else {
-                names[narrow_cast<int64_t>(id)] = "class_" + Meta::toStr(id);
-            }
-            nc = max(narrow_cast<size_t>(id) + 1, nc);
-        }
+        nc = max(narrow_cast<size_t>(id) + 1, nc);
     }
 
     yaml["nc"] = nc;
@@ -1175,23 +1172,19 @@ glz::generic build_coco_json(const cmn::file::PathArray& source, const Annotatio
 
     std::vector<glz::generic> categories;
 
-    std::set<uint16_t> ids;
+    auto ids = class_ids(annotations);
     std::vector<std::string> names;
     auto map = track::detect::yolo::names::get_map();
     
-    if(not map.empty()) {
-        for(auto &[id, name] : map) {
-            ids.insert(id);
-            names.push_back(std::string(name));
-        }
-    } else {
-        ids = class_ids(annotations);
-        for(auto id : ids) {
-            if(map.contains(id)) {
-                names.push_back(std::string(map.at(id)));
-            } else {
-                names.push_back("class_" + Meta::toStr(id));
-            }
+    for(const auto& [id, name] : map) {
+        (void)name;
+        ids.insert(id);
+    }
+    for(auto id : ids) {
+        if(map.contains(id)) {
+            names.push_back(std::string(map.at(id)));
+        } else {
+            names.push_back("class_" + Meta::toStr(id));
         }
     }
 

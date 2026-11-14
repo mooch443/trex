@@ -1432,6 +1432,18 @@ TEST(DetectAnnotationImporter, ImportsCocoWithCsvVideoSourceMapping) {
     EXPECT_FALSE(preview.annotations.contains(13_f));
     EXPECT_TRUE(preview.source_annotations.at("current_video.mp4").contains(112_f));
     EXPECT_TRUE(preview.source_annotations.at("other_video.mp4").contains(113_f));
+
+    auto current = preview_dataset_import(options, import_scope_t::current_video);
+    ASSERT_TRUE(current.can_import()) << Meta::toStr(current.errors);
+    ASSERT_EQ(1u, current.source_annotations.size());
+    EXPECT_TRUE(current.source_annotations.at("current_video.mp4").contains(112_f));
+
+    options.source_end = 110_f;
+    current = preview_dataset_import(options, import_scope_t::current_video);
+    EXPECT_TRUE(current.errors.empty()) << Meta::toStr(current.errors);
+    EXPECT_TRUE(current.annotations.empty());
+    EXPECT_TRUE(current.source_annotations.empty());
+    EXPECT_FALSE(current.can_import());
 }
 
 TEST(DetectAnnotationImporter, ResolvesCocoCsvPathsBeforeDuplicateBasenames) {
@@ -1839,4 +1851,40 @@ TEST(DetectAnnotationExporter, CocoExportsAllDetectClassesEvenWhenAbsentFromData
 
     // restore the inferred (empty detect_classes) behavior for any other tests
     SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
+}
+
+TEST(DetectAnnotationExporter, MetadataIncludesAnnotationOnlyClassIds) {
+    auto restore = GlobalSettings::read([](const Configuration& config) {
+        return GlobalSettings::snapshot(config);
+    });
+    GlobalSettings::write([](Configuration& config) { ::default_config::get(config); });
+    (void)yolo::names::get_map();
+    SETTING(detect_classes) = blob::MaybeObjectClass_t{blob::ObjectClass_t{{0, "fish"}}};
+
+    auto root = make_temp_dataset("annotation_only_classes");
+    auto image = root / "input.png";
+    ASSERT_TRUE(cv::imwrite(image.str(), cv::Mat(100, 200, CV_8UC3, cv::Scalar(0, 0, 0))));
+    Options options;
+    options.source = file::PathArray(image.str());
+    options.output_directory = root / "yolo";
+    options.detect_format = ObjectDetectionFormat::boxes;
+    options.background_percent = 0.f;
+    options.annotations[0_f].push_back(make_annotation(3, AnnotationType::BOX, {{10, 20, true}, {50, 80, true}}));
+
+    const auto summary = export_dataset(options);
+    ASSERT_TRUE(summary.can_export()) << Meta::toStr(summary.errors);
+    const auto yaml = fkyaml::node::deserialize((options.output_directory / "data.yaml").read_file());
+    EXPECT_EQ(4, yaml["nc"].get_value<int>());
+    EXPECT_EQ("fish", yaml["names"][0].get_value<std::string>());
+    ASSERT_TRUE(yaml["names"].contains(3));
+    EXPECT_EQ("class_3", yaml["names"][3].get_value<std::string>());
+
+    const auto coco = build_coco_json({}, options.annotations, {0_f}, Size2(200, 100), {});
+    std::map<int, std::string> categories;
+    for(const auto& category : coco.get_object().at("categories").get_array()) {
+        const auto& object = category.get_object();
+        categories.emplace(int(object.at("id").get_number()), object.at("name").get_string());
+    }
+    EXPECT_EQ((std::map<int, std::string>{{0, "fish"}, {3, "class_3"}}), categories);
+    EXPECT_EQ(3, coco.get_object().at("annotations").get_array().front().get_object().at("category_id").get_number());
 }

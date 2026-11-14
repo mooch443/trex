@@ -103,10 +103,13 @@ fi
 FRAME_COUNT="${actual_frame_count}"
 echo "Found ${FRAME_COUNT} frames in ${TEST_FRAMES_DIR}."
 
-if [[ ! -f "${TEST_FRAMES_DIR}/frame_000.jpg" || ! -f "${TEST_FRAMES_DIR}/frame_$(printf '%03d' $((FRAME_COUNT - 1))).jpg" ]]; then
-    echo -e "${RED}[ERROR] Expected a contiguous ${FRAME_COUNT}-frame sequence starting at frame_000.jpg.${NC}"
-    exit 1
-fi
+for ((i = 0; i < FRAME_COUNT; ++i)); do
+    expected_name="$(printf 'frame_%03d.jpg' "$i")"
+    if [[ ! -f "${TEST_FRAMES_DIR}/${expected_name}" ]]; then
+        echo -e "${RED}[ERROR] Expected a contiguous ${FRAME_COUNT}-frame sequence starting at frame_000.jpg; missing ${expected_name}.${NC}"
+        exit 1
+    fi
+done
 
 function compare_csv() {
   local file1="$1"
@@ -130,6 +133,7 @@ function compare_csv() {
 function compare_csv_folder() {
   local input_folder="$1"
   local output_folder="$2"
+  local changed_cells=0
 
   # Get all CSV files in the input folder
   input_files=( "$input_folder"/*.csv )
@@ -165,36 +169,49 @@ function compare_csv_folder() {
         echo "No match found for $input_file!"
         file1=$input_file
 
-        # Optionally, find the closest diff match (modify this logic as needed)
+        # Find the candidate with the fewest changed numeric cells.
         closest_diff=""
         closest_diff_file=""
         for file2 in "${output_files[@]}"; do
-            diff_lines=$(${GIT} --no-pager diff --word-diff --no-index -- "$file2" "$file1" | wc -l)
-            #echo "diff with $file2: $diff_lines"
-            if [[ -z $closest_diff || $diff_lines -lt $closest_diff ]]; then
-                closest_diff=$diff_lines
+            diff_cells=$(python - "$file2" "$file1" <<'PY'
+import csv
+import sys
+from itertools import zip_longest
+
+changed = 0
+try:
+    with open(sys.argv[1], newline="") as a, open(sys.argv[2], newline="") as b:
+        for left, right in zip_longest(csv.reader(a), csv.reader(b)):
+            if left is None or right is None or len(left) != len(right):
+                sys.exit(1)
+            for x, y in zip(left, right):
+                if x != y:
+                    changed += float(x) != float(y)
+except ValueError:
+    sys.exit(1)
+print(changed)
+PY
+            ) || continue
+            if [[ -z $closest_diff || $diff_cells -lt $closest_diff ]]; then
+                closest_diff=$diff_cells
                 closest_diff_file=$file2
             fi
         done
 
-        if [[ ! -z $closest_diff ]]; then
-            echo "Closest difference found with $closest_diff_file ($closest_diff)"
+        if [[ -n $closest_diff ]]; then
+            changed_cells=$((changed_cells + closest_diff))
+            echo "Closest difference found with $closest_diff_file ($closest_diff numeric cells)"
             ${GIT} --no-pager diff --word-diff --no-index -- ${closest_diff_file} ${input_file}
+        else
+            return 1
         fi
     fi
   done
 
   if [[ $unmatched -gt 0 ]]; then
-    if [[ $closest_diff -le 12 ]]; then
-        if [[ $unmatched -eq 1 ]]; then
-            echo "Closest difference found with $closest_diff_file ($closest_diff) is > 0, but acceptable (likely floating point error)."
-            return 0
-        else
-            echo "More than 1 unmatched file found. Cannot accept any differences."
-            return 1
-        fi
-    fi
-    return 1
+    echo "$changed_cells numeric cells changed (maximum 5)."
+    [[ $changed_cells -le 5 ]]
+    return
   fi
 
   #echo "All CSV files in $input_folder found matches in $output_folder (ignoring names)."

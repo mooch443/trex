@@ -359,6 +359,16 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
         output_base, reference_base, 6, GetParam(), "initial partial conversion");
     expect_averages_match_reference("initial partial conversion");
 
+    const auto before_failed_resume = output_pv.read_file();
+    configure_segmenter_case(ws, source_paths, Range<long_t>{1, 5}, GetParam());
+    {
+        Segmenter segmenter([]() {});
+        segmenter.start_over().set(false);
+        EXPECT_THROW(segmenter.open_video(), std::exception);
+    }
+    EXPECT_EQ(output_pv.read_file(), before_failed_resume)
+        << "A rejected resume must preserve the existing PV bytes.";
+
     /// now we resume + continue to completion
     run_case(output_base, false);
     expect_pv_frames_match_reference(
@@ -373,6 +383,31 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
     expect_averages_match_reference("start-over conversion");
 
     ASSERT_TRUE(output_pv.delete_file());
+}
+
+TEST(SegmenterExistingOutputTest, InvalidPvRequiresExplicitStartOver) {
+    register_data_locations_once();
+    reset_global_settings();
+
+    const TempWorkspace ws = make_workspace();
+    const auto source_paths = create_synthetic_sequence(ws.root / "source", 4);
+    const Path output_pv((ws.root / "output" / "synthetic_segment.pv").string());
+    {
+        std::ofstream output(output_pv.str(), std::ios::binary);
+        output << "invalid PV file";
+    }
+    const auto before_failed_resume = output_pv.read_file();
+    configure_segmenter_case(ws, source_paths, std::nullopt, meta_encoding_t::gray);
+    {
+        Segmenter segmenter([]() {});
+        segmenter.start_over().set(false);
+        EXPECT_THROW(segmenter.open_video(), std::exception);
+    }
+    EXPECT_EQ(output_pv.read_file(), before_failed_resume);
+
+    run_configured_segmenter_to_completion(true);
+    auto output = pv::File::Read(output_pv);
+    EXPECT_EQ(output.length(), 4_f);
 }
 
 // Policy: Opening an existing PV restores its detection type. Its automatic

@@ -287,7 +287,7 @@ struct DrawDetectAnnotationImportOptions::Data {
             {"metadata_point_radii_changed", glz::generic(_preview.metadata.point_radii_changed)},
             
             {"detect_classes", cvt2json(_preview.metadata.imported_class_names) },
-            {"detect_skeletons", cvt2json(_preview.metadata.imported_skeletons) },
+            {"detect_skeleton", cvt2json(_preview.metadata.imported_skeletons) },
             {"detect_keypoint_names", cvt2json(_preview.metadata.imported_keypoint_names) },
             {"detect_format", cvt2json(_preview.metadata.imported_detect_format) },
             {"detect_point_radii", cvt2json(_preview.metadata.imported_point_radii) },

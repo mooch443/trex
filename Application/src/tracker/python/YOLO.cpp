@@ -470,6 +470,10 @@ void YOLO::process_obbs(
     size_t N_rows = result.obbdata().size();
     auto& obbdata = result.obbdata();
 
+    struct IllegalOBBExtent : std::runtime_error {
+        using std::runtime_error::runtime_error;
+    };
+
     auto process_index = [&](size_t idx) {
         if(idx >= N_rows)
             return;
@@ -544,7 +548,7 @@ void YOLO::process_obbs(
             int x1 = static_cast<int>(std::ceil(xf1));
             
             if(x0 > x1) {
-                throw RuntimeError("Skipping illegal horizontal extent of ", x0, " -> ", x1, " at ", y, " for object at ", bounds, " in frame ", data.image->index());
+                throw IllegalOBBExtent(cmn::format<FormatterType::NONE>("Skipping illegal horizontal extent of ", x0, " -> ", x1, " at ", y, " for object at ", bounds, " in frame ", data.image->index()));
             }
             
             // clamp to image bounds [0..w-1]
@@ -583,10 +587,9 @@ void YOLO::process_obbs(
             pose = result.keypoints()[idx].toPose();
 
         /// add_object first; only record the parallel predictions/keypoints arrays
-        /// once it has succeeded. Otherwise a throw here (e.g. from add_object)
-        /// would leave predictions/keypoints one entry longer than data.frame's
-        /// objects, and since we skip-and-continue on error that desync would
-        /// mis-assign every following object's prediction/pose downstream.
+        /// once it has succeeded. These insertions are not atomic: a failure can
+        /// leave a partial result, so it must propagate to the caller rather
+        /// than skip to the next object.
         data.frame.add_object(lines, pixels, flags, blob::Prediction{
             .clid = uint8_t(row.clid),
             .p = uint8_t(float(row.conf) * 255.f),
@@ -604,14 +607,10 @@ void YOLO::process_obbs(
     for(size_t idx = 0; idx < N_rows; ++idx) {
         try {
             process_index(idx);
-        } catch(const std::exception& ex) {
-            /// Skip just this object and keep going. We cannot (and do not want to)
-            /// special-case exception types, so surface the failure rather than
-            /// swallow it. Each object is committed atomically (add_object before
-            /// the predictions/keypoints push), so a skip leaves them consistent.
+        } catch(const IllegalOBBExtent& ex) {
+            /// Skip just this object and keep going. Illegal extents are detected
+            /// before insertion, so a skip leaves the frame and parallel arrays unchanged.
             FormatError("Skipping object in image ", data.image->index(), ": ", ex.what());
-        } catch(...) {
-            FormatError("Skipping object in image ", data.image->index(), ".");
         }
     }
 }
