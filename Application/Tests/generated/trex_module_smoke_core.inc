@@ -3,6 +3,7 @@
 
 // core/DetectAnnotationDataset.h
 namespace trex_module_smoke::trex_core::track::detect::annotation_dataset {
+using ::track::detect::annotation_dataset::Format;
 using ::track::detect::annotation_dataset::format_from_dataset_file;
 }
 
@@ -24,6 +25,10 @@ using ::cmn::BlurryVideoLoop;
 }
 
 // core/Border.h
+namespace trex_module_smoke::trex_core::track {
+using ::track::Border;
+}
+
 namespace trex_module_smoke::trex_core::track::recognition_border_t {
 using ::track::recognition_border_t::Class;
 }
@@ -60,7 +65,10 @@ using ::track::detect::get_model_image_size;
 }
 
 namespace trex_module_smoke::trex_core::track::detect::yolo {
+using ::track::detect::yolo::current_detect_model_path;
+using ::track::detect::yolo::current_region_model_path;
 using ::track::detect::yolo::default_model;
+using ::track::detect::yolo::detect_model_candidates;
 using ::track::detect::yolo::is_default_model;
 using ::track::detect::yolo::is_valid_default_model;
 using ::track::detect::yolo::valid_model;
@@ -162,10 +170,15 @@ using ::cmn::SegmentationData;
 
 // core/SettingsPaths.h
 namespace trex_module_smoke::trex_core::cmn::settings {
+using ::cmn::settings::conversion_source_exists;
+using ::cmn::settings::find_conversion_source;
 using ::cmn::settings::find_existing_output_name;
 using ::cmn::settings::find_output_name;
 using ::cmn::settings::infer_cm_per_pixel;
 using ::cmn::settings::infer_meta_real_width_from;
+using ::cmn::settings::resolve_file_path;
+using ::cmn::settings::resolve_output_path;
+using ::cmn::settings::video_source_error;
 }
 
 // core/SettingsInitializer.h

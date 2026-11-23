@@ -1,9 +1,10 @@
 #include "DetectionTypes.h"
 
 #include <core/SoftException.h>
+#include <core/SettingsPaths.h>
+#include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>
 #include <misc/CropOffsets.h>
-#include <file/DataLocation.h>
 
 using namespace cmn;
 
@@ -308,45 +309,36 @@ std::string default_model() {
 
 std::vector<file::Path> detect_model_candidates(file::Path path) {
     std::vector<file::Path> result;
-    if(path.is_absolute()) {
-        result.emplace_back(path);
+    if(path.empty() || path.is_absolute()) {
+        result.emplace_back(settings::resolve_file_path(path));
         return result;
     }
 
     if(is_default_model(path) && not path.has_extension())
         path = path.add_extension("pt");
 
-    auto candidate = path;
-    result.emplace_back(candidate);
-
-    candidate = file::DataLocation::parse("output", candidate);
-    if(auto v = candidate.canonical();
-       v)
-    {
-        result.emplace_back(*v);
-    } else
-        result.emplace_back(candidate);
+    result.emplace_back(settings::resolve_file_path(path));
+    result.emplace_back(file::DataLocation::parse("output", path));
 
     return result;
 }
 
-file::Path current_detect_model_path() {
-    auto path = READ_SETTING_WITH_DEFAULT(detect_model, file::Path{});
-    if(path.empty() || path.is_absolute())
-        return path;
-
+file::Path current_detect_model_path(const sprite::Map* source) {
+    auto path = source
+        ? source->value_with_default("detect_model", file::Path{})
+        : READ_SETTING_WITH_DEFAULT(detect_model, file::Path{});
+    
     if(is_default_model(path) && not path.has_extension())
         path = path.add_extension("pt");
 
-    auto candidate = path;
-    if(candidate.exists())
-        return candidate;
+    return settings::resolve_output_path(path, nullptr, source);
+}
 
-    candidate = file::DataLocation::parse("output", candidate);
-    if(candidate.exists())
-        return candidate;
-
-    return path;
+file::Path current_region_model_path(const sprite::Map* source) {
+    auto path = source
+        ? source->value_with_default("region_model", file::Path{})
+        : READ_SETTING_WITH_DEFAULT(region_model, file::Path{});
+    return settings::resolve_output_path(path, nullptr, source);
 }
 
 bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {

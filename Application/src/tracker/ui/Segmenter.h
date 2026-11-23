@@ -90,7 +90,7 @@ class Segmenter {
     Frame_t _last_generated_frame;
     
     GETTER(Range<Frame_t>, video_conversion_range);
-    file::Path _output_file_name;
+    file::Path _output_file_path;
     
     cmn::CallbackFuture _undistort_callbacks;
     
@@ -152,7 +152,7 @@ public:
     Frame_t video_length() const;
     Size2 size() const;
     bool is_finite() const;
-    file::Path output_file_name() const;
+    file::Path output_file_path() const;
     void force_stop();
     void error_stop(std::string_view);
     std::future<std::optional<std::set<std::string_view>>> video_recovered_error() const;

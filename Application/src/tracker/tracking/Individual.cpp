@@ -1,4 +1,5 @@
 #include "Individual.h"
+#include <misc/Path.h>
 #include <data/MotionRecord.h>
 #include <misc/GlobalSettings.h>
 #include <misc/Median.h>
@@ -177,7 +178,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                    || _last_predicted_frame != tracklet->start())
                                     return;
                                 
-                                static const auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
+                                static const auto filename = READ_SETTING(filename, file::Filename).str();
                                 file::Path output = file::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
                                 
                                 if(!output.exists())
@@ -543,7 +544,7 @@ Individual::~Individual() {
     //if(Tracker::recognition())
     //    Tracker::recognition()->remove_individual(this);
 #ifndef NDEBUG
-    Print("Deleting individual ", identity().ID());
+    //Print("Deleting individual ", identity().ID());
 #endif
 }
 

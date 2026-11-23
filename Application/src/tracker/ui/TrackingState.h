@@ -91,7 +91,7 @@ struct TrackingState {
         
     } _stats;
     
-    TrackingState(GUITaskQueue_t* gui);
+    TrackingState(GUITaskQueue_t* gui, const file::Path& filename);
     ~TrackingState();
     
     std::function<void()> _end_task_check_auto_quit;

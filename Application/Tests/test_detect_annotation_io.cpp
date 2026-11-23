@@ -68,6 +68,17 @@ TEST(DetectAnnotationExporter, ConvertsBoxToYolo) {
               annotation_to_yolo({}, annotation, Size2(400, 200), {}));
 }
 
+TEST(DetectAnnotationEditing, DraggingAboveTheFrameKeepsTheLastValidKeypoint) {
+    auto annotation = make_annotation(0, AnnotationType::POSE, {{40, 12, false}});
+    const Size2 frame_size(100, 50);
+
+    EXPECT_FALSE(annotation.move_point(0, Vec2(40, -8), frame_size));
+    EXPECT_EQ(annotation.points.front(), (Annotation::Point_t{40, 12, false}));
+
+    EXPECT_TRUE(annotation.move_point(0, Vec2(40, 0), frame_size));
+    EXPECT_EQ(annotation.points.front(), (Annotation::Point_t{40, 0, false}));
+}
+
 TEST(DetectAnnotationExporter, DistinguishesPixelLocationsFromGeometryBoundaries) {
     AnnotationMap annotations;
     annotations[0_f] = {make_annotation(0, AnnotationType::BOX, {{0, 0, true}, {100, 50, true}})};
@@ -451,7 +462,19 @@ TEST(DetectAnnotationImporter, RejectsMalformedNewLabelTypesAtomically) {
     write_file(root / "images" / "frame_000110.jpg");
     auto options = default_import_options(root / "data.yaml");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: locate\n");
-    for(const std::string row : {"0 5 0 0\n0 6 0.5 0.5\n", "0 -1 0.5 0.5\n", "0 5 1.1 0\n", "0 nan 0 0\n", "0 5 0.5\n"}) {
+    struct Case {
+        const char* description;
+        std::string row;
+    };
+    const Case invalid_points[] {
+        {"Conflicting radii for the same class", "0 5 0 0\n0 6 0.5 0.5\n"},
+        {"Negative radius", "0 -1 0.5 0.5\n"},
+        {"Normalized x coordinate outside the image", "0 5 1.1 0\n"},
+        {"Non-finite radius", "0 nan 0 0\n"},
+        {"Missing y coordinate", "0 5 0.5\n"}
+    };
+    for(const auto& [description, row] : invalid_points) {
+        SCOPED_TRACE(description);
         write_file(root / "labels" / "frame_000110.txt", row);
         auto preview = preview_yolo_import(options, import_scope_t::all_videos);
         EXPECT_FALSE(preview.can_import());
@@ -460,8 +483,15 @@ TEST(DetectAnnotationImporter, RejectsMalformedNewLabelTypesAtomically) {
         EXPECT_TRUE(preview.metadata.imported_point_radii.empty());
         EXPECT_FALSE(preview.warnings.empty());
     }
+
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: obb\n");
-    for(const std::string row : {"0 0 0 1 0 1 1\n", "0 -0.1 0 1 0 1 1 0 1\n", "0 nan 0 1 0 1 1 0 1\n"}) {
+    const Case invalid_boxes[] {
+        {"Missing fourth corner", "0 0 0 1 0 1 1\n"},
+        {"Corner outside the normalized image", "0 -0.1 0 1 0 1 1 0 1\n"},
+        {"Non-finite corner coordinate", "0 nan 0 1 0 1 1 0 1\n"}
+    };
+    for(const auto& [description, row] : invalid_boxes) {
+        SCOPED_TRACE(description);
         write_file(root / "labels" / "frame_000110.txt", row);
         EXPECT_FALSE(preview_yolo_import(options, import_scope_t::all_videos).can_import());
     }
@@ -1655,16 +1685,31 @@ TEST(DetectAnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
 TEST(DetectAnnotationImporter, RejectsYoloPixelLocationsAtOuterImageBoundary) {
     auto root = make_temp_dataset("yolo_pixel_boundary");
     write_file(root / "images" / "frame_000100.jpg");
+    struct Case {
+        const char* description;
+        const char* xy;
+        bool can_import;
+    };
+    // In a 200 x 100 image, normalized coordinates are rounded to pixels.
+    // The last valid pixel is (199, 99).
+    constexpr Case cases[] {
+        {"Last valid pixel", "0.995 0.99", true},
+        {"Right boundary", "1 0.99", false},
+        {"Bottom boundary", "0.995 1", false},
+        {"Rounds onto the right boundary", "0.999 0.99", false},
+        {"Rounds onto the bottom boundary", "0.995 0.999", false}
+    };
     for(auto type : {AnnotationType::POINT, AnnotationType::POSE}) {
+        SCOPED_TRACE(type == AnnotationType::POINT ? "Point label" : "Pose label");
         write_file(root / "data.yaml", std::string("path: .\ntrain: images\nnames: [fish]\n")
                    + (type == AnnotationType::POINT ? "task: locate\nradii: {0: 5}\n" : "kpt_shape: [1, 3]\n"));
-        for(const auto xy : {"0.995 0.99", "1 0.99", "0.995 1", "0.999 0.99", "0.995 0.999"}) {
-            SCOPED_TRACE(xy);
+        for(const auto& [description, xy, can_import] : cases) {
+            SCOPED_TRACE(::testing::Message() << description << " at " << xy);
             write_file(root / "labels" / "frame_000100.txt",
                        type == AnnotationType::POINT ? std::string("0 5 ") + xy + "\n"
                        : std::string("0 0.5 0.5 0.5 0.5 ") + xy + " 2\n");
             const auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
-            if(std::string_view(xy) == "0.995 0.99") {
+            if(can_import) {
                 ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
                 const auto& annotation = preview.annotations.at(0_f).front();
                 EXPECT_EQ(type, annotation.type);
@@ -1680,15 +1725,29 @@ TEST(DetectAnnotationImporter, RejectsYoloPixelLocationsAtOuterImageBoundary) {
 
 TEST(DetectAnnotationImporter, RejectsCocoPixelLocationsAtOuterImageBoundary) {
     auto root = make_temp_dataset("coco_pixel_boundary");
+    struct Case {
+        const char* description;
+        const char* xy;
+        bool can_import;
+    };
+    // COCO supplies pixel coordinates directly, including fractional positions.
+    constexpr Case cases[] {
+        {"Last valid pixel", "199,99", true},
+        {"Right boundary", "200,99", false},
+        {"Bottom boundary", "199,100", false},
+        {"Rounds onto the right boundary", "199.9,99", false},
+        {"Rounds onto the bottom boundary", "199,99.9", false}
+    };
     for(auto type : {AnnotationType::POINT, AnnotationType::POSE}) {
-        for(const auto xy : {"199,99", "200,99", "199,100", "199.9,99", "199,99.9"}) {
-            SCOPED_TRACE(xy);
+        SCOPED_TRACE(type == AnnotationType::POINT ? "Point label" : "Pose label");
+        for(const auto& [description, xy, can_import] : cases) {
+            SCOPED_TRACE(::testing::Message() << description << " at " << xy);
             write_file(root / "_annotations.coco.json",
                        std::string(R"({"images":[{"id":1,"file_name":"frame_000100.jpg","width":200,"height":100}],"annotations":[{"id":1,"image_id":1,"category_id":0,)")
                        + (type == AnnotationType::POINT ? R"("trex_annotation_type":"point",)" : "")
                        + R"("keypoints":[)" + xy + R"(,2],"num_keypoints":1}],"categories":[{"id":0,"name":"fish","keypoints":["tip"]}]})");
             const auto preview = preview_coco_import(default_import_options(root / "_annotations.coco.json"));
-            if(std::string_view(xy) == "199,99") {
+            if(can_import) {
                 ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
                 const auto& annotation = preview.annotations.at(0_f).front();
                 EXPECT_EQ(type, annotation.type);

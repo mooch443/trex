@@ -1,4 +1,5 @@
 #include "ClosedLoop.h"
+#include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>
 #include <python/ModuleProxy.h>
 #include <python/PythonWrapper.h>
@@ -12,11 +13,14 @@ using namespace track;
 ClosedLoop::ClosedLoop()
     : closed_loop_path( READ_SETTING(closed_loop_path, file::Path).remove_extension())
 {
-    auto path = closed_loop_path.add_extension("py");
+    const bool bundled = closed_loop_path == "closed_loop_beta";
+    const auto path = file::DataLocation::parse(bundled ? "app" : "input", closed_loop_path.add_extension("py"));
     if(not path.is_regular())
         throw U_EXCEPTION("Cannot find module ", path, " as is specified in `closed_loop_path`.");
 
-    Print("Loading closed_loop module at ", path.absolute().add_extension("py"));
+    if(not bundled)
+        closed_loop_path = (path.is_absolute() ? path : path.absolute()).remove_extension();
+    Print("Loading closed_loop module at ", path);
     module_proxy().get();
 }
 
@@ -42,7 +46,7 @@ void ClosedLoop::retrieve_closed_loop(bool blocking) {
     
     /// check if the future is ready
     if((blocking
-        || _python_future->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready))
+        || cmn::is_future_ready(*_python_future)))
     {
         try {
             _python_future->get();

@@ -1455,7 +1455,7 @@ TEST(PythonWrapperShutdownTest, DeinitFailsQueuedTasksInsteadOfLeavingThemPendin
         release_future.wait();
     });
 
-    ASSERT_EQ(started_future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
+    ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(1)}>(started_future));
 
     auto queued = Python::schedule([]() {});
 
@@ -1468,14 +1468,14 @@ TEST(PythonWrapperShutdownTest, DeinitFailsQueuedTasksInsteadOfLeavingThemPendin
     std::this_thread::sleep_for(std::chrono::milliseconds(25));
     release.set_value();
 
-    ASSERT_EQ(first.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(5)}>(first));
     EXPECT_NO_THROW(first.get());
 
-    EXPECT_EQ(queued.wait_for(std::chrono::seconds(5)), std::future_status::ready)
+    EXPECT_TRUE(cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(5)}>(queued))
         << "Queued Python work stayed pending during shutdown and can strand callers waiting on it.";
     EXPECT_THROW(queued.get(), SoftExceptionImpl);
 
-    ASSERT_EQ(shutdown.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(5)}>(shutdown));
     EXPECT_NO_THROW(shutdown.get());
     scope.mark_deinitialized();
 }

@@ -70,6 +70,7 @@ protected:
     
     cmn::CallbackFuture _settings_callback;
     std::shared_ptr<data::FrameRepository> _frames;
+    GETTER(file::Path, recording_path);
     GETTER_NCONST(GenericThreadPool, thread_pool);
     
 public:

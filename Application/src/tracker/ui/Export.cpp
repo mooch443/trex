@@ -1,4 +1,5 @@
 #include "Export.h"
+#include <misc/Path.h>
 
 #include <misc/Image.h>
 #include <processing/Background.h>
@@ -199,7 +200,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
     
-    file::Path input = READ_SETTING(filename, file::Path).filename();
+    file::Path input = READ_SETTING(filename, file::Filename).path();
     if(input.has_extension("pv"))
         input = input.remove_extension();
     
@@ -733,7 +734,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 }
                 
             } else {
-                FormatWarning("Not exporting individual ",fish->identity().ID()," because it only has ",fish->frame_count(),"/",READ_SETTING(output_min_frames, uint16_t)," frames.");
+                //FormatWarning("Not exporting individual ",fish->identity().ID()," because it only has ",fish->frame_count(),"/",READ_SETTING(output_min_frames, uint16_t)," frames.");
             }
         };
         

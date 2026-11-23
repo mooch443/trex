@@ -1,6 +1,6 @@
 #pragma once
-#include <file/PathArray.h>
 #include <commons.pc.h>
+#include <file/PathArray.h>
 #include <core/default_config.h>
 #include <core/SettingsPaths.h>
 #include <core/DetectionTypes.h>
@@ -22,22 +22,24 @@ struct LoadContext {
     ExtendableVector exclude_parameters{};
     cmn::sprite::Map source_map{};
     bool quiet{false};
-    // Receives the resolved source instead of applying it before GUI confirmation.
-    file::PathArray* deferred_source{nullptr};
 
     Configuration combined{};
+    file::Path resolved_filename{};
     sprite::Map current_defaults{};
+    std::shared_ptr<GlobalSettings::MutableSnapshot> output_map;
     bool did_set_calculate_posture_to_false{false};
 
     ExtendableVector exclude{}, exclude_from_default{};
-    std::vector<std::string> system_variables = [](){
-        std::vector<std::string> system_variables;
-        for (auto& key : GlobalSettings::keys()) {
-            if (GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM) {
-                system_variables.emplace_back(key);
+    std::vector<std::string> system_variables = [this] {
+        auto collect = [](const Configuration& config) {
+            std::vector<std::string> system_variables;
+            for(auto key : config.values.keys()) {
+                if(config._access_level(key) >= AccessLevelType::SYSTEM)
+                    system_variables.emplace_back(key);
             }
-        }
-        return system_variables;
+            return system_variables;
+        };
+        return output_map ? collect(output_map->config) : GlobalSettings::read(collect);
     }();
     
     static constexpr auto default_excludes = std::array{

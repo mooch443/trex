@@ -1055,12 +1055,9 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         
         pybind11::dict d;
         
-        auto size = GlobalSettings::read_value<cmn::Size2>("video_size");
-        auto w = size ? size->width : 1,
-             h = size ? size->height : 1;
-
-        d["width"] = w;
-        d["height"] = h;
+        auto size = GlobalSettings::read_value_with_default("video_size", cmn::Size2{1, 1});
+        d["width"] = size.width;
+        d["height"] = size.height;
         
         return d;
     });
@@ -1252,17 +1249,8 @@ void PythonIntegration::init() {
     //! set new thread ID. we expect everything to happen from this thread now.
     _saved_id = std::this_thread::get_id();
     
-    if(file::DataLocation::is_registered("app"))
-        file::cd(file::DataLocation::parse("app"));
-    
-    auto trex_init = file::DataLocation::is_registered("app")
-    ? file::DataLocation::parse("app", "trex_init.py")
-    : "trex_init.py";
-    if(not trex_init.exists()) {
-        trex_init = "trex_init.py";
-    }
-    
     try {
+        const auto trex_init = file::DataLocation::parse("app", "trex_init.py");
         using namespace py::literals;
         
 #if defined(WIN32)
@@ -1288,6 +1276,7 @@ void PythonIntegration::init() {
 #endif
         
         _main = py::module::import("__main__");
+        py::module_::import("sys").attr("path").attr("insert")(0, trex_init.remove_filename().str());
         _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
             Print("set_version called with ",x," and ",physical_name," - ",has_gpu?"gpu":"no gpu");
@@ -1319,7 +1308,7 @@ void PythonIntegration::init() {
             // https://github.com/ultralytics/ultralytics/blame/c20d2654e95d4d8f1a42e106118f21ddb2762115/ultralytics/utils/torch_utils.py#L55
             // and https://github.com/workhorsy/py-cpuinfo/blob/f3f0fec58335b9699b9b294267c15f516045b1fe/cpuinfo/cpuinfo.py#L2753C18-L2753C18
             try {
-                py::exec("import sys; sys.executable = '"+std::string(default_config::conda_environment_path() / "bin" / "python")+"'");
+                py::module_::import("sys").attr("executable") = (default_config::conda_environment_path() / "bin" / "python").str();
             } catch(...) {
                 // catch problems here, but the problem is likely elsewhere so we continue...
             }
@@ -1342,7 +1331,7 @@ void PythonIntegration::init() {
         
     } catch(const UtilsException& ex) {
         fail(ex);
-        throw SoftException("Error while executing ", trex_init,". Content: ",ex.what());
+        throw SoftException("Error while initializing Python: ", ex.what());
         
     } catch(py::error_already_set& e) {
         fail(e);
@@ -1391,37 +1380,32 @@ void PythonIntegration::deinit() {
     }
 }
 
-py::module_ import_module_from_file(pybind11::module& main, const file::Path& module_file_path) {
-    // Extract directory path and module name from module_file_path
-    file::Path directory_path = module_file_path.remove_filename();
-    if(directory_path.empty()) {
-        auto mod = main.import(module_file_path.c_str());
-        mod.reload();
-        return mod;
-    }
-    
-    // Remove extension to get module name
-    file::Path module_name_path = module_file_path.has_extension("py")
-            ? module_file_path.remove_extension()
-            : module_file_path;
+static py::module_ import_module_from_file(const std::string& name, const file::Path& path) {
+    auto sys = py::module_::import("sys");
+    auto paths = sys.attr("path");
+    auto directory = py::str(path.remove_filename().str());
+    if(not paths.contains(directory))
+        paths.attr("insert")(1, directory);
 
-    py::module_ sys = main.import("sys");
-    py::list original_sys_path = sys.attr("path").cast<py::list>(); // Save original sys.path
-    sys.attr("path").attr("append")(directory_path.str()); // Temporarily add new path
-
-    py::module_ mod;
+    auto util = py::module_::import("importlib.util");
+    auto spec = util.attr("spec_from_file_location")(name, path.str());
+    auto modules = sys.attr("modules").cast<py::dict>();
+    auto key = py::str(name);
+    py::object previous;
+    if(modules.contains(key))
+        previous = modules[key];
+    auto mod = util.attr("module_from_spec")(spec);
+    modules[key] = mod;
     try {
-        auto filename = module_name_path.filename();
-        mod = main.import(filename.c_str());
-        mod.reload();
-    } catch (py::error_already_set& e) {
-        std::cerr << "Failed to import module: " << e.what() << std::endl;
-        e.restore();
-        mod = py::none(); // Set to None to indicate failure
+        spec.attr("loader").attr("exec_module")(mod);
+        return mod.cast<py::module_>();
+    } catch(...) {
+        if(previous)
+            modules[key] = previous;
+        else
+            modules.attr("pop")(key, py::none());
+        throw;
     }
-
-    sys.attr("path") = original_sys_path; // Restore original sys.path
-    return mod;
 }
 
 bool PythonIntegration::has_loaded_module(const std::string &name) {
@@ -1441,40 +1425,37 @@ bool PythonIntegration::check_module(const std::string& name,
     std::unique_lock guard{module_mutex};
     bool result = false;
     
-    auto cwd = file::cwd().canonical();
-    auto app = file::DataLocation::parse("app").canonical();
-    if(not cwd || not app || *cwd != *app) {
-        FormatWarning("check_module:CWD: ", cwd, " app:", app);
-        if(app)
-            file::cd(*app);
-    }
-        
-    auto filename = app ? (*app / name).add_extension("py") : file::Path(name).add_extension("py");
-    if(not filename.exists())
-        throw U_EXCEPTION("Cannot find the file ", filename, ". Please make sure your TRex installation is not damaged.");
-    
+    const auto module_path = file::Path(name).add_extension("py");
+    const bool from_file = module_path.is_absolute();
+    const auto filename = from_file ? module_path : file::DataLocation::parse("app", module_path);
+
     auto c = filename.read_file();
     if (c != _module_contents[name] || CHECK_NONE(_modules[name])) {
         auto& mod = _modules[name];
 
         try {
-            if (CHECK_NONE(mod)) {
-                mod = import_module_from_file(_main, filename);
-                //mod = _main.import(name.c_str());
+            if(CHECK_NONE(mod)) {
+                mod = from_file ? import_module_from_file(name, filename) : _main.import(name.c_str());
             } else if(unloader) {
                 guard.unlock();
                 unloader();
                 guard.lock();
-                
-                mod.reload();
+                if(from_file)
+                    mod.attr("__spec__").attr("loader").attr("exec_module")(mod);
+                else
+                    mod.reload();
             }
             Print("Reloaded ",filename,".");
             result = true;
         }
         catch (pybind11::error_already_set & e) {
-            FormatExcept("Python runtime exception while reloading ",name,": ", e.what());
-            e.restore();
-            mod.release();
+            if(not CHECK_NONE(mod)) {
+                auto modules = py::module_::import("sys").attr("modules");
+                if(modules.attr("get")(name).is(mod))
+                    modules.attr("pop")(name);
+                mod = py::module_{};
+            }
+            throw SoftException("Python runtime exception while loading ", filename, ": ", e.what());
         }
 
         _module_contents[name] = c;
@@ -2283,18 +2264,7 @@ void PythonIntegration::execute(const std::string& cmd, bool safety_check)  {
     }
 }
 void PythonIntegration::import_module(const std::string& name) {
-    check_correct_thread_id();
-    
-    std::lock_guard<std::mutex> guard(module_mutex);
-    _module_contents[name] = file::Path(name + ".py").read_file();
-
-    try {
-        _modules[name] = _main.import(name.c_str());
-    }
-    catch (pybind11::error_already_set & e) {
-        _modules[name].release();
-        throw SoftException(e.what());
-    }
+    check_module(name);
 }
 
 void PythonIntegration::unload_module(const std::string& name) {

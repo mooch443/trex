@@ -1,6 +1,7 @@
 #include <commons.pc.h>
 
 #include "gtest/gtest.h"
+#include <misc/Path.h>
 
 #include "segmenter_test_utils.h"
 
@@ -152,7 +153,7 @@ void configure_conversion_settings(const TempWorkspace& ws, const std::vector<st
     const auto output_dir = ws.root / "output";
 
     SETTING(output_dir) = Path(output_dir.string());
-    SETTING(filename) = Path("synthetic_segment");
+    SETTING(filename) = file::Filename("synthetic_segment");
     SETTING(source) = PathArray(source_paths);
     SETTING(detect_type) = ObjectDetectionType_t{ObjectDetectionType::none};
     SETTING(track_background_subtraction) = false;
@@ -218,7 +219,7 @@ std::string run_conversion(size_t frame_count, bool set_terminate_flags = false)
 
         segmenter.start();
 
-        if (future.wait_for(kWaitDeadline) != std::future_status::ready) {
+        if (not cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(future)) {
             ADD_FAILURE() << "Timed out waiting for the conversion to finish or fail.";
             return "timeout";
         }
@@ -250,7 +251,7 @@ TEST(PrecomputedBackground, BinaryPlaceholderUnpausesThePipeline) {
         tile.images.push_back(Image::Make(1, 1, 3));
         pipeline.enqueue(std::move(tile));
     });
-    EXPECT_EQ(enqueued.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    EXPECT_TRUE(cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(5)}>(enqueued));
     pipeline.set_paused(false);
     enqueued.get();
     pipeline.clean_up();
@@ -306,7 +307,7 @@ TEST(HeadlessExit, ErrorCallbackSetsTerminateFlags) {
     /// released promptly once the error callback fired.
     const auto deadline = std::chrono::steady_clock::now() + kWaitDeadline;
     while (!BOOL_SETTING(terminate) && std::chrono::steady_clock::now() < deadline)
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(10ms);
 
     EXPECT_TRUE(BOOL_SETTING(terminate));
     EXPECT_TRUE(BOOL_SETTING(error_terminate));
@@ -317,7 +318,7 @@ namespace {
 void run_work_queue_failure_case(std::function<void()> throwing_task) {
     auto future = gui::WorkProgress::add_queue("failing task", std::move(throwing_task));
 
-    ASSERT_EQ(future.wait_for(kWaitDeadline), std::future_status::ready)
+    ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(future))
         << "The work queue never finished the throwing task.";
     future.get();
 

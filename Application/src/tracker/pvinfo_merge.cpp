@@ -38,8 +38,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     file::DataLocation::register_path("merge", [](const sprite::Map& map, file::Path filename) -> file::Path {
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-            if(GlobalSettings::is_runtime_quiet(&map))
-                Print("Returning absolute path ", filename.str(), ". We cannot be sure this is writable.");
+            //if(GlobalSettings::is_runtime_quiet(&map))
+            //    Print("Returning absolute path ", filename.str(), ". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -71,7 +71,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         resolution += Size2(file->header().resolution);
         backgrounds.push_back(std::make_shared<Background>(Bounds(Size2(file->average())), Image::Make(file->average()), file->header().encoding));
 
-        SETTING(filename) = name.remove_extension();
+        SETTING(filename) = file::Filename(name.remove_extension().filename());
         auto settings_file = file::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
             Print("settings for ", name.str(), " found");
@@ -83,10 +83,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 .target = &config.values
             });
             if(file->header().metadata.has_value())
-                sprite::parse_values(sprite::MapSource{file->filename()}, config.values, file->header().metadata.value(), nullptr, {}, default_config::deprecations());
-            if(!config.has("meta_real_width") || config.at("meta_real_width").value<Float2_t>() == 0)
+                sprite::parse_values(sprite::MapSource{file->filename()}, config.values, file->header().metadata.value(), nullptr, {"filename"}, default_config::deprecations());
+            if(config.values.value_with_default("meta_real_width", Float2_t(0)) == 0)
                 config.values["meta_real_width"].value<Float2_t>(30);
-            if(!config.has("cm_per_pixel") || config.at("cm_per_pixel").value<Float2_t>() == 0)
+            if(config.values.value_with_default("cm_per_pixel", Float2_t(0)) == 0)
                 config.values["cm_per_pixel"] = Float2_t(config.at("meta_real_width").value<Float2_t>() / Float2_t(file->average().cols));
 
             cms_per_pixel[file.get()] = config.at("cm_per_pixel").value<Float2_t>();
@@ -148,7 +148,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     if(READ_SETTING(frame_rate, uint32_t) == 0) {
         if(files.front()->header().metadata.has_value())
             GlobalSettings::write([&](Configuration& config) {
-                sprite::parse_values(sprite::MapSource{files.front()->filename()}, config.values, files.front()->header().metadata.value(), nullptr, {}, default_config::deprecations());
+                sprite::parse_values(sprite::MapSource{files.front()->filename()}, config.values, files.front()->header().metadata.value(), nullptr, {"filename"}, default_config::deprecations());
             });
     }
 

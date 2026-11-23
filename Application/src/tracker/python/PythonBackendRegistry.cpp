@@ -1,6 +1,6 @@
 #include <tracking/RecTask.h>
 
-#include <file/DataLocation.h>
+#include <core/SettingsPaths.h>
 #include <misc/GlobalSettings.h>
 #include <python/PythonBackendRegistry.h>
 #include <python/GPURecognition.h>
@@ -23,8 +23,8 @@ void init_tracking_recognition() {
         using py = track::PythonIntegration;
 
         py::import_module(tagwork);
-        auto path = READ_SETTING(tags_model_path, file::Path);
-        if(path.empty() || !path.exists()) {
+        auto path = settings::resolve_output_path(READ_SETTING(tags_model_path, file::Path));
+        if(path.empty() || not path.is_regular()) {
             throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_trex.html#tags_model_path` for more information.");
         }
         py::set_variable("model_path", path.str(), tagwork);

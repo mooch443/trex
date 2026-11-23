@@ -36,7 +36,7 @@ void configure_segmenter_case(const TempWorkspace& ws,
     const auto output_dir = ws.root / "output";
 
     SETTING(output_dir) = Path(output_dir.string());
-    SETTING(filename) = Path("synthetic_segment");
+    SETTING(filename) = file::Filename("synthetic_segment");
     SETTING(source) = PathArray(source_paths);
     SETTING(detect_type) = ObjectDetectionType_t{ObjectDetectionType::background_subtraction};
     SETTING(track_background_subtraction) = true;
@@ -74,7 +74,7 @@ void run_configured_segmenter_to_completion(bool start_over) {
         ASSERT_NO_THROW(segmenter.open_video());
         ASSERT_NO_THROW(segmenter.start());
 
-        ASSERT_EQ(future.wait_for(std::chrono::seconds(60)), std::future_status::ready)
+        ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(60)}>(future))
             << "Timed out waiting for headless conversion to finish.";
 
         const std::string status = future.get();
@@ -297,7 +297,7 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
                               std::optional<Range<long_t>> video_conversion_range = std::nullopt)
     {
         configure_segmenter_case(ws, source_paths, video_conversion_range, GetParam());
-        SETTING(filename) = filename;
+        SETTING(filename) = file::Filename(filename.filename());
         run_configured_segmenter_to_completion(start_over);
     };
 
@@ -385,6 +385,15 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
     ASSERT_TRUE(output_pv.delete_file());
 }
 
+TEST(SegmenterInputTest, OpeningMixedPvAndRawFilesThrowsBeforeConversion) {
+    register_data_locations_once();
+    reset_global_settings();
+    SETTING(source) = PathArray{R"(["recording.pv","video.mp4"])"};
+
+    Segmenter segmenter([]() {});
+    EXPECT_THROW(segmenter.open_video(), std::invalid_argument);
+}
+
 TEST(SegmenterExistingOutputTest, InvalidPvRequiresExplicitStartOver) {
     register_data_locations_once();
     reset_global_settings();
@@ -441,7 +450,7 @@ TEST(SegmenterExistingOutputTest, LoadContextLoadsExistingPvAndClearsDerivedFile
     EXPECT_EQ(READ_SETTING(source, PathArray), PathArray(output_pv));
     EXPECT_EQ(READ_SETTING(detect_type, ObjectDetectionType_t),
               ObjectDetectionType_t{ObjectDetectionType::background_subtraction});
-    EXPECT_TRUE(READ_SETTING(filename, Path).empty());
+    EXPECT_TRUE(READ_SETTING(filename, file::Filename).path().empty());
 
     const auto changed_defaults = GlobalSettings::read(
         [](const sprite::Map&, const sprite::Map& with_config) {
@@ -460,7 +469,7 @@ TEST_P(SegmenterMetaEncodingTest, GrayscaleSourceProducesThreeChannelGrayPng) {
     const fs::path output_average = ws.root / "output" / "average_grayscale_segment.png";
 
     configure_segmenter_case(ws, source_paths, std::nullopt, GetParam());
-    SETTING(filename) = output_base;
+    SETTING(filename) = file::Filename(output_base.filename());
     run_configured_segmenter_to_completion(true);
 
     const auto average = cv::imread(output_average.string(), cv::IMREAD_UNCHANGED);
@@ -520,12 +529,12 @@ TEST(SegmenterAverageGenerationTest, ConversionRangeCanChangeGeneratedAverage) {
 
     configure_segmenter_case(
         ws, source_paths, Range<long_t>{0, 4}, meta_encoding_t::rgb8);
-    SETTING(filename) = partial_base;
+    SETTING(filename) = file::Filename(partial_base.filename());
     run_configured_segmenter_to_completion(true);
 
     configure_segmenter_case(
         ws, source_paths, std::nullopt, meta_encoding_t::rgb8);
-    SETTING(filename) = full_base;
+    SETTING(filename) = file::Filename(full_base.filename());
     run_configured_segmenter_to_completion(true);
 
     const auto partial = cv::imread(partial_average.string(), cv::IMREAD_UNCHANGED);

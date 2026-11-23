@@ -114,6 +114,10 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawAnnotationExportOptions;
 }
 
+namespace trex_module_smoke::trex_ui::track {
+using ::track::Tracker;
+}
+
 // ui/DrawDetectAnnotationImportOptions.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawDetectAnnotationImportOptions;
@@ -123,10 +127,6 @@ using ::cmn::gui::DrawDetectAnnotationImportOptions;
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawDataset;
 using ::cmn::gui::StaticText;
-}
-
-namespace trex_module_smoke::trex_ui::track {
-using ::track::Tracker;
 }
 
 // ui/DrawExportOptions.h

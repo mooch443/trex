@@ -9,6 +9,7 @@
 #include <misc/bid.h>
 #include <misc/colors.h>
 #include <core/DetectionTypes.h>
+#include <core/SettingsPaths.h>
 #include <core/Border.h>
 #include <core/TrackingSettings.h>
 #include <pv.h>
@@ -302,7 +303,7 @@ static void apply_tracklet_export_difference_images(const Deprecation& obj, std:
     GlobalSettings::load_from_string(r+" = "+Meta::toStr(value)+"\n", options);
 }
 
-static inline const Deprecations deprecated = Deprecations({
+static inline const auto deprecated = std::make_shared<const Deprecations>(std::initializer_list<Deprecations::Entry>{
         {"analysis_paused", "track_pause"},
         {"meta_classes", "detect_classes"},
         {"meta_skeleton", "detect_skeleton"},
@@ -661,54 +662,9 @@ file::Path conda_environment_path() {
 }
     
     const Deprecations& deprecations() {
-        return deprecated;
+        return *deprecated;
     }
     
-    void warn_deprecated(const file::Path& source, sprite::Map& map) {
-        std::map<std::string_view, std::string> found;
-        
-        for(auto &key : map.keys()) {
-            if(is_deprecated(key)) //!TODO: check what this does (toStr)
-                found.insert({key, map.operator[](key).toStr()});
-        }
-        
-        warn_deprecated(source, found);
-    }
-    
-    template<typename StringType>
-    void warn_deprecated(const file::Path& source, const std::map<StringType, std::string>& keys) {
-        bool found = false;
-        for (auto && [key, val] : keys) {
-            if(is_deprecated(key)) {
-                found = true;
-                
-                auto r = replacement(key);
-                if(r.empty()) {
-                    FormatWarning("[",source.c_str(),"] Setting ",key," has been removed from the tracker (with no replacement) and will be ignored.");
-                } else
-                    FormatExcept("[",source.c_str(),"] Setting ",key," is deprecated. Please use its replacement parameter ",r," instead.");
-            }
-        }
-        
-        if(found)
-            Print("Found invalid settings in source ",source," (see above).");
-    }
-
-template void warn_deprecated(const file::Path& source, const std::map<std::string_view, std::string>& keys);
-template void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
-    
-    bool is_deprecated(std::string_view key) {
-        return deprecated.is_deprecated(key);
-    }
-    
-    std::string replacement(std::string_view key) {
-        if (not is_deprecated(key)) {
-            throw U_EXCEPTION("Key ",key," is not deprecated.");
-        }
-        
-        return deprecated.deprecations.at(utils::lowercase(key)).replacement.value();
-    }
-
 #define PYTHON_TIPPS ""
 #ifdef WIN32
 #define PYTHON_TIPPS " (containing pythonXX.exe)"
@@ -764,6 +720,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         using namespace settings;
         Adding adding(config);
+        config.deprecations = deprecated;
         
         CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
         CONFIG("quiet", false, "Disables most terminal outputs.", SYSTEM);
@@ -777,11 +734,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("build_cxx_options", std::string(g_TREX_BUILD_CXX_OPTIONS), "The mode the application was built in.", SYSTEM);
         CONFIG("build", std::string(), "Current build version", SYSTEM);
         CONFIG("cmd_line", std::string(), "An approximation of the command-line arguments passed to the program.", SYSTEM);
-        CONFIG("wd", file::Path(), "Working directory that the software was started from (defaults to the user directory).", SYSTEM);
+        CONFIG("wd", file::Path(), "Application directory used to locate bundled resources.", SYSTEM);
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
         CONFIG("blobs_per_thread", 150.f, "Number of blobs for which properties will be calculated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
-        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. A basename is placed below `output_dir` / `output_prefix`. In the GUI, directory components in a relative value are removed; a headless run rejects such a value. An absolute value selects its exact destination and overrides `output_dir` and `output_prefix`.", LOAD);
+        CONFIG("filename", file::Filename{}, "Name of the converted video (.pv), without directory components. Use `output_dir` to choose the output directory and `output_prefix` to choose a subdirectory.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
         CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_fields`).");
@@ -1120,7 +1077,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
-        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you. An explicit absolute `filename` overrides this value.", INIT);
+        CONFIG("output_prefix", std::string(), "Optional subdirectory for output files under `output_dir`. The output directory is usually the folder containing the source video. The prefix also applies when `filename` is absolute.", INIT);
         CONFIG("output_auto_pose", true, "Automatically adds pose coordinate (X/Y) and visibility (V) fields to `output_fields` based on what the keypoint model reports. Generated fields use `poseX_<name>`, `poseY_<name>`, and `poseV_<name>` for named keypoints, or `poseX0`, `poseY0`, and `poseV0` for an unnamed keypoint at index 0 (and similarly for other indices). Set this to false to disable automatic field generation; fields can still be added manually.");
         CONFIG("output_auto_detection_fields", true, "If set to true then this will automatically add fields like `detection_p` to the output files saved by TRex. You can also set this to false and add them manually if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV or NPZ, or shown in the graph. `[['X',[option], ...]]` Exact duplicate field, modifier, and calculation selections are used once; modifier order does not make an otherwise identical selection distinct. CSV always contains exactly one leading `frame` column, regardless of whether `frame` is listed here. NPZ contains one `frame` array when it is configured.");
@@ -1552,7 +1509,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 auto& metadata = video->header().metadata;
                 if(metadata.has_value()) {
                     GlobalSettings::write([&](Configuration& config) {
-                        sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata.value(), & config.values, {}, default_config::deprecations());
+                        sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata.value(), & config.values, {"filename"}, default_config::deprecations());
                     });
                 }
                 /*if(tmp.has("meta_source_path")
@@ -1630,6 +1587,9 @@ inline bool isRunningInAppBundle() {
     
     void register_default_locations() {
         file::DataLocation::register_path("app", [](const sprite::Map& map, file::Path path) -> file::Path {
+            if(path.is_absolute())
+                return settings::resolve_file_path(path);
+
             auto wd = map.at("wd").value<file::Path>();
 #if defined(TREX_CONDA_PACKAGE_INSTALL)
             auto conda_prefix = ::default_config::conda_environment_path();
@@ -1641,9 +1601,7 @@ inline bool isRunningInAppBundle() {
                 wd = wd / ".." / "Resources";
             }
 #endif
-            if(path.empty())
-                return wd;
-            return wd / path;
+            return settings::resolve_file_path(path.empty() ? wd : wd / path);
         });
         
         file::DataLocation::register_path("default.settings", [](const sprite::Map& map, file::Path) -> file::Path {
@@ -1658,7 +1616,7 @@ inline bool isRunningInAppBundle() {
             if(path.empty())
                 path = map.at("settings_file").value<Path>();
             if(path.empty()) {
-                path = map.at("filename").value<Path>();
+                path = map.at("filename").value<file::Filename>().path();
                 if(path.has_extension("pv"))
                     path = path.remove_extension();
             }
@@ -1681,12 +1639,12 @@ inline bool isRunningInAppBundle() {
                 
                 return settings_file;
             } else {
-                return path;
+                return settings::resolve_file_path(path);
             }
         });
         
         file::DataLocation::register_path("output_settings", [](const sprite::Map& map, file::Path) -> file::Path {
-            file::Path settings_file = map.at("filename").value<Path>().filename();
+            file::Path settings_file = map.at("filename").value<file::Filename>().path();
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file is an empty string.");
             
@@ -1697,7 +1655,7 @@ inline bool isRunningInAppBundle() {
         });
         
         file::DataLocation::register_path("backup_settings", [](const sprite::Map& map, file::Path) -> file::Path {
-            file::Path settings_file(map.at("filename").value<Path>().filename());
+            file::Path settings_file(map.at("filename").value<file::Filename>().path());
             if(settings_file.empty())
                 throw U_EXCEPTION("settings_file (and like filename) is an empty string.");
             
@@ -1708,25 +1666,13 @@ inline bool isRunningInAppBundle() {
         });
         
         file::DataLocation::register_path("input", [](const sprite::Map& map, file::Path filename) -> file::Path {
-            if(filename.empty())
-                return {};
-            if(not filename.empty() && filename.is_absolute()) {
-#ifndef NDEBUG
-                if(!GlobalSettings::is_runtime_quiet(&map))
-                    Print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
-#endif
-                return filename;
-            }
+            if(filename.empty() || filename.is_absolute())
+                return settings::resolve_file_path(filename);
             
-            auto path = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
-            if(path.empty()) {
-                auto d = map.has("output_dir") ? map.at("output_dir").value<file::Path>() : file::Path{};
-                if(d.empty())
-                    return filename;
-                else
-                    return (d / filename);
-            } else
-                return (path / filename);
+            auto base = CommandLine::instance().launch_dir();
+            if(base.empty())
+                base = map.value_with_default("output_dir", file::Path{});
+            return settings::resolve_file_path(base / filename);
         });
         
         file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path
@@ -1734,60 +1680,101 @@ inline bool isRunningInAppBundle() {
             if(filename.empty())
                 return {};
             
-            auto prefix = map.has("output_prefix")
-                            ? map.at("output_prefix").value<std::string>()
-                            : std::string{};
-            auto output_path = map.has("output_dir")
-                            ? map.at("output_dir").value<file::Path>()
-                            : file::Path{};
+            auto prefix = map.value_with_default("output_prefix", std::string{});
+            auto output_path = map.value_with_default("output_dir", file::Path{});
             auto absolute = filename.is_absolute();
             
+            std::optional<std::vector<file::Path>> components;
+            
             if(output_path.empty()) {
-                auto source = map.has("source")
-                            ? map.at("source").value<file::PathArray>()
-                            : file::PathArray{};
+                auto source = map.value_with_default("source", file::PathArray{});
                 auto base = file::find_parent(source);
-                if(not base || base->empty() || source.source() == "webcam") {
-                    auto launch = CommandLine::instance().launch_dir();
-                    output_path = launch.empty()
-                                    ? (map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{})
-                                    : launch;
-                } else {
-                    output_path = base.value();
-                }
+                if(base && source.source() != "webcam")
+                    output_path = *base;
             }
+            if(not output_path.is_absolute())
+                output_path = CommandLine::instance().launch_dir() / output_path;
             
             //! an output file is specified, we want to change whatever folder
             //! the input comes from to whatever folder we want to write to:
             if(not absolute) {
                 //! file is not an absolute path
                 if(not output_path.empty()) {
-                    filename = output_path / filename;
-                } else {
-                    /// QUESTIONABLE: we might want to include / and \ again, but
-                    /// right now this is turning it into /webcam a lot of the time.
-                    if(auto wd = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
-                       not is_in(wd, "", "/", "\\"))
-                    {
-                        filename = wd / filename;
+                    if(not prefix.empty()) {
+                        components = std::vector<file::Path>{
+                            output_path,
+                            file::Path(prefix),
+                            filename
+                        };
+                    } else {
+                        components = std::vector<file::Path>{
+                            output_path,
+                            filename
+                        };
                     }
+                    //filename = output_path / filename;
                 }
                 
             } else if(not filename.has_extension("pv")) {
-                if(not output_path.empty())
-                    filename = output_path / filename.filename();
+                if(not output_path.empty()) {
+                    if(not prefix.empty()) {
+                        components = {
+                            output_path,
+                            file::Path(prefix),
+                            file::Path(filename.filename())
+                        };
+                    } else {
+                        components = {
+                            output_path,
+                            file::Path(filename.filename())
+                        };
+                    }
+                    //filename = output_path / filename.filename();
+                }
             }
             
-            if(!prefix.empty()) {
+            if(not components) {
+                if(not prefix.empty()
+                   && not absolute)
+                {
+                    components = std::vector<file::Path>{
+                        file::Path(prefix),
+                        filename
+                    };
+                } else if(prefix.empty()) {
+                    components = std::vector<file::Path>{
+                        filename
+                    };
+                } else {
+                    /// implicitly this means the same as setting the `output_dir` => /absolute/path/
+                    components = std::vector<file::Path>{
+                        filename.remove_filename(),
+                        file::Path(prefix),
+                        filename.filename()
+                    };
+                }
+            }
+            
+            filename = {};
+            for(auto &element : *components) {
+                if(filename.empty())
+                    filename = element;
+                else
+                    filename = filename / element;
+            }
+            
+            /*if(not prefix.empty()) {
                 //! insert a prefix in between the filename and the path
                 if(not filename.remove_filename().empty()
                    && not absolute)
+                {
                     filename = filename.remove_filename() / prefix / filename.filename();
-                else if(not absolute)
+                } else if(not absolute) {
                     filename = prefix / filename;
-                else
+                } else {
                     filename = filename.remove_filename() / prefix / filename.filename();
-            }
+                }
+            }*/
             
             /*if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
@@ -1797,7 +1784,7 @@ inline bool isRunningInAppBundle() {
                 return filename;
             }*/
             
-            return filename;
+            return settings::resolve_file_path(filename);
         });
     }
 

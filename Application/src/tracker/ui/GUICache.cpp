@@ -429,7 +429,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
     }
     
     if(_next_tracklet.valid()
-       && _next_tracklet.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+       && cmn::is_future_ready(_next_tracklet))
     {
         _global_tracklet_order = _next_tracklet.get();
         _loading->last_consecutive_update.reset();
@@ -506,7 +506,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 /// nudge the preloader:
                 auto maybe_frame = _load_frames_blocking //&& _mistakes_count >= 1u
                     ? _loading->preloader.load_exactly(frameIndex)
-                    : _loading->preloader.get_frame(frameIndex, std::chrono::milliseconds(0));
+                    : _loading->preloader.get_frame(frameIndex, 0ms);
                 
                 _loading->preloader.notify();
                 // _preloader.get_frame(frameIndex, Frame_t(saturate(static_cast<uint8_t>(GUI_SETTINGS(gui_playback_speed)), 1, 255)), std::chrono::milliseconds(50));

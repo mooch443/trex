@@ -27,8 +27,23 @@ namespace track {
 Timer start_timer;
 
 file::Path average_name() {
-    auto path = file::DataLocation::parse("output", "average_" + (std::string)READ_SETTING(filename, file::Path).filename() + ".png");
+    auto path = file::DataLocation::parse("output", "average_" + READ_SETTING(filename, file::Filename).str() + ".png");
     return path;
+}
+
+static file::Path raw_movie_path(const file::Path& output_file_path) {
+    auto path = GlobalSettings::read([](const Configuration& config) {
+        const auto requested = config.at("save_raw_movie_path").value<file::Path>();
+        if(requested.empty() || requested.is_absolute())
+            return settings::resolve_file_path(requested);
+        return file::DataLocation::parse("output", requested, &config.values);
+    });
+    if(not path.empty())
+        path = path.absolute();
+    if(path.empty() || not path.remove_filename().is_folder())
+        path = output_file_path;
+
+    return (path.has_extension() ? path.replace_extension("mp4") : path.add_extension("mp4")).absolute();
 }
 
 UninterruptableStep::UninterruptableStep(std::string_view name, std::string_view subname, ManagedThread&& thread) {
@@ -154,7 +169,7 @@ void UninterruptableStep::terminate_wait_blocking() {
         } else
             break;
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(1ms);
     }
     
     terminate();
@@ -212,7 +227,7 @@ void GeneratorStep::terminate_wait_blocking(UninterruptableStep& next_step) {
         }
 
         // wait a bit...
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(1ms);
     }
     
     for(auto &item : items)
@@ -277,7 +292,7 @@ Segmenter::~Segmenter() {
                     video = _output_file.get();
                 }
                 else {
-                    _video = pv::File::Make(_output_file_name);
+                    _video = pv::File::Make(_output_file_path);
                     video = _video.get();
                 }
 
@@ -352,8 +367,8 @@ bool Segmenter::is_finite() const {
     return _overlayed_video->source()->is_finite();
 }
 
-file::Path Segmenter::output_file_name() const {
-	return _output_file_name;
+file::Path Segmenter::output_file_path() const {
+	return _output_file_path;
 }
 
 bool Segmenter::is_average_generating() const {
@@ -438,8 +453,9 @@ std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
 void Segmenter::set_metadata() {
     auto config = default_config::generate_delta_config(AccessLevelType::LOAD);
     sprite::Map diff;
-    for(auto &[key, value] : config.map)
+    for(auto &[key, value] : config.map) {
         value->copy_to(diff);
+    }
     _output_file->set_metadata(std::move(diff));
     
     pv::Header::ConversionRange_t conversion_range;
@@ -512,10 +528,10 @@ void Segmenter::open_output_file() {
     
     if((not start_over
         || not start_over.value())
-       && _output_file_name.add_extension("pv").exists())
+       && _output_file_path.add_extension("pv").exists())
     {
         try {
-            _output_file = pv::File::Make<pv::FileMode::MODIFY>(_output_file_name, meta_encoding);
+            _output_file = pv::File::Make<pv::FileMode::MODIFY>(_output_file_path, meta_encoding);
             _output_file->print_info();
             auto &r = _output_file->header().conversion_range;
             if(r.start) {
@@ -547,9 +563,9 @@ void Segmenter::open_output_file() {
     
     if(not _output_file) {
         if(start_over && start_over.value())
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, meta_encoding);
+            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_path, meta_encoding);
         else
-            _output_file = pv::File::Make<pv::FileMode::WRITE>(_output_file_name, meta_encoding);
+            _output_file = pv::File::Make<pv::FileMode::WRITE>(_output_file_path, meta_encoding);
         
         std::unique_lock vlock(_mutex_video);
         _overlayed_video->reset_to_frame(_video_conversion_range.start);
@@ -705,7 +721,10 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
 }
 
 void Segmenter::open_video() {
-    VideoSource video_base(READ_SETTING(source, file::PathArray));
+    auto source = READ_SETTING(source, file::PathArray);
+    if(auto error = settings::video_source_error(source))
+        throw InvalidArgumentException(*error);
+    VideoSource video_base(source);
     video_base.set_colors(ImageMode::RGB);
     const auto video_base_length = video_base.length();
     
@@ -714,21 +733,21 @@ void Segmenter::open_video() {
     if(READ_SETTING(frame_rate, uint32_t) <= 0)
         SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
     
-    /*if (READ_SETTING(filename, file::Path).empty()) {
+    /*if (READ_SETTING(filename, file::Filename).path().empty()) {
         throw U_EXCEPTION("Filename was empty for converting a video.");
         SETTING(filename) = file::DataLocation::parse("output", file::Path(file::Path(video_base.base()).filename()));
     }
     
-    _output_file_name = READ_SETTING(filename, file::Path);*/
-    _output_file_name = GlobalSettings::read([](const Configuration& config) {
+    _output_file_name = READ_SETTING(filename, file::Filename).path();*/
+    _output_file_path = GlobalSettings::read([](const Configuration& config) {
         return settings::find_output_name(config.values);
     });
     
-    Print("source = ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
-    Print("output = ", _output_file_name);
-    Print("video_base = ", video_base.base());
-    Print("length = ", video_base.length());
-    Print("frame_rate = ", video_base.framerate());
+    prefixed_print("convert", "source = ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
+    prefixed_print("convert", "output to ", _output_file_path);
+    prefixed_print("convert", "video_base = ", video_base.base());
+    prefixed_print("convert", "length = ", video_base.length());
+    prefixed_print("convert", "frame_rate = ", video_base.framerate());
 
     setDefaultSettings();
     
@@ -771,11 +790,12 @@ void Segmenter::open_video() {
 
     _start_time = std::chrono::system_clock::now();
     //_output_file_name = file::DataLocation::parse("output", READ_SETTING(filename, file::Path));
-    DebugHeader("Output: ", _output_file_name);
+    DebugHeader("Output: ", _output_file_path);
     
     init_undistort_from_settings();
 
-    auto path = _output_file_name.remove_filename();
+    /// assumed to be canonical at this point, given `find_output_name` uses datalocation::parse
+    auto path = _output_file_path.remove_filename();
     if (not path.exists()) {
         path.create_folder();
     }
@@ -795,11 +815,9 @@ void Segmenter::open_camera() {
     //const auto encoding = Background::meta_encoding();
     //const uint8_t channels = required_image_channels(encoding);
 
-    if(READ_SETTING(filename, file::Path).empty()) {
-        SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
-            return settings::find_output_name(config.values);
-        });
-    }
+    _output_file_path = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_output_name(config.values);
+    });
     
     if(source == file::PathArray("webcam") || use_basler) {
         //if(not CommandLine::instance().settings_keys().contains("detect_model"))
@@ -813,10 +831,10 @@ void Segmenter::open_camera() {
     setDefaultSettings();
     
     _start_time = std::chrono::system_clock::now();
-    _output_file_name = file::DataLocation::parse("output", READ_SETTING(filename, file::Path));
-    DebugHeader("Output: ", _output_file_name);
+    DebugHeader("Output: ", _output_file_path);
 
-    auto path = _output_file_name.remove_filename();
+    /// expecting canonical name here
+    auto path = _output_file_path.remove_filename();
     if (not path.exists()) {
         path.create_folder();
     }
@@ -826,20 +844,9 @@ void Segmenter::open_camera() {
         SETTING(meta_video_size) = camera.size();
         
         if(BOOL_SETTING(save_raw_movie)) {
-            auto path = output_file_name();
-            if (not READ_SETTING(save_raw_movie_path, file::Path).empty()
-                && READ_SETTING(save_raw_movie_path, file::Path).remove_filename().exists())
-            {
-                path = READ_SETTING(save_raw_movie_path, file::Path);
-            }
-            
-            if(path.has_extension())
-                path = path.replace_extension("mp4");
-            else
-                path = path.add_extension("mp4");
-            
-            SETTING(save_raw_movie_path) = path.absolute();
-            SETTING(meta_source_path) = path.absolute().str();
+            const auto path = raw_movie_path(output_file_path());
+            SETTING(save_raw_movie_path) = path;
+            SETTING(meta_source_path) = path.str();
             SETTING(meta_video_scale) = 1.f;
         }
         
@@ -978,20 +985,9 @@ void Segmenter::start_recording_ffmpeg() {
 #if WITH_FFMPEG
     if(BOOL_SETTING(save_raw_movie)) {
         try {
-            auto path = output_file_name();
-            if (not READ_SETTING(save_raw_movie_path, file::Path).empty()
-                && READ_SETTING(save_raw_movie_path, file::Path).remove_filename().exists())
-            {
-                path = READ_SETTING(save_raw_movie_path, file::Path);
-            }
-
-            if(path.has_extension())
-                path = path.replace_extension("mp4");
-            else
-                path = path.add_extension("mp4");
-
-            SETTING(save_raw_movie_path) = path.absolute();
-            SETTING(meta_source_path) = path.absolute().str();
+            const auto path = raw_movie_path(output_file_path());
+            SETTING(save_raw_movie_path) = path;
+            SETTING(meta_source_path) = path.str();
             SETTING(meta_video_scale) = 1.f;
         
             _queue = std::make_unique<FFMPEGQueue>(true,
@@ -1051,7 +1047,7 @@ bool GeneratorStep::update(UninterruptableStep& next_step) {
             // so we are still waiting... can only go in order
             // of course, since we are processing chronological order
             // (a freaking movie)
-            if(future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+            if(cmn::is_future_ready<1ms>(future))
             {
                 // yay we can retrieve the segmentationdata!
                 try {
@@ -1349,7 +1345,7 @@ void Segmenter::stop_average_generator(bool blocking) {
     if(not blocking) {
         std::unique_lock guard(average_generator_mutex);
         if(average_generator.valid()
-            && average_generator.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+            && cmn::is_future_ready(average_generator))
         {
             try {
                 average_generator.get();
@@ -1364,7 +1360,7 @@ void Segmenter::stop_average_generator(bool blocking) {
     Timer timer;
     std::unique_lock guard(average_generator_mutex);
     while(average_generator.valid() 
-          && average_generator.wait_for(std::chrono::milliseconds(1)) != std::future_status::ready)
+          && not cmn::is_future_ready<1ms>(average_generator))
     {
         
         if(timer.elapsed() > 30) {
@@ -1372,7 +1368,7 @@ void Segmenter::stop_average_generator(bool blocking) {
             FormatExcept("Dead-lock possible in ", loc.file_name(),":", loc.line(), " with ", timer.elapsed(),"s");
             timer.reset();
         }
-        average_variable.wait_for(guard, std::chrono::milliseconds(10));
+        average_variable.wait_for(guard, 10ms);
     }
     
     if(average_generator.valid()) {
@@ -1467,7 +1463,7 @@ void Segmenter::serialize_thread() {
     while(not _tracking_step.receive(std::move(data))) {
         // retry...
         //ThreadManager::getInstance().notify(_tracking_step.tid);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(1ms);
     }
 }
 
@@ -1658,7 +1654,7 @@ void Segmenter::printDebugInformation() {
     Print("video: ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
     Print("model resolution: ", READ_SETTING(detect_resolution, DetectResolution));
     Print("output size: ", _output_size);
-    Print("output path: ", _output_file_name);
+    Print("output path: ", _output_file_path);
     Print("color encoding: ", READ_SETTING(meta_encoding, meta_encoding_t::Class));
 }
 

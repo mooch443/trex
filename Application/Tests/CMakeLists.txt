@@ -181,6 +181,10 @@ target_compile_definitions(test_detect_annotation_io PRIVATE -DTREX_TEST_FOLDER=
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     add_executable(test_detection_ml_failures test_detection_ml_failures.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
     target_compile_definitions(test_detection_ml_failures PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+    if(TARGET trex_check_python)
+        target_compile_definitions(test_detection_ml_failures PRIVATE TREX_TEST_PYTHON_PROBE_DIR="$<TARGET_FILE_DIR:trex_check_python>")
+        add_dependencies(test_detection_ml_failures trex_check_python)
+    endif()
 
     add_executable(test_headless_convert_exit test_headless_convert_exit.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
     if(APPLE)
@@ -666,6 +670,11 @@ add_test(NAME test-pvinfo-opencl-support-quiet
         -P "${CMAKE_CURRENT_SOURCE_DIR}/check_pvinfo_report.cmake"
 )
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
+if(TREX_BUILD_TOOLS)
+    add_test(NAME test-settings-docs-startup COMMAND settings_docs)
+    add_test(NAME test-term-metrics-startup COMMAND term_metrics
+        --input "${CMAKE_CURRENT_SOURCE_DIR}/../src/tools/corpus.txt" --top 1)
+endif()
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-detect-annotation-io COMMAND test_detect_annotation_io)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
@@ -697,6 +706,9 @@ endif()
 set(TEST_RUNTIME_TARGETS
     pvinfo
 )
+if(TREX_BUILD_TOOLS)
+    list(APPEND TEST_RUNTIME_TARGETS settings_docs term_metrics)
+endif()
 if(APPLE AND NOT TREX_CONDA_PACKAGE_INSTALL)
     list(APPEND TEST_RUNTIME_TARGETS trex_starter)
 endif()

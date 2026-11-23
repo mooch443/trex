@@ -3,6 +3,32 @@
 namespace track::detect {
 using namespace cmn;
 
+bool Annotation::can_place_point(Vec2 position, Size2 image_size) const {
+    // The high bit of the stored x coordinate represents visibility.
+    if(not (position.x >= 0 && position.x <= 0x7FFF
+            && position.y >= 0 && position.y <= 0xFFFF))
+    {
+        return false;
+    }
+
+    if(is_in(type, AnnotationType::POSE, AnnotationType::POINT)) {
+        // A pose uses (0, 0) for a missing keypoint.
+        return position.x < image_size.width && position.y < image_size.height
+            && (type != AnnotationType::POSE || position.x > 0 || position.y > 0);
+    }
+
+    return position.x <= image_size.width && position.y <= image_size.height;
+}
+
+bool Annotation::move_point(size_t index, Vec2 position, Size2 image_size) {
+    auto& point = points.at(index);
+    if(not can_place_point(position, image_size) || Vec2(point).Equals(position))
+        return false;
+
+    point.move_to(position);
+    return true;
+}
+
 glz::generic AnnotationMap::to_json() const {
     if(not *this)
         return glz::generic{};

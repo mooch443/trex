@@ -294,7 +294,7 @@ void DetectAnnotationScene::_draw(DrawStructure& graph) {
     }
     
     if(_frame_future.valid()) {
-        if(_frame_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) 
+        if(cmn::is_future_ready(_frame_future))
         {
             // the list of viable frames is ready
             try {
@@ -311,7 +311,7 @@ void DetectAnnotationScene::_draw(DrawStructure& graph) {
     if(not _current_image->source()
        && _next_frame.valid())
     {
-        if(_next_frame.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+        if(cmn::is_future_ready(_next_frame))
         {
             auto image = _next_frame.get();
             if(image) {
@@ -326,7 +326,7 @@ void DetectAnnotationScene::_draw(DrawStructure& graph) {
     
     if(not *_gui) {
         *_gui = DynamicGUI{
-            .gui = nullptr,
+            .gui = SceneManager::getInstance().gui_task_queue(),
             .path = "detect_annotation_layout.json",
             .context = [&](){
                 dyn::Context context;

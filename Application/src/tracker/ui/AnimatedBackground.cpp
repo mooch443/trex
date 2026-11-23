@@ -106,7 +106,7 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
 
     std::optional<std::string> meta_source_path_from_video;
     std::optional<int> video_offset_from_video;
-    std::optional<file::Path> video_output_dir, video_filename;
+    std::optional<file::Path> video_output_dir;
     std::string video_prefix_path;
     
     if (video) {
@@ -117,7 +117,7 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
             try {
                 default_config::get(combined);
                 
-                sprite::parse_values(sprite::MapSource{video->filename()}, combined.values, metadata.value(), nullptr, {}, default_config::deprecations());
+                sprite::parse_values(sprite::MapSource{video->filename()}, combined.values, metadata.value(), nullptr, {"filename"}, default_config::deprecations());
             }
             catch (...) {
                 FormatExcept("Failed to load metadata from: ", metadata.has_value() ? metadata.value() : "");
@@ -141,12 +141,9 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
             if (combined.has("meta_source_path")) {
                 meta_source_path_from_video = combined.at("meta_source_path").value<std::string>();
             }
-            if(combined.has("video_conversion_range")) {
-                auto range = combined.at("video_conversion_range").value<Range<long_t>>();
-                video_offset_from_video = range.start > -1 ? std::optional<int>{range.start} : std::nullopt;
-            } else {
-                video_offset_from_video = std::nullopt;
-            }
+            auto range = combined.values.value_with_default("video_conversion_range", Range<long_t>(-1, -1));
+            if(range.start > -1)
+                video_offset_from_video = range.start;
             
         }
         
@@ -155,9 +152,6 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
         }
         if(combined.has("output_dir")) {
             video_output_dir = combined.at("output_dir").value<file::Path>();
-        }
-        if(combined.has("filename")) {
-            video_filename = combined.at("filename").value<file::Path>();
         }
     }
     
@@ -178,13 +172,15 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
         const auto mp4_filename = file::Path(path).filename();
         const auto mp4_folder = file::Path(path).remove_filename();
         
-        if(video_filename // the filename where the video was originally made
-           && video)
+        if(video && video_output_dir)
         {
-            auto original_pv_folder = video_filename->remove_filename();
+            auto original_pv_folder = *video_output_dir;
             auto current_pv_folder = video->filename().remove_filename();
             
             try {
+                if(not original_pv_folder.empty())
+                    original_pv_folder = original_pv_folder / video_prefix_path;
+
                 namespace fs = std::filesystem;
                 file::Path rel = fs::path(fs::path(mp4_folder.str())).lexically_relative(original_pv_folder.str()).string();
                 auto abs = (current_pv_folder / rel / mp4_filename).canonical();
@@ -192,7 +188,7 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
                     result.tests.emplace(abs.value(), video_offset_from_video);
             }
             catch (const std::exception& ex) {
-                FormatWarning("Failed to resolve ", original_pv_folder, " for ", video_filename, ": ", ex.what());
+                FormatWarning("Failed to resolve ", original_pv_folder, " for ", video->filename(), ": ", ex.what());
             }
         }
         

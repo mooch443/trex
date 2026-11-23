@@ -175,7 +175,7 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
                 ptr->_please_terminate = true;
             
             while(!_task_list.empty())
-                _task_variable.wait_for(guard, std::chrono::milliseconds(1));
+                _task_variable.wait_for(guard, 1ms);
         }
         
         try {
@@ -861,6 +861,142 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         _header.average_tdelta = fps_l;
         _update_global_settings();
     }
+
+    void load_metadata_settings(sprite::Map& map, const file::Path& source,
+                                const std::string& text, SettingsFormat format,
+                                const Deprecations* deprecations)
+    {
+        map.set_print_by_default(false);
+        if(text.empty())
+            return;
+
+        /// Legacy filenames may contain directory components so we need to
+        /// first do a placeholder file::Path before we change it to file::Filename later.
+        map["filename"] = file::Path{};
+        map["output_dir"] = file::Path{};
+        map["output_prefix"] = std::string{};
+
+        auto [loaded, configured_deprecations] = GlobalSettings::read([&](const Configuration& config) {
+            static const Deprecations empty;
+            const auto* table = deprecations ? deprecations : config.deprecations.get();
+            const auto& rules = table ? *table : empty;
+            std::set<std::string> loaded;
+            if(format == SettingsFormat::LegacyResults) {
+                const auto values = GlobalSettings::load_from_string(text, {
+                    .source = source,
+                    .deprecations = rules,
+                    .access = AccessLevelType::SYSTEM,
+                    .target = &map,
+                    .additional = &config.values
+                });
+                loaded = extract_keys(values);
+            } else {
+                loaded = sprite::parse_values(sprite::MapSource{source}, map, text, &config.values, {}, rules);
+            }
+
+            return std::pair{std::move(loaded), config.deprecations};
+        });
+
+        /// we can remove these if they havent been set.
+        if(not loaded.contains("filename"))      map.erase("filename");
+        if(not loaded.contains("output_dir"))    map.erase("output_dir");
+        if(not loaded.contains("output_prefix")) map.erase("output_prefix");
+
+        if(const auto* table = deprecations ? deprecations : configured_deprecations.get();
+           table)
+        {
+            table->warn_deprecated(source.str(), loaded);
+        }
+
+        try {
+            migrate_filename(map);
+        } catch(const std::exception& e) {
+            FormatWarning("Cannot migrate filename in ", source, ": ", e.what());
+            map.erase_if("filename");
+        }
+    }
+
+void migrate_filename(sprite::Map& map) {
+    if(not map.has("filename"))
+        return;
+    if(not map.is_type<file::Path>("filename")) {
+        throw InvalidArgumentException("Can only migrate file::Paths, not if its already a file::Filename or nothing.");
+    }
+    
+    file::Path path = map.at("filename").value<file::Path>();
+    if(path.empty()) {
+        map.erase("filename");
+        return;
+    }
+    
+    const file::Filename filename(path.filename());
+    bool is_absolute = path.is_absolute();
+    
+    auto output_dir = map.value_with_default("output_dir", file::Path{});
+    auto output_prefix = map.value_with_default("output_prefix", std::string{});
+    auto canonical_path = path.canonical() ? path.canonical().value() : path;
+    
+    Print("Found ", path, " (",canonical_path,") with output_dir=",output_dir, " and prefix=",output_prefix);
+
+    if(is_absolute) {
+        auto parent = path.remove_filename();
+        parent = parent.canonical().value_or(parent);
+        
+        /// oh no, we have directory components.
+        if(not output_dir.empty()
+           && output_dir.is_absolute())
+        {
+            if(parent == (output_dir / output_prefix).canonical().value_or(output_dir / output_prefix))
+            {
+                /// fine, we already have the `output_dir` encoded in the filename
+                /// no need to adjust.
+                
+            } else {
+                /// here we do have prefix and/or output dir set, but it doesnt match
+                /// so instead we will make it match then. .pv file is imperative
+                map["output_prefix"] = std::string();
+                map["output_dir"] = file::Path(parent);
+            }
+            
+        } else {
+            /// `output_dir` is empty, lets just set it then
+            map["output_prefix"] = std::string();
+            map["output_dir"] = file::Path(parent);
+        }
+        
+    } else if(not path.remove_filename().empty()) {
+        /// its a relative path, but do we have components?
+        /// just make it match then. pv file is imperative
+        /// this could be:
+        /// d = "", p = "test", filename = "test/filename"
+        /// d = "relative/dir", p = "test", filename = "relative/dir/test/filename"
+        /// d = "/abs", p = "batch", filename = "nested/run"
+        Print("We have directory components. This is just getting weird isnt it.");
+        if(output_dir.empty()) {
+            if(output_prefix != path.remove_filename().filename()) {
+                map["output_prefix"] = std::string();
+                map["output_dir"] = file::Path(path.remove_filename());
+            } else {
+                map["output_dir"] = file::Path(path.remove_filename().remove_filename());
+            }
+        }
+    }
+    
+    map.erase("filename");
+    map["filename"] = filename;
+}
+
+    std::string settings_to_json(const sprite::Map& settings) {
+        glz::generic json = glz::generic::object_t{};
+        for(const auto& key : settings.keys()) {
+            try {
+                json[key] = settings.at(key).get().to_json();
+            } catch(const std::exception& e) {
+                FormatWarning("Cannot serialize setting ", key, ": ", e.what());
+            }
+        }
+        return Meta::toStr(json);
+    }
     
     void Header::read(DataFormat& ref) {
         std::string version_str;
@@ -1024,22 +1160,18 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 map["quiet"] = true;
                 map["meta_real_width"] = Float2_t();
                 
-                if(not metadata.empty()) {
-                    if(version <= Version::V_15) {
-                        // Legacy metadata wraps each serialized value in one extra string layer.
-                        const auto values = Meta::fromStr<std::map<std::string, std::string>>(metadata);
-                        metadata = "{";
-                        for(const auto& [key, value] : values) {
-                            if(metadata.size() > 1)
-                                metadata += ",";
-                            metadata += Meta::toStr(key) + ":" + value;
-                        }
-                        metadata += "}";
+                if(not metadata.empty() && version <= Version::V_15) {
+                    // Legacy metadata wraps each serialized value in one extra string layer.
+                    const auto values = Meta::fromStr<std::map<std::string, std::string>>(metadata);
+                    metadata = "{";
+                    for(const auto& [key, value] : values) {
+                        if(metadata.size() > 1)
+                            metadata += ",";
+                        metadata += Meta::toStr(key) + ":" + value;
                     }
-                    GlobalSettings::write([&](Configuration& config) {
-                        sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &config.values, {}, {});
-                    });
+                    metadata += "}";
                 }
+                load_metadata_settings(map, ref.filename(), metadata);
                 
                 if(map.has("meta_real_width"))
                     meta_real_width = map["meta_real_width"].value<Float2_t>();
@@ -1055,19 +1187,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 }
                 
                 try {
-                    glz::generic jsons = glz::generic::object_t{};
-                    for(const auto& key : map.keys()) {
-                        try {
-                            jsons[key] = map.at(key).get().to_json();
-                            
-                        } catch(const std::exception& ex) {
-                            FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
-                        }
-                    }
-                    
-                    std::string dump = Meta::toStr(jsons);
-                    this->metadata = dump;
-                    
+                    this->metadata = settings_to_json(map);
                 } catch(...) {
                     FormatWarning("[set_metadata] There was some trouble updating the metadata. Using the original one from the PV file.");
                     this->metadata = metadata;
@@ -1198,20 +1318,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
     }
 
     void File::set_metadata(const sprite::Map &diff) {
-        glz::generic jsons = glz::generic::object_t{};
-        //std::map<std::string, std::string> jsons;
-        for(const auto& key : diff.keys()) {
-            try {
-                jsons[key] = diff.at(key).get().to_json();
-                //jsons.emplace(key, diff.at(key).get().valueString());
-                
-            } catch(const std::exception& ex) {
-                FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
-            }
-        }
-        
-        std::string dump = Meta::toStr(jsons);//glz::write_json(jsons);
-        _header.metadata = dump;
+        _header.metadata = settings_to_json(diff);
     }
 
     void Header::update(DataFormat& ref) {

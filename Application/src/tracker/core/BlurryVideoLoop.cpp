@@ -1,7 +1,7 @@
 #include "BlurryVideoLoop.h"
 #include <file/PathArray.h>
 #include <core/AbstractVideoSource.h>
-#include <core/SettingsPaths.h>
+#include <file/DataLocation.h>
 #include <core/WebcamVideoSource.h>
 #include <core/VideoVideoSource.h>
 #include <core/PVVideoSource.h>
@@ -79,13 +79,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
             } else if(path.empty()) {
                 // we cant do anything
                 
-            } else if(path.get_paths().size() == 1
-                      && path.get_paths().front().has_extension("pv"))
-            {
-                auto output = GlobalSettings::read([](const Configuration& config){
-                    return settings::find_output_name(config.values);
-                });
-                auto video = pv::File::Read(output);
+            } else if(path.has_single_match("pv")) {
+                auto video = pv::File::Read(file::DataLocation::parse("input", path.get_paths().front()));
                 video.header();
                 
                 tmp = std::unique_ptr<AbstractBaseVideoSource>(new PVVideoSource{ std::move(video) });
@@ -302,7 +297,7 @@ void BlurryVideoLoop::start() {
     _intial_resolution_promise = {};
     _initial_resolution_future = _intial_resolution_promise.get_future();
     ThreadManager::getInstance().startGroup(group);
-    if(_initial_resolution_future.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready) 
+    if(cmn::is_future_ready<500ms>(_initial_resolution_future))
     {
         _resolution = _initial_resolution_future.get();
     } else
@@ -361,7 +356,7 @@ void BlurryVideoLoop::set_open_callback(std::function<void (VideoInfo)> fn) {
 
 [[nodiscard]] BlurryVideoLoop::VideoFrame BlurryVideoLoop::get_if_ready() {
     if(_initial_resolution_future.valid()
-       && _initial_resolution_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+       && cmn::is_future_ready(_initial_resolution_future))
     {
         _initial_resolution_future.get();
     }

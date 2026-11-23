@@ -132,8 +132,9 @@ namespace Output {
             V_39, // adding AutoAssign
             
             V_40, // meta_encoding added
+            V_41, // settings are stored as a JSON object
             
-            current = V_40
+            current = V_41
         };
         
     private:
@@ -148,7 +149,7 @@ namespace Output {
         struct Header {
             Versions version = Versions::current;
             uint64_t gui_frame = 0;
-            std::string settings;
+            std::string settings; // JSON-encoded settings delta
             std::string cmd_line;
             std::vector<Range<Frame_t>> tracklets;
             meta_encoding_t::Class encoding{meta_encoding_t::gray};
@@ -236,6 +237,7 @@ namespace Output {
         TrackingResults(std::shared_ptr<Tracker> tracker) : _tracker(std::move(tracker)) {}
         
         static Path expected_filename();
+        static Path expected_filename(const cmn::sprite::Map&);
         
         void save(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path(), const std::vector<std::string>& exclude_settings = {}) const;
         ResultsFormat::Header load(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path());

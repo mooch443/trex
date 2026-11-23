@@ -305,9 +305,9 @@ TEST(TrackingStateDialogs, RejectedLoadPromptCanBeRetried) {
 
     const auto video_path = (fs::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").lexically_normal();
     ASSERT_TRUE(fs::exists(video_path));
-    SETTING(filename) = file::Path(video_path.string());
+    SETTING(filename) = file::Filename(video_path.filename().string());
 
-    gui::TrackingState state{nullptr};
+    gui::TrackingState state{nullptr, file::Path(video_path.string())};
     gui::GUITaskQueue_t queue;
     gui::DrawStructure graph(800, 600);
     ASSERT_TRUE(graph.dialog("Existing dialog").has_value());
@@ -349,7 +349,7 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
     const Range<long_t> analysis_range{kAnalysisStart, kAnalysisEnd};
 
     SETTING(source) = file::PathArray(video_path);
-    SETTING(filename) = file::Path();
+    SETTING(filename) = file::Filename{};
     SETTING(output_dir) = output_dir;
     SETTING(output_prefix) = std::string(kOutputPrefix);
     SETTING(output_format) = default_config::output_format_t::csv;
@@ -363,23 +363,24 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
     SETTING(output_recognition_data) = false;
     SETTING(output_statistics) = false;
 
-    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+    const auto filename = GlobalSettings::read([](const Configuration& config) {
         return settings::find_existing_output_name(config.values);
     });
+    SETTING(filename) = file::Filename(filename.filename());
 
     auto tracking_done = std::make_shared<std::promise<void>>();
     auto tracking_done_future = tracking_done->get_future();
     auto callback_called = std::make_shared<std::atomic_bool>(false);
 
     {
-        gui::TrackingState state{nullptr};
+        gui::TrackingState state{nullptr, filename};
         state.add_tracking_callback([tracking_done, callback_called]() {
             if(!callback_called->exchange(true))
                 tracking_done->set_value();
         });
 
         state.init_video();
-        ASSERT_EQ(tracking_done_future.wait_for(std::chrono::seconds(120)), std::future_status::ready);
+        ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(120)}>(tracking_done_future));
         ASSERT_TRUE(state.tracker != nullptr);
         ASSERT_TRUE(state._controller != nullptr);
         ASSERT_GT(state.tracker->frames().size(), 0u);
@@ -516,7 +517,7 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
             ASSERT_EQ(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3));
 
         SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
-            return settings::find_existing_output_name(config.values);
+            return file::Filename(settings::find_existing_output_name(config.values).filename());
         });
         SETTING(output_dir) = file::Path((workspace.root / "output" / std::string(load_mode)).string());
         SETTING(output_prefix) = std::string(kOutputPrefix);
@@ -684,7 +685,7 @@ TEST_P(TrackletImageExportTest, ExportsEveryValidBlobForMetaEncoding) {
     const size_t input_channels = input_encoding == meta_encoding_t::rgb8 ? 3u : 1u;
     const size_t output_channels = output_encoding == meta_encoding_t::rgb8 ? 3u : 1u;
 
-    SETTING(filename) = video_base;
+    SETTING(filename) = file::Filename(video_base.filename());
     SETTING(output_dir) = file::Path((workspace.root / "output").string());
     SETTING(output_prefix) = std::string(kOutputPrefix);
     SETTING(data_prefix) = file::Path("data");

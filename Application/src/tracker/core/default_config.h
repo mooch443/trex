@@ -32,13 +32,7 @@ namespace default_config {
     void execute_settings_string(const std::string& content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
     bool execute_settings_file(const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude = {});
 
-    void warn_deprecated(const file::Path& source, sprite::Map& map);
-
-    template<typename StringType = std::string_view>
-    void warn_deprecated(const file::Path& source, const std::map<StringType, std::string>& keys);
-    bool is_deprecated(std::string_view key);
     const Deprecations& deprecations();
-    std::string replacement(std::string_view key);
 
     struct Config {
         std::map<std::string, const sprite::PropertyType*> map;

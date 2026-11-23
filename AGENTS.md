@@ -20,6 +20,20 @@ When creating commits, match recent repository style: use bullet-style,
 past-tense messages where each line starts with `* Added`, `* Updated`,
 `* Modified`, or similar wording.
 
+## C++ coding style
+
+- In an `if` with an initializer, put the condition on the next line, aligned
+  with the initializer. Put the opening brace on its own line.
+- Prefer `not` for logical negation.
+
+```cpp
+if(auto region_model = detect::yolo::current_region_model_path();
+   region_model.is_regular())
+{
+    // ...
+}
+```
+
 ## Commons library overview
 - Core GUI headers live under `Application/src/commons/common/gui/`.
 - The dynamic GUI system is `Application/src/commons/common/gui/DynamicGUI.h`
@@ -180,7 +194,6 @@ private:
 
 int main(int argc, char** argv) {
     CommandLine::init(argc, argv);
-    CommandLine::instance().cd_home();
 
     SETTING(app_name) = std::string("Minimal GUI");
     SETTING(terminate) = false;
@@ -291,6 +304,8 @@ conda build -c conda-forge .
 - Do not run builds, CMake configure/generate commands, or CMake build commands.
   The user will run builds/tests after the agent has inspected the code and is
   confident the changes are ready.
+- For C++ fixes, use the existing C++ test suite. Do not use Python wrappers,
+  C++ interpreters, or ad hoc compilation to work around the build instructions.
 - Optimize for fewer, higher-confidence iterations. Think and inspect longer
   before responding or editing, because each exchange has a monetary cost.
 - For GitHub CI diagnosis or repair, inspect every failing check in the latest
@@ -313,6 +328,7 @@ conda build -c conda-forge .
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
 - If the task is to add or edit tests, change only tests and the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). Do not implement fixes, compatibility branches, format/version changes, or other production changes unless the user explicitly requests implementation. A suggested possible solution is not authorization to implement it. Keep regressions short and focused, reuse existing fixtures or contracts, and report any exposed failure without expanding the task.
+- Spell out each test scenario so the setup, action, and expected result are clear on first reading. Use meaningful inputs and explicit assertions. Avoid encoding different behaviors as combinations of strings and numbers that the reader has to decode.
 - when fixing a bug, first reproduce the actual failure with a minimal viable test or local repro that matches the real issue. make sure that repro fails before changing production code, then fix the code until that same repro passes.
 - do not add speculative, broad, or low-value tests just to increase coverage. prefer the smallest targeted regression test for a real bug, and skip adding tests when they do not materially validate the reported failure.
 - Never edit `docs/parameters_trex.rst` directly; it is regenerated automatically. Update parameter definitions and descriptions in `Application/src/tracker/core/default_config.cpp` instead.

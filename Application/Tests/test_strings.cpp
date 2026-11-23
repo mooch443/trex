@@ -151,7 +151,7 @@ namespace cmn::gui::dyn {
 
 using namespace cmn::utils;
 
-constexpr auto merge_time_threshold = ParameterHistory::merge_time_threshold + std::chrono::milliseconds(1);
+constexpr auto merge_time_threshold = ParameterHistory::merge_time_threshold + 1ms;
 
 TEST(GlobalSettingsTests, HistoryDisabledByDefault) {
     ParameterHistory history;
@@ -286,13 +286,46 @@ TEST(SpriteMapTests, CopyAssignmentPreservesCallbacksAcrossTypeChanges) {
     EXPECT_EQ(changes, 2);
 }
 
+TEST(GlobalSettingsTests, DiscardingMutableSnapshotPreservesLaterLiveEdits) {
+    const auto restore = GlobalSettings::read(GlobalSettings::snapshot);
+    SETTING(output_prefix) = std::string("original");
+    auto snapshot = GlobalSettings::mutable_snapshot();
+    EXPECT_EQ(snapshot->config.at("output_prefix").value<std::string>(), "original");
+
+    snapshot->config.values["output_prefix"] = std::string("preview");
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "original");
+
+    SETTING(output_prefix) = std::string("edited");
+    EXPECT_EQ(snapshot->config.at("output_prefix").value<std::string>(), "preview");
+    snapshot.reset();
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "edited");
+}
+
+TEST(GlobalSettingsTests, ApplyingMutableSnapshotNotifiesExistingCallbacks) {
+    const auto restore = GlobalSettings::read(GlobalSettings::snapshot);
+    SETTING(output_prefix) = std::string("original");
+    std::string observed_prefix;
+    auto callback = GlobalSettings::register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
+        {"output_prefix"}, [&](auto) { observed_prefix = READ_SETTING(output_prefix, std::string); });
+
+    auto snapshot = GlobalSettings::mutable_snapshot();
+    snapshot->config.values["output_prefix"] = std::string("converted");
+    EXPECT_TRUE(observed_prefix.empty());
+
+    snapshot->apply();
+    EXPECT_EQ(observed_prefix, "converted");
+    SETTING(output_prefix) = std::string("tracked");
+    EXPECT_EQ(observed_prefix, "tracked");
+    GlobalSettings::unregister_callbacks(std::move(callback));
+}
+
 TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
         config.values["source"] = file::PathArray("input/recording.pv");
         config.values["output_dir"] = file::Path("input");
         config.values["output_prefix"] = std::string("session");
-        config.values["filename"] = file::Path("recording");
+        config.values["filename"] = file::Filename("recording");
         config.defaults["output_prefix"] = std::string("default");
         config.examples["output_prefix"] = std::string("example");
         config.docs["output_prefix"] = "prefix documentation";
@@ -311,7 +344,7 @@ TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
         config.values["source"] = file::PathArray("original/recording.mp4");
         config.values["output_dir"] = file::Path("original");
         config.values["output_prefix"] = std::string("changed");
-        config.values["filename"] = file::Path("changed");
+        config.values["filename"] = file::Filename("changed");
         config.values["snapshot_added_setting"] = true;
         config.defaults["output_prefix"] = std::string("changed");
         config.examples.erase("output_prefix");
@@ -327,7 +360,7 @@ TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
         EXPECT_EQ(config.values.at("source").value<file::PathArray>(), file::PathArray("input/recording.pv"));
         EXPECT_EQ(config.values.at("output_dir").value<file::Path>(), file::Path("input"));
         EXPECT_EQ(config.values.at("output_prefix").value<std::string>(), "session");
-        EXPECT_EQ(config.values.at("filename").value<file::Path>(), file::Path("recording"));
+        EXPECT_EQ(config.values.at("filename").value<file::Filename>().path(), file::Path("recording"));
         EXPECT_FALSE(config.values.has("snapshot_added_setting"));
         EXPECT_EQ(config.defaults.at("output_prefix").value<std::string>(), "default");
         EXPECT_EQ(config.examples.at("output_prefix").value<std::string>(), "example");
@@ -458,7 +491,7 @@ TEST(GlobalSettingsTests, HistoryCallbacksWaitForSettingsReaders) {
             value = int(2);
         });
         ready.wait();
-        EXPECT_EQ(changed.wait_for(std::chrono::milliseconds(100)), std::future_status::timeout);
+        EXPECT_EQ(changed.wait_for(100ms), std::future_status::timeout);
     });
     changed.get();
     EXPECT_EQ(value.value<int>(), 2);

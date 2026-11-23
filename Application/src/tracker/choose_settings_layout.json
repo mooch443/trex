@@ -30,7 +30,7 @@
     {
         "type":"video",
         "clickable":true,
-        "path":"{if:{video_file}:{video_file}:gfx/menu_{lower:{season}}.mov}",
+        "path":"{if:{video_file}:{video_file}:{app_path:gfx/menu_{lower:{season}}.mov}}",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
         "blur":"{if:{hovered}:0.01:0.7}",
@@ -80,6 +80,7 @@
                             "type":"collection",
                             "fill":[20,50,80,220],
                             "clickable":true,
+                            "tooltip":"Choose the input file, frame range, and output location.",
                             "corners" :["topleft"],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                             "size":[249,50],
@@ -105,7 +106,7 @@
                             "type":"button",
                             "disabled":"{not:{source_is_set}}",
                             "corners":["none"],
-                            "tooltip":"{if:{source_is_set}:<lightgray>Detection settings</lightgray>:<lightgray>please select an input file first</lightgray>}",
+                            "tooltip":"Choose a detection method and configure its options.{if:{source_is_set}:'':' Select an input file in Locations to open this tab.'}",
                             "text":"<sym>💻</sym> Detection",
                             "color":"{if:{not:{source_is_set}}:[100,100,100,150]:[220,220,220,200]}",
                             "fill":"{if:{not:{source_is_set}}:[40,40,40,100]:[40,40,40,220]}",
@@ -122,6 +123,7 @@
                             "disabled":"{not:{source_is_set}}",
                             "corners":["topright"],
                             "text":"<sym>🐟</sym> Tracking",
+                            "tooltip":"Configure how individuals are tracked across frames and how posture is estimated.{if:{source_is_set}:'':' Select an input file in Locations to open this tab.'}",
                             "color":"{if:{not:{source_is_set}}:[100,100,100,150]:[220,220,220,200]}",
                             "fill":"{if:{not:{source_is_set}}:[40,40,40,100]:[40,40,40,220]}",
                             "line":"{if:{not:{source_is_set}}:[100,100,100,150]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}}",
@@ -620,6 +622,7 @@
                         "then":{
                             "type":"button",
                             "text":"Convert <sym>⮞</sym>",
+                            "tooltip":"Process the input <gray><c>{current_conversion_source}</c></gray> with the current detection settings and write a PV file to <gray><c>{resulting_path}.pv</c></gray>.",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                             "size":[100,40],
@@ -632,7 +635,7 @@
                         "else":{
                             "type":"button",
                             "text":"{if:{checks_running}:{animation}:<orange><sym>⚠</sym></orange>}",
-                            "tooltip":"{if:{checks_running}:{animation}:{if:{not:{valid_conversion_source}}:'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.':{if:{&&:{machine_learning}:{not:{valid_detection_model}}}:The detection model (search paths <key><c>{model_search_path}</c></key>) is invalid or does not exist.:''}}}",
+                            "tooltip":"{if:{checks_running}:'Wait for the input and detection checks to finish before converting.':{if:{valid_conversion_source}:The detection model <key><c>{global.detect_model}</c></key> could not be used. Choose a valid model in Detection.:{if:{bool:{global.source}}:The selected input <gray><c>{global.source}</c></gray> could not be used for conversion. Restore the original input or update the source in Locations. For a PV file, update <c>meta_source_path</c>.:'Choose an input in Locations before converting.'}}{if:{valid_pv_file}:' You can still open the existing PV at '<gray><c>{existing_pv_file}</c></gray> with Track.:''}}",
                             "test":"{if:{||:{checks_running}:{valid_conversion_source}}:'-':'The original input video could not be found. Restore it or update source (meta_source_path for PV files) before converting. An existing PV can still be tracked.'}{if:{&&:{not:{checks_running}}:{machine_learning}:{not:{valid_detection_model}}}: The detection model <key><c>{global.detect_model}</c></key> is invalid or does not exist.:''}",
                             "fill":[40,40,40,120],
                             "line":[100,100,100,150],
@@ -650,6 +653,7 @@
                         "then":{
                             "type":"button",
                             "text":"Track <sym>⮞</sym>",
+                            "tooltip":"Open the existing PV at <gray><c>{existing_pv_file}</c></gray> in the tracking view.",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                             "size":[100,40],
@@ -665,6 +669,7 @@
                             "then":{
                                 "type":"button",
                                 "text":"{animation}",
+                                "tooltip":"Wait for the input and detection checks to finish before opening an existing PV.",
                                 "fill":[40,40,40,120],
                                 "line":[100,100,100,150],
                                 "color":[100,100,100],

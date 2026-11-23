@@ -44,8 +44,10 @@ TEST_P(SpriteMapMoveTests, TransfersAttachedGeneralAndPendingCallbacks) {
             after_writes.emplace_back(name);
         });
 
+    const bool move_assign = GetParam();
+    SCOPED_TRACE(move_assign ? "Move assignment replaces an existing map" : "Move construction creates a new map");
     std::unique_ptr<sprite::Map> destination;
-    if(GetParam()) {
+    if(move_assign) {
         destination = std::make_unique<sprite::Map>();
         destination->insert("replaced", 0);
         destination->register_before_write_callback([&](std::string_view) {
@@ -57,6 +59,7 @@ TEST_P(SpriteMapMoveTests, TransfersAttachedGeneralAndPendingCallbacks) {
     }
 
     (*destination)["existing"] = 1;
+    // A callback registered for a missing key attaches when the key is inserted after the move.
     destination->insert("pending", 0);
     (*destination)["pending"] = 1;
     destination->insert("new", 0);
@@ -71,6 +74,7 @@ TEST_P(SpriteMapMoveTests, TransfersAttachedGeneralAndPendingCallbacks) {
     (*destination)["pending"] = 2;
     EXPECT_EQ(after_writes.size(), 2u);
 
+    // Reusing the moved-from map must not invoke the transferred callback.
     source.insert("reused", 0);
     source["reused"] = 1;
     EXPECT_EQ(before_writes.size(), 5u);
@@ -133,7 +137,7 @@ TEST(SpriteMapTests, AttachesCallbacksBeforePublishingInsertedProperties) {
 
     // A property must stay invisible while callback attachment is blocked.
     bool visible = false;
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
+    auto deadline = std::chrono::steady_clock::now() + 100ms;
     while(std::chrono::steady_clock::now() < deadline) {
         if(map.has("value")) {
             visible = true;

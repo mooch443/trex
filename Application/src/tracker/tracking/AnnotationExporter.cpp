@@ -1,4 +1,5 @@
 #include "AnnotationExporter.h"
+#include <misc/Path.h>
 #include <video/VideoSource.h>
 #include <thirdparty/fkYAML/node.hpp>
 #include <core/DetectionTypes.h>
@@ -659,7 +660,7 @@ void export_tag_annotations(TagDatasetConfig config) {
         if(not fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
     
-    file::Path input = READ_SETTING(filename, file::Path).filename();
+    file::Path input = READ_SETTING(filename, file::Filename).path();
     if(input.has_extension("pv"))
         input = input.remove_extension();
     

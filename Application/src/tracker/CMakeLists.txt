@@ -624,6 +624,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
     )
     set(RESOURCE_COPY_SINGLE_FILES
         ${CMAKE_SOURCE_DIR}/default.settings
+        ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_recognition_torch.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py
@@ -852,6 +853,7 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PR
 
 install(FILES 
         ${CMAKE_SOURCE_DIR}/default.settings 
+        ${CMAKE_SOURCE_DIR}/pretrained_tagwork.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_recognition_torch.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py

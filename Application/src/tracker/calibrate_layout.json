@@ -9,7 +9,7 @@
     "objects":[
         {
             "type":"video",
-            "path":"{if:{global.source}:{global.source}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
+            "path":"{if:{global.source}:{global.source}:{app_path:gfx/menu_spring.mov}}",
             "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
             "origin":[0.5,0.5],
             "blur":0.0,

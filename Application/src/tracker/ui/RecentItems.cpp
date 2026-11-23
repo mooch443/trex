@@ -14,7 +14,7 @@ std::mutex _recent_select_mutex;
 std::function<void(RecentItemJSON)> _recent_select_callback;
 
 bool is_writable_key(auto&& key) {
-    return is_in(key, "filename", "output_prefix", "source", "output_dir");
+    return is_in(key, "filename", "output_prefix", "source", "output_dir", "settings_file", "meta_source_path");
 }
 
 void RecentItems::set_select_callback(std::function<void (RecentItemJSON)> fn) {
@@ -92,7 +92,12 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
         basename = file::DataLocation::parse("output", file::find_basename(name));
     //file::Path basepath = file::DataLocation::parse("output", basename);
     
-    recent.add(basename.str(), options);
+    sprite::Map lookup = options;
+    lookup["source"] = name;
+    SETTING(settings_file).copy_to(lookup);
+    if(auto path = READ_SETTING(meta_source_path, std::string); not path.empty())
+        lookup["meta_source_path"] = path;
+    recent.add(basename.str(), lookup);
     recent.write();
 }
 
@@ -175,6 +180,8 @@ RecentItems RecentItems::read() {
                     
                     try {
                         auto value = Meta::fromStr<std::string>(glz::write_json(v).value());
+                        if(key == "filename")
+                            value = file::Path(value).filename();
                         GlobalSettings::read([&](const Configuration& config){
                             if(deprecations.correct_deprecation(k, value, &config.values, entry._options)) {
                                 /// we corrected a deprecation
@@ -249,7 +256,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 }
                 
                 //item._options = options;
-                item.filename = READ_SETTING(filename, file::Path).str();
+                item.filename = READ_SETTING(filename, file::Filename).str();
                 item.output_prefix = READ_SETTING(output_prefix, std::string);
                 item.output_dir = READ_SETTING(output_dir, file::Path).str();
                 item.modified = timestamp_t::now().get();
@@ -268,7 +275,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
         .name = name,
         .output_prefix = READ_SETTING(output_prefix, std::string),
         .output_dir = READ_SETTING(output_dir, file::Path).str(),
-        .filename = READ_SETTING(filename, file::Path).str(),
+        .filename = READ_SETTING(filename, file::Filename).str(),
     };
     
     for(auto &key : config.keys()) {

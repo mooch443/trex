@@ -591,8 +591,8 @@ Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& 
     
     auto analysis_range = Tracker::analysis_range();
 
-    const auto range = OPTIONAL_SETTING(analysis_range, Range<long_t>);
-    bool check_analysis_range = range && (range->start != -1 || range->end != -1);
+    const auto range = READ_SETTING_WITH_DEFAULT(analysis_range, Range<long_t>(-1, -1));
+    bool check_analysis_range = range.start != -1 || range.end != -1;
     
     std::mutex mutex;
     std::condition_variable variable;
@@ -628,7 +628,7 @@ Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& 
             
             std::unique_lock<std::mutex> guard(mutex);
             while(!stop || !stuffs.empty()) {
-                variable.wait_for(guard, std::chrono::milliseconds(1));
+                variable.wait_for(guard, 1ms);
                 
                 while(!stuffs.empty()) {
                     auto data = std::move(stuffs.front());
@@ -1309,9 +1309,24 @@ namespace Output {
             _header.midline_factor = 10; // it used to be 10 always
         }
         
+        _header.settings.clear();
         if(_header.version >= ResultsFormat::V_14) {
             read<std::string>(_header.settings);
+            
+            /// for older versions we might need to deal with
+            /// directory / filenames mixed.
+            if(_header.version < ResultsFormat::V_41
+                && not _header.settings.empty()) 
+            {
+                sprite::Map settings;
+                pv::load_metadata_settings(settings, filename(), _header.settings,
+                                           pv::SettingsFormat::LegacyResults, &default_config::deprecations());
+
+                _header.settings = pv::settings_to_json(settings);
+            }
         }
+        if(_header.settings.empty())
+            _header.settings = "{}";
         
         if(_header.version >= ResultsFormat::V_23) {
             read<std::string>(_header.cmd_line);
@@ -1400,8 +1415,12 @@ namespace Output {
         
         //write<int32_t>(MinimalOutline::factor);
 
-        std::string text = default_config::generate_delta_config(AccessLevelType::LOAD, nullptr, true, _header.exclude_settings).to_settings();
-        write<std::string>(text);
+        {
+            sprite::Map settings;
+            settings.set_print_by_default(false);
+            default_config::generate_delta_config(AccessLevelType::LOAD, nullptr, true, _header.exclude_settings).write_to(settings);
+            write<std::string>(pv::settings_to_json(settings));
+        }
         write<std::string>(READ_SETTING(cmd_line, std::string));
 
         // write recognition data
@@ -1508,14 +1527,18 @@ namespace Output {
         }
     }
     
-    Path TrackingResults::expected_filename() {        
-        file::Path filename = GlobalSettings::read([](const Configuration& config) {
-            return settings::find_output_name(config.values);
+    Path TrackingResults::expected_filename() {
+        return GlobalSettings::read([](const Configuration& config) {
+            return expected_filename(config.values);
         });
+    }
+
+    Path TrackingResults::expected_filename(const sprite::Map& map) {
+        file::Path filename = settings::find_output_name(map);
         filename = filename.has_extension("pv")
                     ? filename.replace_extension("results")
                     : filename.add_extension("results");
-        return file::DataLocation::parse("output", filename);
+        return file::DataLocation::parse("output", filename, &map);
     }
     
     void TrackingResults::save(std::function<void (const std::string &, float, const std::string &)> update_progress, Path filename, const std::vector<std::string>& exclude_settings) const {
@@ -1660,7 +1683,9 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             FormatError("Cannot find ",filename.str()," as requested. Trying standard paths.");
 
         if(!filename.exists()) {
-            file::Path file = READ_SETTING(filename, Path);
+            file::Path file = _tracker->recording_path().empty()
+                ? READ_SETTING(filename, file::Filename).path()
+                : _tracker->recording_path();
             file = file.has_extension("pv")
                     ? file.replace_extension("results")
                     : file.add_extension("results");
@@ -1714,8 +1739,8 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         CompatibilityFrameProperties comp;
         data_long_t frameIndex;
         
-        const auto range = OPTIONAL_SETTING(analysis_range, Range<long_t>);
-        bool check_analysis_range = range && (range->start != -1 || range->end != -1);
+        const auto range = READ_SETTING_WITH_DEFAULT(analysis_range, Range<long_t>(-1, -1));
+        bool check_analysis_range = range.start != -1 || range.end != -1;
         
         auto analysis_range = Tracker::analysis_range();
         _tracker->frames().clear();

@@ -806,7 +806,7 @@ void BlobView::draw(const DisplayParameters& parm)
 
     if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == frame) {
         if(popup == nullptr) {
-            popup = std::make_shared<VerticalLayout>();
+            popup = std::make_shared<VerticalLayout>(LineClr{20,20,20,200});
             tag_list = derived_ptr<TagList>(new TagList{
                 Box(0, 0, 200,100),
                 SizeLimit{200,200},
@@ -889,7 +889,7 @@ void BlobView::draw(const DisplayParameters& parm)
                 }
             });
             
-            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font_t{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, TextClr{225,225,225}, LabelCornerFlags::Top(), ListCornerFlags::Square());
+            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font_t{0.6}, ListFillClr_t{60,60,60,200}, FillClr{40,40,40,200}, TextClr{225,225,225}, LabelCornerFlags::Top(), ListCornerFlags::Square());
             list->on_select([this, &cache = parm.cache](auto, const Dropdown::TextItem& item) {
                 auto number = uint64_t(item.custom());
                 uint32_t item_id = (number >> 32) & 0xFFFFFFFF;
@@ -1834,7 +1834,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     container->set_children({text});
                     children.push_back(container);
                     
-                    for(auto &b: annotation_buttons) {
+                    for(size_t i = 0; i< annotation_buttons.size(); ++i) {
+                        auto& b = annotation_buttons[i];
                         auto text_bounds = window ? window->text_bounds(b->txt(), NULL, Font(0.6)) : Base::default_text_bounds(b->txt(), NULL, Font(0.6));
                         bds.width = max(bds.width, text_bounds.width + 10);
                         b->set(Size(bds.size()));
@@ -1844,13 +1845,15 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                         } else {
                             b->set(FillClr{60,60,60,200});
                         }
+                        //b->set(FillClr{Transparent});
+                        b->set(LineClr{Transparent});
                         
-                        b->set(CornerFlags_t::Square());
+                        if(i+1 == annotation_buttons.size())
+                            b->set(CornerFlags_t::Bottom());
+                        else
+                            b->set(CornerFlags_t::Square());
                         children.push_back(b);
                     }
-                    
-                    auto flags = annotation_buttons.back()->corner_flags() | CornerFlags::Bottom();
-                    annotation_buttons.back()->set(CornerFlags_t(flags));
                     
                     button->set(CornerFlags_t::Top());
                 }
@@ -1861,6 +1864,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 combine->set(attr::SizeLimit{
                     Size2{bds.width, annotation_menu_max_height}
                 });
+                combine->set(Scrollable_t{true});
+                //combine->set(ScrollLimits{bds.width, annotation_menu_max_height});
                 combine->set_children(children);
                 
                 if(not is_system_pressed)
@@ -1944,8 +1949,10 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 
                 combine->set_pos(next_pos);
                 combine->set_scale(sca);
+                //combine->set(LineClr{20,20,20,200});
                 combine->set(LineClr{Red});
                 combine->set(ZIndex{100});
+                //combine->set(CornerFlags_t::Rounded(10));
             }
         }
     });

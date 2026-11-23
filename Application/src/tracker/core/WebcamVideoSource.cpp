@@ -49,7 +49,7 @@ AbstractBaseVideoSource::VideoFrame_t WebcamVideoSource::fetch_next() {
         while(not (result = this->source.next(*buffer)) && tries++ < 5)
         {
             //if (detection_type() != ObjectDetectionType::yolo) FormatError("Dropping an erroreous frame from the webcam.");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::sleep_for(1ms);
         }
         
         if(not result) {

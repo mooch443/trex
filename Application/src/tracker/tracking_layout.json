@@ -1348,7 +1348,7 @@
               "size":[90,30],
               "clickable":true,
               "list":{
-                "size":"[200,{-:{window_size.y}:50}]",
+                "size":"[210,{-:{window_size.y}:50}]",
                 "fill":[25,25,25,220],
                 "line":[120,120,120,220]
               },
@@ -1361,7 +1361,7 @@
               },
               "item":{
                 "color":[60,60,60,100],
-                "pad":[8,0],
+                "pad":[10,1],
                 "font":{"size":0.6,"align":"vcenter"}
               },
               "detail":{
@@ -1374,7 +1374,6 @@
               "items": [
   {
     "text": "<{if:{global.gui_show_selections}:white:gray}><sym>◯</sym> Selection Circles</{if:{global.gui_show_selections}:white:gray}>",
-    "detail": "<small>Individual hover / selection effects</small>",
     "tooltip": "Highlight hovered and selected individuals.",
     "action": "set:gui_show_selections:{not:{global.gui_show_selections}}"
   },
@@ -1420,7 +1419,6 @@
   },
   {
     "text": "<{if:{global.gui_show_video_background}:white:gray}><sym>🎞</sym> Video Background</{if:{global.gui_show_video_background}:white:gray}>",
-    "detail": "<small>Display the original video background</small>",
     "tooltip": "Show the original video behind tracking overlays, when available.",
     "action": "set:gui_show_video_background:{not:{global.gui_show_video_background}}"
   },
@@ -1436,7 +1434,6 @@
   },
   {
     "text": "<{if:{global.gui_show_uniqueness}:white:gray}><sym>🎭</sym> Uniqueness (VI)</{if:{global.gui_show_uniqueness}:white:gray}>",
-    "detail": "<small>(VI needs to be loaded)</small>",
     "tooltip": "Show identity uniqueness over time using loaded visual identification results.",
     "action": "set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
   },
@@ -1452,7 +1449,6 @@
   },
   {
     "text": "<{if:{global.gui_auto_scale_focus_one}:white:gray}><sym>🔍</sym> Zoom on Selection</{if:{global.gui_auto_scale_focus_one}:white:gray}>",
-    "detail": "<small>Zoom in on selected individuals</small>",
     "tooltip": "Automatically zoom in on selected individuals.",
     "action": "set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
   },

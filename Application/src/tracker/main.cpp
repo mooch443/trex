@@ -144,7 +144,7 @@ TRexTask determineTaskType() {
     {
         if(output_file.has_extension("pv"))
             output_file = output_file.remove_extension();
-        SETTING(filename) = file::Path(output_file);
+        SETTING(filename) = file::Filename(output_file.filename());
         return TRexTask_t::track;
         
     } else if(output_file.empty()) {
@@ -158,14 +158,12 @@ TRexTask determineTaskType() {
                       file::DataLocation::parse("output", front.replace_extension("pv"));
         
         if (output_file.exists()) {
-            if(array.size() == 1
-               && array.get_paths().front() == "webcam")
-            {
-                SETTING(filename) = file::Path("webcam");
+            if(array.source() == "webcam") {
+                SETTING(filename) = file::Filename("webcam");
             } else {
                 if(output_file.has_extension("pv"))
                     output_file = output_file.remove_extension();
-                SETTING(filename) = file::Path(output_file);
+                SETTING(filename) = file::Filename(output_file.filename());
             }
             
             return TRexTask_t::track;
@@ -173,17 +171,16 @@ TRexTask determineTaskType() {
             return TRexTask_t::convert;
         }
         
-    } else if(array.size() == 1
-              && (((array.get_paths().front().has_extension("pv")
-                    && array.get_paths().front().is_regular()))
-              || array.get_paths().front().add_extension("pv").is_regular())
-            )
-    {
-        auto path = file::Path(array.get_paths().front());
-        if(path.has_extension("pv"))
-            path = path.remove_extension();
-        SETTING(filename) = path;
-        return TRexTask_t::track;
+    } else if(array.has_single_match()) {
+        auto path = array.is_single_file()
+            ? file::DataLocation::parse("input", array.get_paths().front())
+            : array.get_paths().front();
+        if((path.has_extension("pv") && path.is_regular()) || path.add_extension("pv").is_regular()) {
+            if(path.has_extension("pv"))
+                path = path.remove_extension();
+            SETTING(filename) = file::Filename(path.filename());
+            return TRexTask_t::track;
+        }
     }
     
     return TRexTask_t::convert;
@@ -263,7 +260,7 @@ void launch_gui(std::future<void>& f) {
                     GlobalSettings::write([](Configuration& config) {
                         config.values.set_print_by_default(true);
                     });
-                    thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
+                    thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_path());
                     if(READ_SETTING(gui_frame, Frame_t).valid())
                         SETTING(gui_frame) = SETTING(gui_frame).value<Frame_t>().try_sub(10_f);
                 
@@ -340,13 +337,14 @@ void launch_gui(std::future<void>& f) {
         { TRexTask_t::rst, &start }
 	};
 
-    if (const auto task = READ_SETTING(task, TRexTask);
-        task == TRexTask_t::none)
-    {
+    const auto task = READ_SETTING(task, TRexTask);
+    if(settings::video_source_error(READ_SETTING(source, file::PathArray))) {
+        manager.set_active(&settings_scene);
+    } else if(task == TRexTask_t::none) {
         TRexTask taskType = determineTaskType();
         settings::load(settings::LoadContext{
             .source = READ_SETTING(source, file::PathArray),
-            .filename = READ_SETTING(filename, file::Path),
+            .filename = READ_SETTING(filename, file::Filename).path(),
             .task = taskType,
             .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
             .quiet = false
@@ -364,7 +362,7 @@ void launch_gui(std::future<void>& f) {
             if(it->second == &converting) {
                 settings::load(settings::LoadContext{
                     .source = READ_SETTING(source, file::PathArray),
-                    .filename = READ_SETTING(filename, file::Path),
+                    .filename = READ_SETTING(filename, file::Filename).path(),
                     .task = TRexTask_t::convert,
                     .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
                     .source_map = cmd_options
@@ -376,7 +374,7 @@ void launch_gui(std::future<void>& f) {
             } else if(it->second == &tracking_scene) {
                 settings::load(settings::LoadContext{
                     .source = READ_SETTING(source, file::PathArray),
-                    .filename = READ_SETTING(filename, file::Path),
+                    .filename = READ_SETTING(filename, file::Filename).path(),
                     .task = TRexTask_t::track,
                     .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
                     .source_map = cmd_options
@@ -411,11 +409,9 @@ void launch_gui(std::future<void>& f) {
         file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_256.png")
     });
     
-    file::cd(file::DataLocation::parse("app"));
-    
     gui::SFLoop loop(*base.graph(), &base, [&](gui::SFLoop&, LoopStatus) {
         if(f.valid()
-           && f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+           && cmn::is_future_ready(f))
         {
             try {
                 f.get();
@@ -491,7 +487,7 @@ static void signal_handler(int sig) {
             SETTING(terminate) = true;
             Print("Waiting for video to close.");
         }
-            //std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            //std::this_thread::sleep_for(1ms);
     }
 }
 #elif defined(WIN32)
@@ -553,12 +549,13 @@ void init_signals() {
 }
 
 std::string start_tracking(std::future<void>& f) {
-    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+    const auto filename = GlobalSettings::read([](const Configuration& config) {
         return settings::find_existing_output_name(config.values);
     });
+    SETTING(filename) = file::Filename(filename.filename());
     
     std::atomic<bool> terminate{false};
-    TrackingState state{nullptr};
+    TrackingState state{nullptr, filename};
     std::function<void()> fn = [&](){
         terminate = true;
     };
@@ -611,11 +608,11 @@ std::string start_tracking(std::future<void>& f) {
 }
 
 std::string start_converting(std::future<void>& f) {
-    if(READ_SETTING(filename, file::Path).empty()) {
+    if(READ_SETTING(filename, file::Filename).path().empty()) {
         file::Path path = GlobalSettings::read([](const Configuration& config) {
             return settings::find_output_name(config.values);
         });
-        SETTING(filename) = path;
+        SETTING(filename) = file::Filename(path.filename());
     }
     
     /// this needs to go first so it gets destroyed last
@@ -654,7 +651,7 @@ std::string start_converting(std::future<void>& f) {
     Timer last_tick;
     size_t bar_spinner_index = 0;
     
-    if (READ_SETTING(source, file::PathArray) == file::PathArray("webcam")) {
+    if (is_in(READ_SETTING(source, file::PathArray), "webcam", "basler")) {
         segmenter.open_camera();
     } else {
         segmenter.open_video();
@@ -826,7 +823,6 @@ int main(int argc, char**argv) {
     if(cwd.empty())
         cwd = file::Path(default_config::homedir());
     CommandLine::instance().add_setting("wd", cwd.str());
-    file::cd(file::DataLocation::parse("app").absolute());
     
     /*GlobalSettings::register_callbacks({"use_closing", "source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
         if(key == "use_closing")
@@ -836,7 +832,7 @@ int main(int argc, char**argv) {
         else if(key == "meta_source_path")
             Print("Changed meta_source_path to ", READ_SETTING(meta_source_path, std::string));
         else if(key == "filename")
-            Print("Changed filename to ", READ_SETTING(filename, file::Path));
+            Print("Changed filename to ", READ_SETTING(filename, file::Filename).path());
         else if(key == "detect_type")
             Print("Changed detection type to ", SETTING(detect_type));
         else if(key == "detect_format")
@@ -853,49 +849,41 @@ int main(int argc, char**argv) {
         if(a.name == "s"
            && a.value)
         {
-            SETTING(settings_file) = file::Path(*a.value).add_extension("settings");
             CommandLine::instance().add_setting("settings_file", *a.value);
         }
         else if(a.name == "i"
                 && a.value)
         {
-            SETTING(source) = file::PathArray(*a.value);
             CommandLine::instance().add_setting("source", *a.value);
         }
         else if(a.name == "m"
                 && a.value)
         {
-            SETTING(detect_model) = file::Path(*a.value);
             CommandLine::instance().add_setting("detect_model", *a.value);
         }
         else if (a.name == "bm"
                  && a.value)
         {
-            SETTING(region_model) = file::Path(*a.value);
             CommandLine::instance().add_setting("region_model", *a.value);
         }
         else if(a.name == "d"
                 && a.value)
         {
-            SETTING(output_dir) = file::Path(*a.value);
             CommandLine::instance().add_setting("output_dir", *a.value);
         }
         else if(a.name == "dim"
                 && a.value)
         {
-            SETTING(detect_resolution) = Meta::fromStr<track::detect::DetectResolution>(*a.value);
             CommandLine::instance().add_setting("detect_resolution", *a.value);
         }
         else if(a.name == "o"
                 && a.value)
         {
-            SETTING(filename) = file::Path(*a.value);
             CommandLine::instance().add_setting("filename", *a.value);
         }
         else if(a.name == "p"
                 && a.value)
         {
-            SETTING(output_prefix) = std::string(*a.value);
             CommandLine::instance().add_setting("output_prefix", *a.value);
         }
         else if(a.name == "load") {
@@ -956,10 +944,19 @@ int main(int argc, char**argv) {
     SETTING(meta_build) = std::string("<undefined>");
 #endif
 
-    CommandLine::instance().load_settings();
+    try {
+        CommandLine::instance().load_settings();
+    } catch(const std::exception& ex) {
+        FormatError("Cannot load command-line settings: ", ex.what());
+        return 1;
+    }
     
     std::string last_error;
     if(BOOL_SETTING(nowindow)) {
+        if(auto error = settings::video_source_error(READ_SETTING(source, file::PathArray))) {
+            FormatError(*error);
+            return 1;
+        }
         auto task = READ_SETTING(task, TRexTask);
         if(task == TRexTask_t::none)
             task = determineTaskType();
@@ -973,7 +970,7 @@ int main(int argc, char**argv) {
         
         settings::load(settings::LoadContext{
             .source = READ_SETTING(source, file::PathArray),
-            .filename = READ_SETTING(filename, file::Path),
+            .filename = READ_SETTING(filename, file::Filename).path(),
             .task = task,
             .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
             .source_map = cmd_options,

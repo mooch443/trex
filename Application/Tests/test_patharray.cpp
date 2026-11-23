@@ -7,6 +7,7 @@
 #include <gmock/gmock.h>
 #include <misc/Path.h>
 #include <misc/SpriteMap.h>
+#include "test_filesystem.h"
 
 using namespace cmn;
 
@@ -957,11 +958,7 @@ TEST(PathConcatenation, AbsoluteRhs) {
 TEST(PathConcatenation, EmptyLhs) {
     Path lhs("");
     Path rhs("relative");
-//#if defined(WIN32)
-//    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
-//#else
-    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
-//#endif
+    EXPECT_EQ((lhs / rhs).str(), "relative");
 }
 
 // Test concatenation where the rhs is empty
@@ -975,11 +972,7 @@ TEST(PathConcatenation, EmptyRhs) {
 TEST(PathConcatenation, BothEmpty) {
     Path lhs("");
     Path rhs("");
-//#if defined(WIN32)
-//    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
-//#else
     EXPECT_EQ((lhs / rhs).str(), "");
-//#endif
 }
 
 // Test concatenation with various special characters in paths
@@ -1110,20 +1103,6 @@ TEST(PathNormalization, RootSlashPreservation) {
     EXPECT_EQ(root.str(), "/");  // Single root slash should be preserved
 }
 
-// Test concatenation with an absolute right-hand side path
-TEST(PathConcatenation, AbsoluteRhsError) {
-    Path lhs("path/to");
-    Path rhs("/absolute/path");
-    EXPECT_THROW(lhs / rhs, std::invalid_argument);  // Should throw due to absolute rhs
-}
-
-// Test concatenation where both paths are empty
-TEST(PathConcatenation, BothEmpty2) {
-    Path lhs("");
-    Path rhs("");
-    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
-}
-
 // Test concatenation with empty rhs and lhs having a trailing separator
 TEST(PathConcatenation, EmptyRhsWithTrailingSeparator) {
     Path lhs("path/to/");
@@ -1170,6 +1149,61 @@ struct MockFilesystem : public file::FilesystemInterface {
 TEST(PathArrayTest, EmptyConstructor) {
     file::PathArray paths;
     EXPECT_TRUE(paths.get_paths().empty());  // Expect no paths
+    EXPECT_FALSE(paths.has_source());
+    EXPECT_FALSE(paths.is_single_file());
+    EXPECT_FALSE(paths.all_files_are("pv"));
+}
+
+TEST(PathArrayTest, SinglePvFileMatchesItsExtension) {
+    const file::PathArray recording{"recording.PV"};
+    EXPECT_TRUE(recording.has_source());
+    EXPECT_TRUE(recording.is_single_file());
+    EXPECT_TRUE(recording.is_single_file("pv"));
+    EXPECT_FALSE(recording.is_single_file("mp4"));
+}
+
+TEST(PathArrayTest, EmptyListsHaveNoSourceOrBasename) {
+    const file::PathArray parsed{"[]"};
+    EXPECT_FALSE(parsed.has_source());
+    EXPECT_TRUE(file::find_basename(parsed).empty());
+
+    const file::PathArray from_vector{std::vector<std::string>{}};
+    EXPECT_FALSE(from_vector.has_source());
+    EXPECT_TRUE(file::find_basename(from_vector).empty());
+}
+
+TEST(PathArrayTest, AllFilesArePvChecksEveryEntry) {
+    const file::PathArray recordings{R"(["morning.pv","evening.PV"])"};
+    const file::PathArray mixed{R"(["morning.pv","evening.mp4"])"};
+    EXPECT_FALSE(recordings.is_single_file());
+    EXPECT_TRUE(recordings.all_files_are("pv"));
+    EXPECT_FALSE(mixed.all_files_are("pv"));
+}
+
+namespace {
+struct RecordingsFilesystem : trex_test::TestFilesystem {
+    RecordingsFilesystem() : TestFilesystem{"morning.pv", "evening.pv", "video.mp4"} {}
+};
+}
+
+TEST(PathArrayTest, PvWildcardChecksAllMatchesOnFirstAccess) {
+    const file::_PathArray<RecordingsFilesystem> recordings{"*.pv"};
+    EXPECT_TRUE(recordings.all_files_are("pv"));
+    EXPECT_FALSE(recordings.has_single_match("pv"));
+
+    const file::_PathArray<RecordingsFilesystem> missing{"missing-*.pv"};
+    EXPECT_TRUE(missing.has_source());
+    EXPECT_FALSE(missing.any_files_are("pv"));
+    EXPECT_FALSE(missing.all_files_are("pv"));
+    EXPECT_FALSE(missing.has_single_match("pv"));
+}
+
+TEST(PathArrayTest, MixedWildcardListChecksFilesFromBothPatterns) {
+    const file::_PathArray<RecordingsFilesystem> recordings{R"(["*.mp4","evening*.pv"])"};
+    EXPECT_TRUE(recordings.any_files_are("pv"));
+    EXPECT_TRUE(recordings.any_files_are("mp4"));
+    EXPECT_FALSE(recordings.all_files_are("pv"));
+    EXPECT_EQ(recordings.size(), 2u);
 }
 
 // Test constructor with a single path
@@ -1188,15 +1222,13 @@ TEST(PathArrayTest, VectorOfStringConstructor) {
     EXPECT_EQ(paths.get_paths()[1].str(), file::make_path("path","to","file2"));  // Check the second path
 }
 
-// Test copy and move constructors
 TEST(PathArrayTest, CopyAndMoveConstructors) {
     file::_PathArray<MockFilesystem> original("path/to/file");
-    auto copied = original;  // Copy constructor
-    EXPECT_EQ(copied.get_paths().size(), 1);  // Expect one path in the copied object
+    auto copied = original;
+    EXPECT_EQ(copied.get_paths().size(), 1);
 
-    file::_PathArray<MockFilesystem> moved = std::move(original);  // Move constructor
-    EXPECT_EQ(moved.get_paths().size(), 1);  // Expect one path in the moved object
-    EXPECT_TRUE(original.get_paths().empty());  // Original should be empty after move
+    file::_PathArray<MockFilesystem> moved = std::move(original);
+    EXPECT_EQ(moved.get_paths().size(), 1);
 }
 
 

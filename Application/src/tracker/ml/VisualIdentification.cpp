@@ -11,6 +11,7 @@
 #include <tracking/Tracker.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
+#include <core/SettingsPaths.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <python/ModuleProxy.h>
@@ -77,12 +78,11 @@ VINetwork::Status VINetwork::status(){
 }
 
 file::Path VINetwork::network_path() {
-    file::Path filename = READ_SETTING(filename, file::Path).filename();
+    file::Path filename = READ_SETTING(filename, file::Filename).path();
     filename = filename.has_extension("pv")
                     ? filename.remove_extension()
                     : filename;
-    filename = file::DataLocation::parse("output", filename.str() + "_weights");
-    return filename;
+    return file::DataLocation::parse("output", filename.str() + "_weights");
 }
 
 void VINetwork::set_status(Status status) {
@@ -151,7 +151,7 @@ void VINetwork::setup(bool force) {
         py::set_variable("image_channels", (long_t)required_image_channels(image_mode), module_name);
         py::set_variable("output_path", filename.str(), module_name);
         py::set_variable("output_prefix", READ_SETTING(output_prefix, std::string), module_name);
-        py::set_variable("filename", (std::string)READ_SETTING(filename, file::Path).filename(), module_name);
+        py::set_variable("filename", READ_SETTING(filename, file::Filename).str(), module_name);
         
         if(!py::valid("model", module_name)) {
             FormatWarning("No model set in ", module_name,".");
@@ -272,20 +272,37 @@ void VINetwork::reinitialize_internal() {
     _status.busy = false;
 }
 
+static bool weights_available_at(const file::Path& path) {
+    if(path.str().ends_with(".pt2") || path.str().ends_with(".pt") || path.str().ends_with(".pth"))
+        return path.is_regular();
+
+    for(auto suffix : {"_dict.pth", ".pth", "_model.pt2", "_model.pth"}) {
+        if(file::Path(path.str() + suffix).is_regular())
+            return true;
+    }
+    return false;
+}
+
+static bool loadable_weights_at(const file::Path& path) {
+    if(weights_available_at(path))
+        return true;
+    // Loading an explicit dictionary also accepts its sibling inference graph.
+    constexpr std::string_view suffix = "_dict.pth";
+    if(path.str().ends_with(suffix)) {
+        const auto base = path.str().substr(0, path.str().size() - suffix.size());
+        return file::Path(base + "_model.pt2").is_regular() || file::Path(base + "_model.pth").is_regular();
+    }
+    return false;
+}
+
 std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     //reinitialize_internal();
     
     if(weights.path().empty()) {
-        auto visual_identification_model_path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>);
-        if(visual_identification_model_path.has_value()
-           && not visual_identification_model_path->empty())
-        {
-            weights._path = visual_identification_model_path.value();
-            
-        } else {
-            weights._path = network_path();
-        }
+        weights._path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>).value_or(file::Path{});
     }
+    weights._path = weights.path().empty()
+        ? network_path() : settings::resolve_output_path(weights.path(), loadable_weights_at);
     
     try {
         auto json = py::run(module_name, "load_weights", weights.path().str());
@@ -325,19 +342,7 @@ VIWeights VINetwork::load_weights(VIWeights&& weights) {
 
 
 bool VINetwork::weights_available() {
-    auto base = network_path();
-    // New canonical weights file
-    if (file::Path(base.str() + "_dict.pth").exists())
-        return true;
-    // Legacy weights file
-    if (base.add_extension("pth").exists())
-        return true;
-    // Serialized model bundle (less ideal, but indicates presence of a checkpoint)
-    if (file::Path(base.str() + "_model.pt2").exists())
-        return true;
-    if (file::Path(base.str() + "_model.pth").exists())
-        return true;
-    return false;
+    return weights_available_at(network_path());
 }
 
 std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
@@ -382,7 +387,8 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                         if(visual_identification_model_path.has_value()
                            && not visual_identification_model_path->empty())
                         {
-                            array = m.run("find_available_weights", visual_identification_model_path->str());
+                            auto path = settings::resolve_output_path(*visual_identification_model_path, weights_available_at);
+                            array = m.run("find_available_weights", path.str());
                             
                         } else {
                             array = m.run("find_available_weights");

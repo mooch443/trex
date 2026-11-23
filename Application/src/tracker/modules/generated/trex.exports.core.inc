@@ -37,10 +37,15 @@ using ::cmn::settings::reset;
 using ::cmn::settings::set_defaults_for;
 using ::cmn::settings::write_config;
 // core/SettingsPaths.h
+using ::cmn::settings::conversion_source_exists;
+using ::cmn::settings::find_conversion_source;
 using ::cmn::settings::find_existing_output_name;
 using ::cmn::settings::find_output_name;
 using ::cmn::settings::infer_cm_per_pixel;
 using ::cmn::settings::infer_meta_real_width_from;
+using ::cmn::settings::resolve_file_path;
+using ::cmn::settings::resolve_output_path;
+using ::cmn::settings::video_source_error;
 }
 
 export namespace cmn::sprite {
@@ -74,6 +79,8 @@ using ::cmn::terminal::progress::detail::spinner_state;
 }
 
 export namespace track {
+// core/Border.h
+using ::track::Border;
 // core/FOI.h
 using ::track::FOI;
 // core/FrameTags.h
@@ -146,6 +153,7 @@ using ::track::detect::ObjectDetectionType::Class;
 
 export namespace track::detect::annotation_dataset {
 // core/DetectAnnotationDataset.h
+using ::track::detect::annotation_dataset::Format;
 using ::track::detect::annotation_dataset::format_from_dataset_file;
 }
 
@@ -156,7 +164,10 @@ using ::track::detect::annotation_dataset::format_t::Class;
 
 export namespace track::detect::yolo {
 // core/DetectionTypes.h
+using ::track::detect::yolo::current_detect_model_path;
+using ::track::detect::yolo::current_region_model_path;
 using ::track::detect::yolo::default_model;
+using ::track::detect::yolo::detect_model_candidates;
 using ::track::detect::yolo::is_default_model;
 using ::track::detect::yolo::is_valid_default_model;
 using ::track::detect::yolo::valid_model;

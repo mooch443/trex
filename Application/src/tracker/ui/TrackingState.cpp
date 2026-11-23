@@ -84,8 +84,8 @@ auto TrackingState::addSafeTask(const std::string& title, Func&& f) {
     });
 }
 
-TrackingState::TrackingState(GUITaskQueue_t* gui)
-  : video(pv::File::Make(READ_SETTING(filename, file::Path))),
+TrackingState::TrackingState(GUITaskQueue_t* gui, const file::Path& filename)
+  : video(pv::File::Make(filename)),
     pool(4u, "preprocess_main")
 {
     try {
@@ -305,13 +305,6 @@ void TrackingState::init_video() {
         if(utils::lowercase(option.name) == "output_prefix") {
             SETTING(output_prefix) = option.value;
         }
-    }
-    
-    auto default_path = file::DataLocation::parse("default.settings");
-    if(default_path.exists()) {
-        DebugHeader("LOADING FROM ",default_path);
-        default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
-        DebugHeader("LOADED ",default_path);
     }
     
     //cmd.load_settings(&combined);
@@ -817,20 +810,14 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                 Configuration config;
                 default_config::get(config);
                 try {
-                    GlobalSettings::load_from_string(header.settings, {
-                        .source = from,
-                        .access = AccessLevelType::STARTUP,
-                        .correct_deprecations = true,
-                        .target = &config.values
-                    });
+                    sprite::parse_values(sprite::MapSource{from}, config.values, header.settings,
+                                         nullptr, {}, default_config::deprecations());
                     
                 } catch(const std::exception& e) {
                     Print("Illegal syntax in .results settings (",e.what(),").");
                 }
                 
-                std::vector<Idx_t> focus_group;
-                if(config.has("gui_focus_group"))
-                    focus_group = config.at("gui_focus_group").value<std::vector<Idx_t>>();
+                auto focus_group = config.values.value_with_default("gui_focus_group", std::vector<Idx_t>{});
                 
                 //if(GUI::instance() && !gui_frame_on_startup().frame.valid()) {
                 //    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame)](){

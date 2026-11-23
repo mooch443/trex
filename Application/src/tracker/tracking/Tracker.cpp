@@ -1,4 +1,5 @@
 #include "Tracker.h"
+#include <misc/Path.h>
 #include <pv.h>
 #include <data/MotionRecord.h>
 #include <misc/GlobalSettings.h>
@@ -326,7 +327,9 @@ const Image& Tracker::average(cmn::source_location loc) const {
 
 Tracker::Tracker(const pv::File& video)
     : Tracker(video.header().average ? Image::Make(*video.header().average) :  Image::Make(video.average()), video.header().encoding, settings::infer_meta_real_width_from(video))
-{ }
+{
+    _recording_path = video.filename();
+}
 
 Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t meta_real_width)
     : _frames(data::FrameRepository::Make(average->bounds().size())),
@@ -1254,7 +1257,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
                 
                 try {
-                    auto path = file::DataLocation::parse("output", (std::string)READ_SETTING(filename, file::Path).filename()+"_threading_stats.npz").str();
+                    auto path = file::DataLocation::parse("output", READ_SETTING(filename, file::Filename).str()+"_threading_stats.npz").str();
                     npz_save(path, "values", values.data(), std::vector<size_t>{bins.size(), 3});
                     Print("Saved threading stats at ", path,".");
                 } catch(...) {

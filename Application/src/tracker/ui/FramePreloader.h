@@ -77,13 +77,13 @@ public:
         
         for (auto& f : futures) {
             // bounded wait prevents permanent hang
-            if (f.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
+            if (cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(1)}>(f))
                 f.get();
         }
     }
     
     // Non-blocking call to get a frame
-    std::optional<FrameType> get_frame(Frame_t target_index, std::chrono::milliseconds delay = std::chrono::milliseconds(0));
+    std::optional<FrameType> get_frame(Frame_t target_index, std::chrono::milliseconds delay = 0ms);
     
     // Non-blocking announcement of next frame
     void announce(Frame_t target_index) {
@@ -258,7 +258,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
          * ----------------------------------------------------------- */
         case FutureMode::WrongTarget: {
             // Poll once without blocking.
-            if (local_future->future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+            if (cmn::is_future_ready(local_future->future))
             {
                 auto [index, image] = local_future->future.get();
                 assert(not image || index == local_future->index);

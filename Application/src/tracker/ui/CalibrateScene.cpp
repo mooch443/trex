@@ -118,7 +118,7 @@ void CalibrateScene::_draw(DrawStructure &graph) {
         using namespace dyn;
         
         _data->gui = dyn::DynamicGUI{
-            .gui = nullptr,
+            .gui = SceneManager::getInstance().gui_task_queue(),
             .path = "calibrate_layout.json",
             .context = [&](){
                 dyn::Context context;

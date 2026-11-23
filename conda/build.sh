@@ -144,11 +144,10 @@ if [ "$(uname)" == "Linux" ]; then
 
 else
     SDKS=$(echo /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.*.sdk | sort | tail -n1)
+    export MACOSX_DEPLOYMENT_TARGET="11.0"
 
     if [ "${ARCH}" == "arm64" ]; then
         echo "Using up-to-date sysroot for arm64 arch."
-        export MACOSX_DEPLOYMENT_TARGET="11.0"
-
         export CONDA_BUILD_SYSROOT=$(ls -d $SDKS | tail -n1)
         export SDKROOT="${CONDA_BUILD_SYSROOT}"
         CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
@@ -174,13 +173,11 @@ else
             fi
 
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
-            export MACOSX_DEPLOYMENT_TARGET="11.0"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
         else
             echo "No GITHUB_WORKFLOW detected."
             export CONDA_BUILD_SYSROOT=$(ls -d $SDKS | tail -n1)
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
-            export MACOSX_DEPLOYMENT_TARGET="11.0"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
         fi
     fi

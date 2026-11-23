@@ -68,6 +68,7 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
     using namespace dyn;
     if(not dynGUI)
         dynGUI = DynamicGUI{
+            .gui = SceneManager::getInstance().gui_task_queue(),
             .path = "tracking_settings_layout.json",
             .context = {
                 ActionFunc("go-back", [](auto){

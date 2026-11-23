@@ -547,13 +547,19 @@ def parse_regular_symbols(header: str, module: str, text: str) -> tuple[list[Sym
         stmt: list[str] = []
         paren_depth = 0
         angle_depth = 0
+        outer_angle_depth = 0
         idx = start
         while idx < len(tokens):
             tok = tokens[idx]
             if tok == "(":
+                if paren_depth == 0:
+                    outer_angle_depth = angle_depth
                 paren_depth += 1
             elif tok == ")":
                 paren_depth = max(paren_depth - 1, 0)
+                if paren_depth == 0 and idx + 1 < len(tokens) and tokens[idx + 1] == ";":
+                    # Template arguments inside a parameter list end before its semicolon.
+                    angle_depth = outer_angle_depth
             elif tok == "<":
                 angle_depth += 1
             elif tok == ">":

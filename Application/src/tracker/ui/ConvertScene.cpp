@@ -421,8 +421,7 @@ void ConvertScene::deactivate() {
 
 void ConvertScene::Data::check_video_info(bool wait, std::set<std::string_view>* result) {
     if(_retrieve_video_info.valid()
-       && (wait || _retrieve_video_info.wait_for(std::chrono::milliseconds(0)) 
-                        == std::future_status::ready))
+       && (wait || cmn::is_future_ready(_retrieve_video_info)))
     {
         try {
             // invalidate existing future and throw away
@@ -500,8 +499,8 @@ void ConvertScene::activate()  {
     });
     
     auto source = READ_SETTING(source, file::PathArray);
-    if(READ_SETTING(filename, file::Path).empty()) {
-        SETTING(filename) = default_filename;
+    if(READ_SETTING(filename, file::Filename).path().empty()) {
+        SETTING(filename) = file::Filename(default_filename.filename());
     }
     
     if(start_over
@@ -917,7 +916,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                         else
                             SceneManager::getInstance().set_active("starting-scene");
                     }
-                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to <c><cyan>"+(_segmenter ? _segmenter->output_file_name().str() : READ_SETTING(filename, file::Path).str())+"</cyan></c>.", "End recording", "Yes, stop", "Cancel");
+                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to <c><cyan>"+(_segmenter ? _segmenter->output_file_path().str() : READ_SETTING(filename, file::Filename).str())+"</cyan></c>.", "End recording", "Yes, stop", "Cancel");
             });
             
         }),
@@ -1013,11 +1012,11 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         }),
         VarFunc("output_name", [this](const VarProps& ) -> file::Path {
             if (_segmenter)
-                return _segmenter->output_file_name();
-            return READ_SETTING(filename, file::Path);
+                return _segmenter->output_file_path();
+            return READ_SETTING(filename, file::Filename).path();
         }),
         VarFunc("output_base", [](const VarProps& ) -> file::Path {
-            return READ_SETTING(filename, file::Path).filename();
+            return READ_SETTING(filename, file::Filename).path();
         }),
         VarFunc("output_size", [this](const VarProps&) -> Vec2 {
             if(not _segmenter)

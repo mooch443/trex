@@ -570,6 +570,7 @@ TEST(ButtonTest, DisabledButtonsSuppressActionsAndCancelPendingClicks) {
     EXPECT_TRUE(button.hovered());
 
     for(bool left_button : {true, false}) {
+        SCOPED_TRACE(left_button ? "Left click on disabled button" : "Right click on disabled button");
         graph.mouse_down(left_button);
         EXPECT_FALSE(button.pressed());
         graph.mouse_up(left_button);
@@ -585,6 +586,7 @@ TEST(ButtonTest, DisabledButtonsSuppressActionsAndCancelPendingClicks) {
     EXPECT_TRUE(button.toggled());
     button.set_toggle(false);
 
+    // Disabling during a press cancels it, even if the button is enabled again before release.
     graph.mouse_down(true);
     button.set(Disabled_t{true});
     EXPECT_FALSE(button.pressed());
@@ -593,6 +595,7 @@ TEST(ButtonTest, DisabledButtonsSuppressActionsAndCancelPendingClicks) {
     EXPECT_EQ(clicks, 1u);
     EXPECT_FALSE(button.toggled());
 
+    // Enabling after mouse-down cannot turn a press that started disabled into a click.
     button.set(Disabled_t{true});
     graph.mouse_down(true);
     button.set(Disabled_t{false});
@@ -600,6 +603,7 @@ TEST(ButtonTest, DisabledButtonsSuppressActionsAndCancelPendingClicks) {
     EXPECT_EQ(clicks, 1u);
     EXPECT_FALSE(button.toggled());
 
+    // A new press after re-enabling still works.
     graph.mouse_down(true);
     graph.mouse_up(true);
     EXPECT_EQ(clicks, 2u);

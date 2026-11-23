@@ -197,8 +197,13 @@ struct ScreenRecorder::Data {
             }
             
         } else {
-            auto clip_name = std::string(_recording_path.filename());
-            printf("ffmpeg -start_number %" PRIu32 " -i \"%s/%%06d.%.*s\" -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p \"%s.mp4\"\n", _recording_start.get(), _recording_path.str().c_str(), static_cast<int>(_recording_format.name().size()), _recording_format.name().data(), clip_name.c_str());
+            const auto recording_path = _recording_path.absolute();
+            const auto input_path = utils::find_replace(recording_path.str(), "%", "%%");
+            const auto save_path = recording_path.add_extension("mp4");
+            printf("ffmpeg -start_number %" PRIu32 " -i \"%s/%%06d.%.*s\" -vcodec h264 -crf 13 "
+                   "-vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p \"%s\"\n",
+                   _recording_start.get(), input_path.c_str(), static_cast<int>(_recording_format.name().size()),
+                   _recording_format.name().data(), save_path.c_str());
         }
         
         _recording_start = {};
@@ -211,10 +216,10 @@ struct ScreenRecorder::Data {
     }
     
     file::Path frame_output_dir() {
-        auto filename = READ_SETTING(filename, file::Path);
+        auto filename = READ_SETTING(filename, file::Filename).path();
         if(filename.has_extension("pv"))
             filename = filename.remove_extension();
-        return file::DataLocation::parse("output", file::Path("clips") / (std::string)filename.filename());
+        return file::DataLocation::parse("output", file::Path("clips") / filename);
     }
     
     void start_recording(Base* base, Frame_t frame) {
@@ -239,7 +244,7 @@ struct ScreenRecorder::Data {
         // ---------------------------------------------------------------------
         // pick clip index
         // ---------------------------------------------------------------------
-        std::string clip_prefix = (std::string)READ_SETTING(filename, file::Path).filename() + "_";
+        std::string clip_prefix = READ_SETTING(filename, file::Filename).str() + "_";
         size_t max_number = 0;
         try {
             for (auto& file : frames.find_files()) {

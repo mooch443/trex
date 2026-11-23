@@ -12,20 +12,27 @@
         {
           "header": "core/DetectAnnotationDataset.h",
           "kind": "group",
-          "line": "8",
+          "line": "6",
           "name": "track::detect::annotation_dataset::format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
       "path": "core/DetectAnnotationDataset.h",
-      "sha256": "9a76140991eb97cd715dcdad02ea4308bedaa1a36c4c8e61601b3d954293711b",
+      "sha256": "358294c01338b3cd57b81316cd953e145fa2cc4043ca7d0624c78ce14bcc6fd2",
       "symbols": [
         {
           "kind": "enum_class",
           "name": "Class",
           "namespace": "track::detect::annotation_dataset::format_t",
           "qualified": "track::detect::annotation_dataset::format_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Format",
+          "namespace": "track::detect::annotation_dataset",
+          "qualified": "track::detect::annotation_dataset::Format",
           "smoke": "using"
         },
         {
@@ -100,20 +107,27 @@
         {
           "header": "core/Border.h",
           "kind": "group",
-          "line": "15",
+          "line": "12",
           "name": "track::recognition_border_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
       "path": "core/Border.h",
-      "sha256": "8037472b8bf8e0edc4ec1cb492874d40a9e026d7bcc22d7fe487cf8cb6e54d41",
+      "sha256": "3703d28d6c7a2861c0a01b9edba91814c2751a976976b18981f69e29d0af32d7",
       "symbols": [
         {
           "kind": "enum_class",
           "name": "Class",
           "namespace": "track::recognition_border_t",
           "qualified": "track::recognition_border_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Border",
+          "namespace": "track",
+          "qualified": "track::Border",
           "smoke": "using"
         }
       ]
@@ -123,126 +137,126 @@
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "14",
+          "line": "12",
           "name": "track::detect::ObjectDetectionType::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "15",
+          "line": "13",
           "name": "track::detect::ObjectDetectionFormat::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "63",
+          "line": "65",
           "name": "default_config::heatmap_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "66",
+          "line": "68",
           "name": "default_config::individual_image_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "71",
+          "line": "72",
           "name": "default_config::gpu_verbosity_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "74",
+          "line": "75",
           "name": "default_config::gui_recording_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "77",
+          "line": "78",
           "name": "default_config::peak_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "80",
+          "line": "81",
           "name": "default_config::matching_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "83",
+          "line": "84",
           "name": "default_config::output_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "86",
+          "line": "87",
           "name": "default_config::output_invalid_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "89",
+          "line": "90",
           "name": "default_config::app_update_check_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "92",
+          "line": "93",
           "name": "default_config::blob_split_algorithm_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "95",
+          "line": "96",
           "name": "default_config::visual_identification_version_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "98",
+          "line": "99",
           "name": "default_config::TRexTask_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "101",
+          "line": "102",
           "name": "default_config::gpu_torch_device_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "104",
+          "line": "105",
           "name": "default_config::detect_pose_bbx_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "138",
+          "line": "141",
           "name": "cmn::gui::mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
       "path": "core/default_config.h",
-      "sha256": "2afd27e95fc2c135281b39214396406f83b82ae283095bc44910131165311516",
+      "sha256": "e18ef8e97f6f2e455abd2951afd9bb1757e1848b97b2c2539993f9bde0322d07",
       "symbols": [
         {
           "kind": "enum_class",
@@ -292,7 +306,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/DetectionTypes.h",
-      "sha256": "0b859c12f2916b08ef33cecad4fcc25a11fe3d7f02e496637e8d1860c1551821",
+      "sha256": "0b197f7afa95afdb2e8fde5710f7f8e0df78c36d774535f097dcc34d55b78b3f",
       "symbols": [
         {
           "kind": "alias",
@@ -408,6 +422,27 @@
         },
         {
           "kind": "function",
+          "name": "current_detect_model_path",
+          "namespace": "track::detect::yolo",
+          "qualified": "track::detect::yolo::current_detect_model_path",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "current_region_model_path",
+          "namespace": "track::detect::yolo",
+          "qualified": "track::detect::yolo::current_region_model_path",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "detect_model_candidates",
+          "namespace": "track::detect::yolo",
+          "qualified": "track::detect::yolo::detect_model_candidates",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
           "name": "valid_model",
           "namespace": "track::detect::yolo",
           "qualified": "track::detect::yolo::valid_model",
@@ -440,7 +475,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/FrameTags.h",
-      "sha256": "81a23e29e556f6694b78877b7874c5b0d68b1f22aa3a662bb7fe243b38d9a51c",
+      "sha256": "cd5480d91976ef4fee945f2577e187e315520800efd25d233a608177a8eaadcf",
       "symbols": [
         {
           "kind": "class",
@@ -455,7 +490,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/FOI.h",
-      "sha256": "32d610cdf03e008e6577dff71cb3f4bd7968457fae724f524145545209e26e25",
+      "sha256": "8e2c4c0d2f9b547934cb2c11c417789004a8fa1b43963d3bf48c32a87c5bb931",
       "symbols": [
         {
           "kind": "class",
@@ -549,7 +584,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/idx_t.h",
-      "sha256": "965c0f4fac1ee8472d2ed26ced0586b8d8ef0837662452e9fa3f03d39765f857",
+      "sha256": "712f7b5dc026fd9b6b037323d32107c0d9c536c6ab6fc942ba1821843c9125ec",
       "symbols": [
         {
           "kind": "struct",
@@ -571,7 +606,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/TerminalProgress.h",
-      "sha256": "261faf6bfc157fa4de792231f39320230c0df4edcc8c3f82f17152a81a3dadf9",
+      "sha256": "a22063665a39abaecddc808328cdaf36387571cf580d8b6d783c7ad31a7e3e8f",
       "symbols": [
         {
           "kind": "function",
@@ -698,7 +733,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/GPURecognitionTypes.h",
-      "sha256": "566b9e142514d41140900d281d85776658746cd8962c853ce3983f9233d9f103",
+      "sha256": "f93752a28f9a63553d61a67aa90d4e3f4baa85dcbaf3d7638a51f1552ce7898d",
       "symbols": [
         {
           "kind": "class",
@@ -756,7 +791,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SizeFilters.h",
-      "sha256": "8d945aad4bec4497fdaa1a5da491265516f10cad629b17a9f2d0674d4a202c66",
+      "sha256": "81f0fc5d63eb2ebfb096d3168b14aef8751ae04524d807b92b85cde149b017e1",
       "symbols": [
         {
           "kind": "class",
@@ -821,8 +856,29 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsPaths.h",
-      "sha256": "c1f79950a3eb8e9d7d549dd96e26dff888e5bfac7b2464d916fb43cb856dc59d",
+      "sha256": "07a06efdf792a0076602662018af4de8e42413c03c6aba2d2dc66998b0044829",
       "symbols": [
+        {
+          "kind": "function",
+          "name": "video_source_error",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::video_source_error",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "resolve_file_path",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::resolve_file_path",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "resolve_output_path",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::resolve_output_path",
+          "smoke": "using"
+        },
         {
           "kind": "function",
           "name": "find_output_name",
@@ -835,6 +891,20 @@
           "name": "find_existing_output_name",
           "namespace": "cmn::settings",
           "qualified": "cmn::settings::find_existing_output_name",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_conversion_source",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::find_conversion_source",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "conversion_source_exists",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::conversion_source_exists",
           "smoke": "using"
         },
         {
@@ -857,7 +927,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsInitializer.h",
-      "sha256": "eab66acf332187061e390b92f7223831a14c9e8e1f5e545aed2e52a252d19360",
+      "sha256": "5afa3cf7fca914217621cb66a964926bb42d83d925225119d1734294e0cfc229",
       "symbols": [
         {
           "kind": "class",
@@ -986,7 +1056,7 @@
       ],
       "module": "trex.core",
       "path": "core/TimingStatsCollector.h",
-      "sha256": "fbe8a180ee6e23c37e2f14d05901282d13a06b4737450c8dd89987fce9c47c97",
+      "sha256": "8d65c1a666fdd694c70efd982edd50ca810b0ad50d01e6529e63729aa2839066",
       "symbols": []
     },
     {
@@ -1001,14 +1071,14 @@
         {
           "header": "core/TrackingSettings.h",
           "kind": "group",
-          "line": "84",
+          "line": "19",
           "name": "track::MaskPostprocessMode::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
       "path": "core/TrackingSettings.h",
-      "sha256": "f2d0301f4c7bcef423fa6e8b3c049c24913aef012c8e862f92b0452641ecdae1",
+      "sha256": "53b09ed86303ae809b252177ba3e1e39d0cffe4d58919f00ceb220ec6397374a",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1051,7 +1121,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/VideoInfo.h",
-      "sha256": "ebe24ab07134bad8aaaada1a4285ee232dfa7c10f722ebaa241fa85fe9b9c71d",
+      "sha256": "7e90c84291789692a6dd967b488865173030498358d33a14636e2064a09a561f",
       "symbols": [
         {
           "kind": "struct",
@@ -1087,7 +1157,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/DetectAnnotation.h",
-      "sha256": "d316d18a587b05b83041b5fef28d5950ed56de0837ea01f82b126dc31c374d0b",
+      "sha256": "94ff092deca1e9a3f8c13ffd1d0018de19ca76535785f43874d124fe63cab247",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1239,7 +1309,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/AnnotationExporter.h",
-      "sha256": "4f3c8bb63baa111bfc67ac1ad677a7b4d54600280cc2ceefd4f1f4f20a4095bb",
+      "sha256": "cfc7630cb69934080d8a76e067cbad1a77b6733a903e29d3f2463140a66b838f",
       "symbols": [
         {
           "kind": "struct",
@@ -1292,6 +1362,13 @@
         },
         {
           "kind": "function",
+          "name": "select_annotations",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::select_annotations",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
           "name": "summarize",
           "namespace": "track::detect::annotation_export",
           "qualified": "track::detect::annotation_export::summarize",
@@ -1339,28 +1416,28 @@
         {
           "header": "tracking/DetectAnnotationImporter.h",
           "kind": "group",
-          "line": "12",
+          "line": "10",
           "name": "track::detect::annotation_import::merge_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "tracking/DetectAnnotationImporter.h",
           "kind": "group",
-          "line": "17",
+          "line": "14",
           "name": "track::detect::annotation_import::import_scope_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "tracking/DetectAnnotationImporter.h",
           "kind": "group",
-          "line": "23",
+          "line": "17",
           "name": "track::detect::annotation_import::task_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.tracking",
       "path": "tracking/DetectAnnotationImporter.h",
-      "sha256": "05e24d1afcfcace0f0ff559e3fded10c8d92348718e1ea0647aa5f900e9df314",
+      "sha256": "1cff8721dac2143c6534493f381a9e83c811d641b9eb6d6be96f956b5ddf2af0",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1385,9 +1462,30 @@
         },
         {
           "kind": "alias",
+          "name": "MergeMode",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::MergeMode",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ImportScope",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::ImportScope",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
           "name": "Format",
           "namespace": "track::detect::annotation_import",
           "qualified": "track::detect::annotation_import::Format",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Task",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::Task",
           "smoke": "using"
         },
         {
@@ -2057,21 +2155,21 @@
         {
           "header": "tracking/OutputLibraryTypes.h",
           "kind": "group",
-          "line": "14",
+          "line": "12",
           "name": "Output::Functions::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "tracking/OutputLibraryTypes.h",
           "kind": "group",
-          "line": "54",
+          "line": "29",
           "name": "Output::Modifiers::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.tracking",
       "path": "tracking/OutputLibraryTypes.h",
-      "sha256": "39707b01b94836705521fb496b7e75df31600c10a3f68590bd8989659211c7f4",
+      "sha256": "6c0616e5060a2b2118027df4874dcc4ceef4a565384d5a71bb7bdebc4e25de56",
       "symbols": [
         {
           "kind": "class",
@@ -2150,7 +2248,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/PPFrame.h",
-      "sha256": "23ec8de0f9a596095304b7f3cb24a26e7dc7370c0364a9ff10fcfd4ea33f581c",
+      "sha256": "0afb882796ebba8c58cc3341022f92c4f11c32caba89e20ad97d622cda2e9083",
       "symbols": [
         {
           "kind": "class",
@@ -2227,7 +2325,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/PrefilterBlobs.h",
-      "sha256": "3cb99c20f76a06a847b7249e1bb63d544b897be953d7392b5b1d90cbb425989f",
+      "sha256": "4bac42d2424479e5d1d6c3f471cf1773d0e834018f8468415987c8fc1fab70a9",
       "symbols": [
         {
           "kind": "class",
@@ -2336,14 +2434,14 @@
         {
           "header": "tracking/SplitBlob.h",
           "kind": "group",
-          "line": "17",
+          "line": "9",
           "name": "track::split::Action::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.tracking",
       "path": "tracking/SplitBlob.h",
-      "sha256": "3b5c7709f261f8c623a275e88d7cb6d392b7ce83378818b90fb0a7ccd17c308e",
+      "sha256": "78ff8df962c78173409ed0b04f0d7b932bbd2a9c4232e2a37936b45eaf5856bb",
       "symbols": [
         {
           "kind": "enum_class",
@@ -2364,6 +2462,13 @@
           "name": "ListCache_t",
           "namespace": "cmn::CPULabeling",
           "qualified": "cmn::CPULabeling::ListCache_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Action_t",
+          "namespace": "track::split",
+          "qualified": "track::split::Action_t",
           "smoke": "using"
         }
       ]
@@ -2430,7 +2535,7 @@
       "excluded": [],
       "module": "trex.ml",
       "path": "ml/ClosedLoop.h",
-      "sha256": "7c48b3338d0c9c81025dfe4ad2dd3b4b2dd130802078b33df742e58f915f37cc",
+      "sha256": "f241f6b98348354fa7de9058671917591dee088d33f24a8bca1c4104d5cec933",
       "symbols": []
     },
     {
@@ -2460,7 +2565,7 @@
         {
           "header": "ml/VisualIdentification.h",
           "kind": "group",
-          "line": "26",
+          "line": "24",
           "name": "Python::TrainingMode::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
@@ -2539,7 +2644,7 @@
       ],
       "module": "trex.ml",
       "path": "ml/VisualIdentification.h",
-      "sha256": "fa1864e716a3443308a8dda1b85ca390b36fa2dc3d8550709e1ebf9a565bc991",
+      "sha256": "2f1b776b27ecd93917b780e9fea61bccc9aaac43a8a52677c1659cd0f790fb6d",
       "symbols": [
         {
           "kind": "enum_class",
@@ -2570,6 +2675,14 @@
           "smoke": "using"
         },
         {
+          "kind": "concept",
+          "name": "image_ptr",
+          "namespace": "Python",
+          "qualified": "Python::image_ptr",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
           "kind": "class",
           "name": "VINetwork",
           "namespace": "Python",
@@ -2582,7 +2695,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/AnimatedBackground.h",
-      "sha256": "ae1f40c8b2249e2288b5269774923de222a84a232be0a8b303bac85bfe178d48",
+      "sha256": "506186ae84a679806691fed9d730f97ac380dc2edad69f2c909149785c4b98b7",
       "symbols": [
         {
           "kind": "struct",
@@ -2719,7 +2832,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/CheckUpdates.h",
-      "sha256": "d366b900ebad43246bd05bbf79205a32dc29a79bf74e125acda62ecc9d2f5b5d",
+      "sha256": "f1d2c217c2bb6cd57c5bc7c026c999cda25fcda6d20b2cb56ca5c178b2b68954",
       "symbols": [
         {
           "kind": "enum_class",
@@ -2927,7 +3040,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/ConvertScene.h",
-      "sha256": "e8b4ae2ecd0ba910a30653f75f588e4ecc6e8e2df3cad33315d44baa9c45c3b6",
+      "sha256": "223a7ef8b899fb7636eb305486f37b64727729968cd4b1ab654e1424a8a8663e",
       "symbols": [
         {
           "kind": "struct",
@@ -3162,8 +3275,15 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawAnnotationExportOptions.h",
-      "sha256": "9d510dcbb61f561920c6458408de500b9ea54365532d80bba92284839cadc098",
+      "sha256": "35811e904ac57f9e1d5c67534cb72254e846257663fe898ea4563af4215bf527",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "DrawStructure",
@@ -3271,7 +3391,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawFish.h",
-      "sha256": "0aade18bd7f652151230e3c4343e47e896b22bde181f67514b5f41e514b91ee9",
+      "sha256": "2f52b9ae2274726ae1eca21cf62320151ca0c827327b666b0272a6121f178759",
       "symbols": [
         {
           "kind": "class",
@@ -3552,7 +3672,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/FramePreloader.h",
-      "sha256": "cf86013f208f16e3ad5c66c6ef5c04c084bc118b86e998d65c10b7b2ecbc258a",
+      "sha256": "9d71a3c9f0b4bfbbcd8a85ebc0208b3a596dcb533bc3e37714877617396eaff2",
       "symbols": [
         {
           "kind": "class",
@@ -3608,7 +3728,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/GUICache.h",
-      "sha256": "fd5ac78187f2ad72c9397a87314a8bee00dc46239bc658781af33e84c9b777d8",
+      "sha256": "a12c8e96ff33bcb9fa7b2458cb3a7fd58ba425b9a234f1a69b183c46a0771d48",
       "symbols": [
         {
           "kind": "class",
@@ -3909,7 +4029,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/InfoCard.h",
-      "sha256": "67eb255e11b6b2ada5c5b6115eb08551007e1af4079358fd03fddd9ed61419a0",
+      "sha256": "ae5fbeb3140498d4520bafcf53273551d0646a4b3dd2616cb663ce7590a31008",
       "symbols": [
         {
           "kind": "class",
@@ -4032,7 +4152,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/LoadingScene.h",
-      "sha256": "de2b3a144d4b263b2b67de01e595b3bdd33c61272e2029decf6fd63e384ce8ce",
+      "sha256": "bf2e6e4f4dc867bb8024da1275d92f45ded753b8b1a18a947a6f6189ab6039a5",
       "symbols": [
         {
           "kind": "class",
@@ -4127,14 +4247,14 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/RecentItems.h",
-      "sha256": "36eaa8988036757024f508cc677cde5e62ca2de6d191db60b6f1797c52b650e9",
+      "sha256": "a35925937cabdc2faab60882dcd65385c9ec0bc5fff949d55297951a47e2f083",
       "symbols": []
     },
     {
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Scene.h",
-      "sha256": "60d5680a19bc6b4e757812007112ba0bf469ad20efa385dc2d4391b784437686",
+      "sha256": "f06e88c6c67f86318d06120668cca1c918fa46ec4abbf809e71986c354ef98e7",
       "symbols": [
         {
           "kind": "class",
@@ -4227,7 +4347,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/SettingsDropdown.h",
-      "sha256": "018a1f405cc06043e54ec5787248f43e3dcdb271ae2cd567c0e3604db4e09aa2",
+      "sha256": "0d023460af11fdc0f7e696c146077d7251afd0fbbced4585f2b858cf1b98a6cc",
       "symbols": [
         {
           "kind": "class",
@@ -4256,7 +4376,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/SettingsScene.h",
-      "sha256": "2af0bb1ed402edb60a9523ccb4aa48c7cbed9f40bcf8f45e9836f87f9efe6bdf",
+      "sha256": "e2756c9292b9eba57c56a62e127338c6cf4b8326682e6da05ead1758e8bf25ad",
       "symbols": [
         {
           "kind": "class",
@@ -4374,7 +4494,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/TrackingScene.h",
-      "sha256": "9b9d2737c953fd782d0061bce56a0437909149158110ae87603ba57864b46fbe",
+      "sha256": "b77f57b4128a435b00e6fff0f0349661f3ced2a9a46bc3b74a6df75dc11aed4c",
       "symbols": [
         {
           "kind": "struct",
@@ -4432,7 +4552,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/TrackingState.h",
-      "sha256": "198b08bf5cccb18f61a611c41499a1c1c1ae91d81ad44c45c21007f96efb4e46",
+      "sha256": "b980d3c096ad79fa6ee0091885fde5a814edfe351ba413d9e9e2b7e7a7afd01a",
       "symbols": [
         {
           "kind": "class",
@@ -4577,28 +4697,28 @@
         {
           "header": "ui/Accumulation.h",
           "kind": "group",
-          "line": "32",
+          "line": "27",
           "name": "track::AccumulationStatus::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "ui/Accumulation.h",
           "kind": "group",
-          "line": "33",
+          "line": "28",
           "name": "track::AccumulationReason::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "ui/Accumulation.h",
           "kind": "group",
-          "line": "40",
+          "line": "30",
           "name": "track::CallbackType_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.ui",
       "path": "ui/Accumulation.h",
-      "sha256": "e2c9f88ee27c5979850dd34a9a880c9b5162ec4659d4953bc73ce6a73df0d4a0",
+      "sha256": "bc7d147f516bb4d2cb82197f5ba1df306aa62e49b61ab0dcf6db1732fcd78384",
       "symbols": [
         {
           "kind": "enum_class",
@@ -4894,7 +5014,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/CategorizeInterface.h",
-      "sha256": "b1f25e44aedb52093c58e6154ef21e61a06229bfbe248d3a1495dcee19d0820b",
+      "sha256": "3e6779888aef2e193aba83c07eadfd4682eb2f5b570def85d6ebc5ffc81737cf",
       "symbols": [
         {
           "kind": "class",
@@ -4939,7 +5059,7 @@
   "summary": {
     "excluded": 59,
     "headers": 130,
-    "symbols": 501
+    "symbols": 518
   },
   "version": 1
 }

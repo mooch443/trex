@@ -20,7 +20,9 @@ int main(int argc, char** argv) {
     GlobalSettings::create();
     SETTING(terminate) = false;
     CommandLine::init(argc, argv);
-    CommandLine::instance().cd_home();
+    file::DataLocation::register_path("app", [](const sprite::Map&, file::Path path) {
+        return path.is_absolute() ? path : CommandLine::instance().wd() / path;
+    });
     
     Image image = std::move(*Image::Zeros(300, 300, 1));
     cv::circle(image.get(), Vec2(50, 50), 10, White, -1);

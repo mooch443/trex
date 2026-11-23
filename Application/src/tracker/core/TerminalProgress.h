@@ -28,7 +28,7 @@ inline std::vector<std::string> spinner_states() {
 }
 
 inline constexpr std::chrono::milliseconds interval() {
-    return std::chrono::milliseconds(100);
+    return 100ms;
 }
 
 inline constexpr double interval_seconds() {

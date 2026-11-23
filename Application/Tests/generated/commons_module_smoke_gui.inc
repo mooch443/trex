@@ -24,6 +24,8 @@ using ::cmn::gui::attr::FillClr;
 using ::cmn::gui::attr::FillClrTag;
 using ::cmn::gui::attr::Folded_t;
 using ::cmn::gui::attr::Folded_tTag;
+using ::cmn::gui::attr::Font_t;
+using ::cmn::gui::attr::Font_tTag;
 using ::cmn::gui::attr::HighlightClr;
 using ::cmn::gui::attr::HighlightClrTag;
 using ::cmn::gui::attr::HorizontalClr;
@@ -55,6 +57,12 @@ using ::cmn::gui::attr::Rotation;
 using ::cmn::gui::attr::RotationTag;
 using ::cmn::gui::attr::Scale;
 using ::cmn::gui::attr::ScaleTag;
+using ::cmn::gui::attr::ScrollLimits;
+using ::cmn::gui::attr::ScrollLimitsTag;
+using ::cmn::gui::attr::ScrollOffset;
+using ::cmn::gui::attr::ScrollOffsetTag;
+using ::cmn::gui::attr::Scrollable_t;
+using ::cmn::gui::attr::Scrollable_tTag;
 using ::cmn::gui::attr::Size;
 using ::cmn::gui::attr::SizeLimit;
 using ::cmn::gui::attr::SizeLimitTag;
@@ -243,6 +251,7 @@ using cmn_gui_Text_Shadow_tTag = ::cmn::gui::Text::Shadow_tTag;
 // gui/IMGUIBase.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::IMGUIBase;
+using ::cmn::gui::SectionInterface;
 }
 
 namespace commons_module_smoke::commons_gui::cmn::gui::Effects {

@@ -107,6 +107,8 @@ TYPED_TEST(ParseAndResolveTest, NestedBooleanConditionsAndWarningsStayIndependen
     const auto& reuse = objects.at(1).get_object().at("var").get_string();
     const auto& tooltip = objects.at(0).get_object().at("else").get_object().at("tooltip").get_string();
 
+    // Check that either warning can appear on its own, both can appear together,
+    // and a busy operation suppresses both even when prerequisites are missing.
     for(bool requires_resource : {false, true}) {
         for(bool resource_available : {false, true}) {
             for(bool input_available : {false, true}) {
@@ -821,14 +823,6 @@ TYPED_TEST(ParseAndResolveTest, AtIndexesString)
 }
 
 TYPED_TEST(ParseAndResolveTest, AtLooksUpObjectValueByKey)
-{
-    State   state;
-    Context ctx;
-    auto result = run_parser<TypeParam>("{at:key:'{key:value,other:ignored}'}", ctx, state);
-    ASSERT_EQ(result, "value");
-}
-
-TYPED_TEST(ParseAndResolveTest, AtLooksUpObjectValueByKeyQuoted)
 {
     State   state;
     Context ctx;

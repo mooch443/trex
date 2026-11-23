@@ -616,6 +616,7 @@ std::optional<int> run_process(const std::vector<std::string>& arguments, std::c
 
 TEST(PvinfoResults, InspectsStoredBackgroundsWithoutASourcePv) {
     TempDirectory workspace;
+    const ScopedCurrentPath launch_directory(workspace.path);
     register_data_locations_once();
 
     for(const auto encoding : {meta_encoding_t::gray, meta_encoding_t::r3g3b2,
@@ -627,7 +628,7 @@ TEST(PvinfoResults, InspectsStoredBackgroundsWithoutASourcePv) {
         const auto results_path = output_dir / (std::string(encoding.name()) + ".results");
         SETTING(output_dir) = output_dir;
         SETTING(output_prefix) = std::string{};
-        SETTING(filename) = file::Path(results_path.filename()).remove_extension();
+        SETTING(filename) = file::Filename(file::Path(results_path.filename()).remove_extension());
         SETTING(meta_encoding) = encoding;
         SETTING(meta_video_size) = Size2(64, 48);
         SETTING(video_length) = uint64_t(6);
@@ -649,8 +650,7 @@ TEST(PvinfoResults, InspectsStoredBackgroundsWithoutASourcePv) {
 
         const auto exit_code = run_process({
             TREX_PVINFO_EXECUTABLE,
-            "-i", results_path.str(),
-            "-output_dir", output_dir.str(),
+            "-i", (file::Path("output") / results_path.filename()).str(),
             "-print_parameters", "[\"meta_video_size\",\"video_size\"]",
             "-quiet"
         }, std::chrono::seconds(60));
@@ -658,11 +658,22 @@ TEST(PvinfoResults, InspectsStoredBackgroundsWithoutASourcePv) {
         EXPECT_EQ(*exit_code, 0);
     }
 
-    for(const auto& [encoding, frame_count, with_blob] : {
-            std::tuple{meta_encoding_t::binary, 12u, true},
-            std::tuple{meta_encoding_t::binary, 1u, true},
-            std::tuple{meta_encoding_t::gray, 12u, false}})
-    {
+    struct Case {
+        const char* description;
+        meta_encoding_t::Class encoding;
+        uint32_t frame_count;
+        bool with_blob;
+    };
+    const Case cases[] {
+        {.description = "Binary recording with blobs", .encoding = meta_encoding_t::binary,
+         .frame_count = 12, .with_blob = true},
+        {.description = "Single-frame recording with a blob", .encoding = meta_encoding_t::binary,
+         .frame_count = 1, .with_blob = true},
+        {.description = "Recording with no blobs in any frame", .encoding = meta_encoding_t::gray,
+         .frame_count = 12, .with_blob = false}
+    };
+    for(const auto& [description, encoding, frame_count, with_blob] : cases) {
+        SCOPED_TRACE(description);
         const auto output_dir = file::Path((workspace.path / "output").string());
         const auto base = output_dir / (std::string(encoding.name()) + "_" + std::to_string(frame_count));
         SCOPED_TRACE(base.str());
@@ -684,6 +695,7 @@ TEST(PvinfoResults, InspectsStoredBackgroundsWithoutASourcePv) {
         }
         video.close();
 
+        // Blob statistics must also be safe with one sample or no samples.
         const auto exit_code = run_process({
             TREX_PVINFO_EXECUTABLE,
             "-i", base.add_extension("pv").str(),
@@ -821,17 +833,17 @@ TEST(HeadlessSettingsStartup, RegisteredDefaultsApplyWithoutSettingsOrOverrides)
     expect_pv_range(pv_path, 0, 2);
 }
 
-// Policy: Headless startup accepts a relative output filename and uses its basename
-// under -d/-p, following the same output-location rules as GUI startup.
+// trex -i ./source/video.mp4 -d /output -p session -o video.pv -> writes /output/session/video.pv.
 TEST(HeadlessSettingsStartup, RelativeFilenameUsesBasenameInSelectedOutputLocation) {
     TempDirectory workspace;
     const auto source = copy_video_fixture(workspace.path / "source");
+    const ScopedCurrentPath launch_directory(workspace.path);
 
-    auto arguments = conversion_arguments(source);
+    auto arguments = conversion_arguments(fs::path(".") / "source" / source.filename());
     arguments.insert(arguments.end(), {
         "-d", (workspace.path / "output").string(),
         "-p", "session",
-        "-o", "nested/video.pv"
+        "-o", "video.pv"
     });
 
     const auto exit_code = run_process(arguments, std::chrono::seconds(240));
@@ -841,12 +853,48 @@ TEST(HeadlessSettingsStartup, RelativeFilenameUsesBasenameInSelectedOutputLocati
     const auto output_root = workspace.path / "output" / "session";
     const auto pv_path = output_root / "video.pv";
     ASSERT_TRUE(fs::is_regular_file(pv_path)) << pv_path;
-    EXPECT_FALSE(fs::exists(output_root / "nested"));
     EXPECT_FALSE(fs::exists(workspace.path / "source" / "video.pv"));
     EXPECT_FALSE(fs::exists(workspace.path / "source" / "video.settings"));
     EXPECT_FALSE(fs::exists(workspace.path / "source" / "video.results"));
     EXPECT_FALSE(fs::exists(workspace.path / "source" / "data"));
     expect_pv_range(pv_path, 0, 2);
+}
+
+// trex -i source/video.mp4 -o nested/video.pv -> rejects the filename and exits with an error.
+TEST(HeadlessSettingsStartup, OutputFilenameWithDirectoryReturnsErrorExitCode) {
+    TempDirectory workspace;
+    const auto source = copy_video_fixture(workspace.path / "source");
+    auto arguments = conversion_arguments(source);
+    arguments.insert(arguments.end(), {"-d", (workspace.path / "output").string(), "-o", "nested/video.pv"});
+
+    const auto exit_code = run_process(arguments, std::chrono::seconds(60));
+    ASSERT_TRUE(exit_code.has_value());
+    EXPECT_EQ(*exit_code, 1);
+    EXPECT_FALSE(fs::exists(workspace.path / "output" / "video.pv"));
+}
+
+TEST(HeadlessSettingsStartup, MixedPvAndRawInputsExitWithoutConverting) {
+    TempDirectory workspace;
+    const auto input_dir = workspace.path / "source";
+    const auto original = copy_video_fixture(input_dir);
+    const ScopedCurrentPath launch_directory(input_dir);
+    const auto inputs = Meta::toStr(std::vector<std::string>{original.generic_string(), "*.pv"});
+    const auto output = workspace.path / "output" / "mixed.pv";
+    const std::vector<std::string> arguments{
+        TREX_TEST_EXECUTABLE, "-nowindow", "-task", "convert", "-detect_type", "none",
+        "-i", inputs, "-meta_source_path", original.string(),
+        "-d", (workspace.path / "output").string(), "-o", "mixed",
+        "-video_conversion_range", "[0,2]", "-auto_no_outputs", "-auto_quit"
+    };
+
+    const auto raw_only_exit = run_process(arguments, std::chrono::seconds(240));
+    ASSERT_EQ(raw_only_exit, 0);
+    ASSERT_TRUE(fs::is_regular_file(output));
+
+    fs::rename(output, input_dir / "recording.pv");
+    const auto mixed_exit = run_process(arguments, std::chrono::seconds(60));
+    EXPECT_EQ(mixed_exit, 1);
+    EXPECT_FALSE(fs::exists(output));
 }
 
 struct OutputLayoutCase {

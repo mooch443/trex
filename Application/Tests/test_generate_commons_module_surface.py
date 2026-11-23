@@ -32,6 +32,16 @@ class Line final {};
         )
         self.assertIn("cmn::gui::Line", {symbol.qualified for symbol in regular})
 
+    def test_nested_parameter_type_preserves_following_function(self):
+        source = """
+namespace cmn::gui::dyn {
+void _handle_subobjects(std::optional<std::queue<std::string_view>> subs = std::nullopt);
+template<typename T> T parse_value();
+}
+"""
+        regular, _ = parse_regular_symbols("gui/dyn/ParseText.h", "commons.gui.dyn", source)
+        self.assertIn("cmn::gui::dyn::parse_value", {symbol.qualified for symbol in regular})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,12 @@
 #include <commons.pc.h>
 
 #include "gtest/gtest.h"
+#include <misc/CommandLine.h>
+#include <misc/Path.h>
 
 #include "segmenter_test_utils.h"
 
+#include <ml/ClosedLoop.h>
 #include <python/Detection.h>
 #include <python/PipelineRegistry.h>
 #include <python/PythonWrapper.h>
@@ -118,6 +121,7 @@ def predict(input):
 
 class PythonMlEnvironment final : public ::testing::Environment {
 public:
+    fs::path original_directory;
     fs::path root;
     fs::path model;
     bool available{false};
@@ -125,8 +129,10 @@ public:
 
     void SetUp() override {
         try {
+            original_directory = fs::current_path();
             root = fs::temp_directory_path() / ("trex-ml-failures-" + unique_suffix());
-            fs::create_directories(root);
+            fs::create_directories(root / "launch");
+            fs::current_path(root / "launch");
             model = root / "dummy.pt";
 
             write_text_file(root / "trex_init.py", "import TRex\n");
@@ -141,8 +147,16 @@ public:
             GlobalSettings::write([](Configuration& config) {
                 ::default_config::get(config);
             });
-            SETTING(wd) = Path(root.string());
+            char executable[] = "test_detection_ml_failures";
+            char* argv[] = {executable, nullptr};
+            CommandLine::init(1, argv, true);
             register_data_locations_once();
+#ifdef TREX_TEST_PYTHON_PROBE_DIR
+            SETTING(wd) = Path(TREX_TEST_PYTHON_PROBE_DIR);
+#endif
+            file::DataLocation::replace_path("app", [app = Path(root.string())](const sprite::Map&, Path path) {
+                return path.is_absolute() ? path : app / path;
+            });
 
             Python::configure_runtime(
                 GlobalSettings::instance(),
@@ -156,7 +170,7 @@ public:
             buffers::TileBuffers::create();
 
             auto ready = Python::schedule([]() {});
-            if(ready.wait_for(kWaitDeadline) != std::future_status::ready) {
+            if(not cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(ready)) {
                 unavailable_reason = "Embedded Python initialization timed out.";
                 return;
             }
@@ -182,6 +196,7 @@ public:
         }
 
         std::error_code ec;
+        fs::current_path(original_directory);
         fs::remove_all(root, ec);
     }
 
@@ -192,6 +207,115 @@ public:
 
 auto* python_environment = static_cast<PythonMlEnvironment*>(
     ::testing::AddGlobalTestEnvironment(new PythonMlEnvironment));
+
+#if !COMMONS_NO_PYTHON
+TEST(PythonModulePaths, ImportsFromAppAndPreservesTheLaunchDirectory) {
+    ASSERT_TRUE(python_environment->available) << python_environment->unavailable_reason;
+    const auto app = python_environment->root;
+    const auto launch = app / "launch";
+    EXPECT_TRUE(fs::equivalent(fs::current_path(), launch));
+
+    write_text_file(app / "path_probe.py", R"PY(import os
+import path_probe_sibling
+directory_during_import = os.getcwd()
+sibling_file = path_probe_sibling.__file__
+)PY");
+    write_text_file(app / "path_probe_sibling.py", "# bundled sibling\n");
+    write_text_file(launch / "path_probe.py", "raise RuntimeError('loaded the launch-directory module')\n");
+    write_text_file(launch / "path_probe_sibling.py", "raise RuntimeError('loaded the launch-directory sibling')\n");
+
+    std::string module_file, sibling_file, directory_during_import;
+    auto loaded = Python::schedule([&] {
+        Python::check_module("path_probe");
+        module_file = Python::get_variable<std::string>("__file__", "path_probe");
+        sibling_file = Python::get_variable<std::string>("sibling_file", "path_probe");
+        directory_during_import = Python::get_variable<std::string>("directory_during_import", "path_probe");
+    });
+    EXPECT_NO_THROW(loaded.get());
+    EXPECT_TRUE(fs::equivalent(fs::current_path(), launch));
+    ASSERT_FALSE(directory_during_import.empty());
+    EXPECT_TRUE(fs::equivalent(directory_during_import, launch));
+    EXPECT_EQ(fs::weakly_canonical(module_file), fs::canonical(app / "path_probe.py"));
+    EXPECT_EQ(fs::weakly_canonical(sibling_file), fs::canonical(app / "path_probe_sibling.py"));
+}
+
+TEST(PythonModulePaths, ClosedLoopLoadsTheConfiguredScriptFromTheLaunchDirectory) {
+    ASSERT_TRUE(python_environment->available) << python_environment->unavailable_reason;
+    const auto app = python_environment->root;
+    const auto scripts = app / "launch" / "custom scripts";
+    fs::create_directories(scripts);
+    write_text_file(app / "closed_loop_beta.py", "raise RuntimeError('loaded the bundled closed-loop script')\n");
+    write_text_file(scripts / "closed_loop_beta.py", R"PY(from pathlib import Path
+def init():
+    Path(__file__).with_suffix(".loaded").touch()
+def deinit():
+    pass
+)PY");
+
+    const auto previous = READ_SETTING(closed_loop_path, file::Path);
+    SETTING(closed_loop_path) = file::Path("custom scripts/closed_loop_beta.py");
+    EXPECT_NO_THROW({ ml::ClosedLoop loop; });
+    SETTING(closed_loop_path) = previous;
+    EXPECT_TRUE(fs::is_regular_file(scripts / "closed_loop_beta.loaded"));
+    EXPECT_TRUE(fs::equivalent(fs::current_path(), app / "launch"));
+}
+
+TEST(PythonModulePaths, BundledClosedLoopRunsFromTheLaunchDirectory) {
+    ASSERT_TRUE(python_environment->available) << python_environment->unavailable_reason;
+    const auto app = python_environment->root;
+    const auto launch = app / "launch";
+    write_text_file(app / "closed_loop_beta.py", R"PY(from pathlib import Path
+assert __name__ == "closed_loop_beta"
+
+def init():
+    Path("closed_loop_started").touch()
+
+def deinit():
+    Path("closed_loop_stopped").touch()
+)PY");
+
+    const auto previous = READ_SETTING(closed_loop_path, file::Path);
+    SETTING(closed_loop_path) = file::Path("closed_loop_beta.py");
+    EXPECT_NO_THROW({ ml::ClosedLoop loop; });
+    SETTING(closed_loop_path) = previous;
+
+    EXPECT_TRUE(fs::is_regular_file(launch / "closed_loop_started"));
+    EXPECT_TRUE(fs::is_regular_file(launch / "closed_loop_stopped"));
+}
+
+TEST(PythonModulePaths, CheckingChangedSourceWithoutAnUnloaderPreservesModuleState) {
+    ASSERT_TRUE(python_environment->available) << python_environment->unavailable_reason;
+    const auto script = python_environment->root / "training_state.py";
+    write_text_file(script, "weights = 'initial'\n");
+
+    auto checked = Python::schedule([&] {
+        Python::check_module("training_state");
+        Python::set_variable("weights", std::string("trained"), "training_state");
+        write_text_file(script, "weights = 'replacement'\n");
+        EXPECT_TRUE(Python::check_module("training_state"));
+        EXPECT_EQ(Python::get_variable<std::string>("weights", "training_state"), "trained");
+    });
+    ASSERT_NO_THROW(checked.get());
+}
+
+TEST(PythonModulePaths, FailedScriptImportRestoresThePreviousModule) {
+    ASSERT_TRUE(python_environment->available) << python_environment->unavailable_reason;
+    const auto script = python_environment->root / "broken_script.py";
+    write_text_file(script, "raise RuntimeError('script import failed')\n");
+    const auto name = file::Path(script.string()).remove_extension().str();
+
+    auto checked = Python::schedule([&] {
+        Python::set_variable("script_name", name);
+        Python::execute("import sys, types\n"
+                        "previous_module = types.ModuleType(script_name)\n"
+                        "sys.modules[script_name] = previous_module\n");
+        EXPECT_THROW(Python::check_module(name), SoftExceptionImpl);
+        EXPECT_FALSE(Python::has_loaded_module(name));
+        Python::execute("assert sys.modules.pop(script_name, None) is previous_module");
+    });
+    ASSERT_NO_THROW(checked.get());
+}
+#endif
 
 void configure_yolo_settings() {
     GlobalSettings::write([](Configuration& config) {
@@ -225,7 +349,7 @@ std::optional<std::string> deinit_detection() {
         }
     });
 
-    if(future.wait_for(kWaitDeadline) != std::future_status::ready) {
+    if(not cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(future)) {
         ADD_FAILURE() << "Detection::deinit() did not finish before the deadline.";
         return "timeout";
     }
@@ -277,7 +401,7 @@ AppliedBatch apply_tiles(size_t count) {
 
 void expect_soft_failures(AppliedBatch& batch, std::string_view expected_message = {}) {
     for(auto& future : batch.futures) {
-        ASSERT_EQ(future.wait_for(kWaitDeadline), std::future_status::ready)
+        ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(future))
             << "A YOLO result promise was never completed.";
         try {
             (void)future.get();
@@ -296,14 +420,14 @@ void expect_soft_failures(AppliedBatch& batch, std::string_view expected_message
     while(batch.callbacks->load() != batch.futures.size()
           && std::chrono::steady_clock::now() < deadline)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(10ms);
     }
     EXPECT_EQ(batch.callbacks->load(), batch.futures.size());
 }
 
 void expect_success(AppliedBatch& batch) {
     for(auto& future : batch.futures) {
-        ASSERT_EQ(future.wait_for(kWaitDeadline), std::future_status::ready);
+        ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(future));
         EXPECT_NO_THROW((void)future.get());
     }
 
@@ -311,7 +435,7 @@ void expect_success(AppliedBatch& batch) {
     while(batch.callbacks->load() != batch.futures.size()
           && std::chrono::steady_clock::now() < deadline)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(10ms);
     }
     EXPECT_EQ(batch.callbacks->load(), batch.futures.size());
 }
@@ -360,7 +484,7 @@ def start():
         while(Categorize::Work::learning()
               && std::chrono::steady_clock::now() < deadline)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(10ms);
         }
         const bool still_learning = Categorize::Work::learning();
         Categorize::Work::learning() = false;
@@ -370,7 +494,7 @@ def start():
             Python::execute("import builtins\nassert builtins._trex_category_start_attempts == "
                             + std::to_string(attempt));
         });
-        ASSERT_EQ(checked.wait_for(kWaitDeadline), std::future_status::ready);
+        ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(checked));
         ASSERT_NO_THROW(checked.get());
     }
 }
@@ -462,7 +586,7 @@ TEST_F(MLFailures, YoloDefaultModelDoesNotChangeConfiguredPath) {
     SETTING(detect_model) = Path{};
     const auto models = YOLO::init();
     ASSERT_EQ(models.size(), 1u);
-    EXPECT_EQ(models.front().model_path, "yolov8n-pose.pt");
+    EXPECT_EQ(models.front().model_path, "yolo26n-pose.pt");
     EXPECT_TRUE(READ_SETTING(detect_model, Path).empty());
 }
 
@@ -615,7 +739,7 @@ TEST_F(MLFailures, PredictRaisesAfterNFramesFullConversion) {
     const TempWorkspace ws = make_workspace();
     const auto source_paths = create_synthetic_sequence(ws.root / "source", 12);
     SETTING(output_dir) = Path((ws.root / "output").string());
-    SETTING(filename) = Path("synthetic_ml_failure");
+    SETTING(filename) = file::Filename("synthetic_ml_failure");
     SETTING(source) = PathArray(source_paths);
     SETTING(save_raw_movie) = false;
     SETTING(frame_rate) = uint32_t(25);
@@ -637,7 +761,7 @@ TEST_F(MLFailures, PredictRaisesAfterNFramesFullConversion) {
 
         ASSERT_NO_THROW(segmenter.open_video());
         ASSERT_NO_THROW(segmenter.start());
-        ASSERT_EQ(result.wait_for(kWaitDeadline), std::future_status::ready)
+        ASSERT_TRUE(cmn::is_future_ready<cmn::Milliseconds{kWaitDeadline}>(result))
             << "Segmenter did not surface the Python prediction failure.";
     }
 

@@ -1,4 +1,5 @@
 #include "Categorize.h"
+#include <misc/Path.h>
 #include <pv.h>
 #include <misc/Image.h>
 #include <tracking/LockGuard.h>
@@ -495,10 +496,10 @@ void start_applying(Tracker& tracker, std::weak_ptr<pv::File> video_source) {
 }
 
 file::Path output_location() {
-    auto filename = READ_SETTING(filename, file::Path);
+    auto filename = READ_SETTING(filename, file::Filename).path();
     if(filename.has_extension("pv"))
         filename = filename.remove_extension();
-    return file::DataLocation::parse("output", file::Path((std::string)filename.filename() + "_categories.npz"));
+    return file::DataLocation::parse("output", file::Path(filename.str() + "_categories.npz"));
 }
 
 void Work::start_learning(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video_source) try {
@@ -580,7 +581,7 @@ void Work::start_learning(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<p
               && FAST_SETTING(categories_ordered).empty()
               && Work::learning())
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(10ms);
             if(timer.elapsed() >= 1) {
                 FormatWarning("# Waiting for labels...");
                 timer.reset();

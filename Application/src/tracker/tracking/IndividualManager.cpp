@@ -223,7 +223,7 @@ void IndividualManager::remove_frames(Tracker& tracker, Frame_t from,  std::func
             
             auto fish = it->second.get();
 #ifndef NDEBUG
-            Print("Deleting individual ", fish, " aka ", fish->identity());
+            //Print("Deleting individual ", fish, " aka ", fish->identity());
             //assert(not track::last_active or not track::last_active->contains(it->second.get()));
 #endif
             

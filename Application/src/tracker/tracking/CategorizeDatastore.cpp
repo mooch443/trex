@@ -1,4 +1,5 @@
 #include "CategorizeDatastore.h"
+#include <misc/Path.h>
 #include <pv.h>
 #include <gui/Transform.h>
 #include <processing/Background.h>
@@ -800,7 +801,7 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
         std::lock_guard g(log_lock);
         log_.push_back(text);
         
-        auto f = file::DataLocation::parse("output", file::Path((std::string)READ_SETTING(filename, file::Path).filename()+"_categorize.log")).fopen("ab");
+        auto f = file::DataLocation::parse("output", file::Path(READ_SETTING(filename, file::Filename).str()+"_categorize.log")).fopen("ab");
         text += "\n";
         f.write(text.c_str(), text.length());
     }

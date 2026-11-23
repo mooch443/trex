@@ -121,6 +121,7 @@ void StartingScene::_draw(DrawStructure& graph) {
     
     if(not _data->dyn_gui)
         _data->dyn_gui = {
+            .gui = SceneManager::getInstance().gui_task_queue(),
             .path = "welcome_layout.json",
             .context = [&](){
                 dyn::Context context;
@@ -135,17 +136,15 @@ void StartingScene::_draw(DrawStructure& graph) {
                         auto& item = _data->recents.file().entries.at(index);
                         DetailTooltipItem details{item};
                         
-                        file::PathArray array;
-                        if(item._options.has("source"))
-                            array = item._options.at("source").value<file::PathArray>();
-                        if(array.empty()
+                        auto array = item._options.value_with_default("source", file::PathArray{});
+                        if(not array.has_source()
                            && item._options.has("meta_source_path"))
                         {
                             array = { item._options.at("meta_source_path").value<std::string>() };
                         }
                         file::Path filename;
                         if(item._options.has("filename"))
-                            filename = item._options.at("filename").value<file::Path>();
+                            filename = item._options.at("filename").value<file::Filename>().path();
                         else
                             filename = item.filename;
                         
@@ -159,25 +158,28 @@ void StartingScene::_draw(DrawStructure& graph) {
                         Configuration tmp;
                         ::default_config::get(tmp);
                         
-                        auto def = GlobalSettings::read_default<track::detect::ObjectDetectionType_t>("detect_type");
-                        auto type = item._options.has("detect_type")
-                                        ? item._options.at("detect_type") .value<track::detect::ObjectDetectionType_t>()
-                                        : *def;
-                        
-                        auto f = WorkProgress::add_queue("", [array, filename, type, item, copy = std::move(copy)](){
+                        auto f = WorkProgress::add_queue("", [array, filename, item, copy = std::move(copy)](){
+                            auto output_map = GlobalSettings::mutable_snapshot();
+                            auto type = item._options.has("detect_type")
+                                            ? item._options.at("detect_type").value<track::detect::ObjectDetectionType_t>()
+                                            : output_map->config.def("detect_type").value<track::detect::ObjectDetectionType_t>();
                             settings::load(settings::LoadContext{
                                 .source = array,
                                 .filename = filename,
                                 .task = default_config::TRexTask_t::convert,
                                 .type = type,
-                                .source_map = copy
+                                .source_map = copy,
+                                .output_map = output_map
                             });
+                            if(array.has_source())
+                                output_map->config.values["source"] = array;
+                            output_map->apply();
                             SceneManager::enqueue(SceneManager::AlwaysAsync{}, []() {
                                 SettingsScene::reset_last_opened_tab();
                                 SceneManager::getInstance().set_active("settings-scene");
                             });
                         });
-                        if(f.wait_for(std::chrono::milliseconds(125)) == std::future_status::ready) {
+                        if(cmn::is_future_ready<125ms>(f)) {
                             f.get();
                         } else {
                             WorkProgress::set_item("loading...");

@@ -706,7 +706,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         cv::Mat copy;
         cv::cvtColor(image->get(), copy, cv::COLOR_BGRA2RGBA);
         
-        auto image_path = file::DataLocation::parse("output", "coverage_"+READ_SETTING(filename, file::Path).filename()+"_a"+Meta::toStr(_accumulation_step)+"_e"+Meta::toStr(_counted_steps)+".png");
+        auto image_path = file::DataLocation::parse("output", "coverage_"+READ_SETTING(filename, file::Filename).str()+"_a"+Meta::toStr(_accumulation_step)+"_e"+Meta::toStr(_counted_steps)+".png");
         _coverage_paths.push_back(image_path);
         cv::imwrite(image_path.str(), copy);
         //tf::imshow("coverage", copy);
@@ -1107,7 +1107,7 @@ bool Accumulation::start() {
         {
             try {
                 auto data = _collected_data->join_split_data();
-                auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
+                auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Filename).str()+"_validation_data.npz"));
                 
                 const Size2 dims = SETTING(individual_image_size).value<Size2>();
                 FileSize size((max(data.validation_images.size(), data.training_images.size())) * size_t(dims.width * dims.height) * size_t(channels));
@@ -1730,7 +1730,7 @@ bool Accumulation::start() {
     // save validation data
     try {
         auto data = _collected_data->join_split_data();
-        const auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
+        const auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Filename).str()+"_validation_data.npz"));
         
         const Size2 dims = SETTING(individual_image_size).value<Size2>();
         FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height * channels);
@@ -1947,7 +1947,7 @@ bool Accumulation::start() {
                 // save validation data
                 try {
                     //auto data = _collected_data->join_split_data();
-                    auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data_"+method.str()+".npz"));
+                    auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Filename).str()+"_validation_data_"+method.str()+".npz"));
                     
                     
                     const Size2 dims = SETTING(individual_image_size).value<Size2>();
@@ -2028,7 +2028,7 @@ bool Accumulation::start() {
     }
     
     try {
-        auto path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_range_history.npz"));
+        auto path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Filename).str()+"_range_history.npz"));
         npz_save(path.str(), "tried_ranges", _checked_ranges_output.data(), {_checked_ranges_output.size() / 2, 2});
         Print("[Accumulation STOP] Saved range history to ", path.str(),".");
         

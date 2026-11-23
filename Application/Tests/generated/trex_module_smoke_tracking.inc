@@ -18,6 +18,7 @@ using ::track::detect::annotation_export::default_keypoint_names;
 using ::track::detect::annotation_export::export_dataset;
 using ::track::detect::annotation_export::frame_stem;
 using ::track::detect::annotation_export::sample_background_frames;
+using ::track::detect::annotation_export::select_annotations;
 using ::track::detect::annotation_export::summarize;
 }
 
@@ -27,7 +28,10 @@ using ::track::detect::annotation_import::Format;
 using ::track::detect::annotation_import::FrameIndexParseResult;
 using ::track::detect::annotation_import::ImportOptions;
 using ::track::detect::annotation_import::ImportPreview;
+using ::track::detect::annotation_import::ImportScope;
+using ::track::detect::annotation_import::MergeMode;
 using ::track::detect::annotation_import::MetadataChanges;
+using ::track::detect::annotation_import::Task;
 using ::track::detect::annotation_import::apply_dataset_import;
 using ::track::detect::annotation_import::apply_yolo_import;
 using ::track::detect::annotation_import::parse_source_index_from_image_stem;
@@ -237,6 +241,10 @@ using ::cmn::CPULabeling::ListCache_t;
 
 namespace trex_module_smoke::trex_tracking::track {
 using ::track::SplitBlob;
+}
+
+namespace trex_module_smoke::trex_tracking::track::split {
+using ::track::split::Action_t;
 }
 
 namespace trex_module_smoke::trex_tracking::track::split::Action {

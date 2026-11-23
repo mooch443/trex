@@ -61,6 +61,8 @@ protected:
                 ASSERT_TRUE(loaded.has(key)) << key;
         }
         EXPECT_FALSE(loaded.has("pv_metadata_omitted"));
+        EXPECT_FALSE(loaded.has("output_dir"));
+        EXPECT_FALSE(loaded.has("output_prefix"));
         EXPECT_EQ(loaded.at("pv_metadata_count").value<uint32_t>(), 42u);
         EXPECT_TRUE(loaded.at("pv_metadata_enabled").value<bool>());
         EXPECT_EQ(loaded.at("pv_metadata_numbers").value<std::vector<int>>(), (std::vector<int>{1, 2, 3}));

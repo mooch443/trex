@@ -917,11 +917,12 @@ void TrackingScene::settings_callback(std::string_view key) {
 void TrackingScene::activate() {
     WorkProgress::instance().start();
 
-    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+    const auto filename = GlobalSettings::read([](const Configuration& config) {
         return settings::find_existing_output_name(config.values);
     });
+    SETTING(filename) = file::Filename(filename.filename());
     
-    _state = std::make_unique<TrackingState>(SceneManager::getInstance().gui_task_queue());
+    _state = std::make_unique<TrackingState>(SceneManager::getInstance().gui_task_queue(), filename);
     
     //! Stages
     _data = std::unique_ptr<Data>{
@@ -1178,7 +1179,7 @@ void TrackingScene::deactivate() {
     
     RecentItems::open(READ_SETTING(source, file::PathArray).source(), std::move(current_defaults_with_config));
     
-    SETTING(filename) = file::Path();
+    SETTING(filename) = file::Filename{};
     SETTING(source) = file::PathArray();
     
     Configuration combined;
@@ -1448,25 +1449,26 @@ void TrackingScene::_draw(DrawStructure& graph) {
             auto coords = FindCoord::get();
             auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
             auto absolute = coords.convert(HUDCoord(selected->absolute_drag_start())).map(roundf);
-            //Print("Pos = ", pos, " absolute=",absolute, " diff=", pos - absolute);
+            const auto delta = pos - absolute;
             
-            Vec2 xy(FLT_MAX, FLT_MAX);
-            for(auto& pt : annotation->points) {
+            bool has_points = false;
+            bool can_move = true;
+            for(const auto& pt : annotation->points) {
                 if(annotation->type == AnnotationType::POSE && not pt.valid())
                     continue;
-                if(pt.x() < xy.x) xy.x = pt.x();
-                if(pt.y() < xy.y) xy.y = pt.y();
+                has_points = true;
+                if(not annotation->can_place_point(Vec2(pt) + delta, coords.video_size())) {
+                    can_move = false;
+                    break;
+                }
             }
             
-            if(xy.x != FLT_MAX
-               && xy.y != FLT_MAX)
+            if(can_move && has_points)
             {
                 for(auto& pt : annotation->points) {
                     if(annotation->type == AnnotationType::POSE && not pt.valid())
                         continue;
-                    //Print("pt=",pt," adding ", pos - absolute, " => ", Vec2(pt) + pos - absolute);
-                    pt.move_to(Vec2(pt) + pos - absolute);
-                    //if(pt.y < xy.y) xy.y = pt.y;
+                    pt.move_to(Vec2(pt) + delta);
                 }
                 
                 SETTING(track_detect_annotations) = std::move(detect_annotations);
@@ -1820,7 +1822,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         last_dirty.reset();
         //Print("* default reset");
     } else if(last_dirty.elapsed() >= 0.05) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(1ms);
         //Print("* waiting");
     } /*else {
         Print("Nothing happens but we keep polling a bit");
@@ -2395,8 +2397,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     auto coords = FindCoord::get();
                     auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
 
-                    if(not Vec2(pos).Equals((Vec2)annotation->points.at(point_idx))) {
-                        annotation->points.at(point_idx).move_to(pos);
+                    if(annotation->move_point(point_idx, pos, coords.video_size())) {
                         SETTING(track_detect_annotations) = std::move(detect_annotations);
                     }
                 });

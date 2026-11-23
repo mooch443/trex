@@ -15,6 +15,7 @@ TEST(ManagedThreadTest, PreservesTerminationRequestedBeforeLoopStarts) {
     ManagedThreadWrapper wrapper{
         .t = nullptr,
         .m = ManagedThread([&](const ThreadGroupId&) {
+            // Let the assertion detect an unexpected callback without leaving the loop running.
             redundant_termination.emplace(wrapper_ptr->m.terminate());
         }),
         .name = "immediate-termination-test"
@@ -25,8 +26,7 @@ TEST(ManagedThreadTest, PreservesTerminationRequestedBeforeLoopStarts) {
     wrapper.m.loop(group, wrapper);
 
     EXPECT_FALSE(redundant_termination.has_value());
-    ASSERT_EQ(termination.wait_for(std::chrono::seconds(0)),
-              std::future_status::ready);
+    ASSERT_TRUE(cmn::is_future_ready(termination));
     EXPECT_NO_THROW(termination.get());
 }
 
@@ -115,8 +115,10 @@ TEST(DistributeIndexesTest, DoesNotExceedMaxThreads) {
         std::vector<int> items(item_num);
         std::iota(items.begin(), items.end(), 0);
         
-        // Test various numbers of requested threads, including more than available
+        // The mock queues work, so the requested partition count can exceed its worker count.
         for (uint32_t requested_threads : {4, 1, 2, 3, 5, 8, 10, 20}) {
+            SCOPED_TRACE(::testing::Message() << item_num << " items, " << requested_threads
+                         << " requested partitions, " << num_threads << " workers");
             MockThreadPool pool(num_threads); // Reset the pool for each iteration
             std::atomic<int> processed_items{0};
             std::mutex mutex;

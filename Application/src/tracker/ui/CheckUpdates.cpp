@@ -1,6 +1,7 @@
 #include "CheckUpdates.h"
 
 #if !COMMONS_NO_PYTHON
+#include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>
 
 #include <ui/WorkProgress.h>
@@ -121,15 +122,16 @@ void cleanup() {
 void init(gui::DrawStructure* gui) {
     std::string contents;
     try {
-        if (!file::Path("update_check").exists()) {
+        const auto path = file::DataLocation::parse("app", "update_check");
+        if (!path.exists()) {
             if (GlobalSettings::is_runtime_quiet())
                 Print("Initial start, no update_check file exists.");
             return;
         }
-        contents = file::Path("update_check").read_file();
+        contents = path.read_file();
         auto array = utils::split(contents, '\n');
         if (array.size() != 3) {
-            file::Path("update_check").delete_file();
+            path.delete_file();
             throw U_EXCEPTION("Array does not have the right amount of elements ('",contents,"', ",array.size(),"). Deleting file.");
         }
         SETTING(app_last_update_check) = Meta::fromStr<uint64_t>((std::string)array.front());
@@ -208,13 +210,13 @@ bool display_update_dialog(gui::DrawStructure* graph) {
 void write_version_file() {
     // write changed date to file 'update_check' in the resource folder
     std::string str = SETTING(app_last_update_check).valueString()+"\n"+SETTING(app_check_for_updates).valueString()+"\n"+SETTING(app_last_update_version).valueString();
-    auto f = fopen("update_check", "wb");
+    const auto path = file::DataLocation::parse("app", "update_check");
+    auto f = path.fopen("wb");
     if (f) {
-        fwrite(str.c_str(), sizeof(char), str.length(), f);
-        fclose(f);
+        f.write(str.data(), str.size());
     }
     else
-        FormatExcept("Cannot open update_check file for writing to save the settings (maybe no permissions in ",file::cwd(),"?).");
+        FormatExcept("Cannot open ", path, " for writing to save the settings.");
 }
 
 void update_loop(gui::DrawStructure* graph) {

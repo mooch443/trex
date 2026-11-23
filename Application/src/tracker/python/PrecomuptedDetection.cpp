@@ -451,7 +451,7 @@ PrecomputedDetection::PrecomputedDetection(file::PathArray&& path, Image::Ptr&& 
             while(not data().has_background()
                   && not manager().is_terminated())
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(100ms);
 
                 auto elapsed = std::chrono::steady_clock::now() - message_time;
                 if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
@@ -469,7 +469,7 @@ PrecomputedDetection::PrecomputedDetection(file::PathArray&& path, Image::Ptr&& 
                 if(data()._frame_data_loader.has_value()
                    && data()._frame_data_loader->valid())
                 {
-                    if(data()._frame_data_loader->wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+                    if(cmn::is_future_ready<1ms>(*data()._frame_data_loader))
                     {
                         auto result = data()._frame_data_loader->get();
                         if(result.has_value()) {

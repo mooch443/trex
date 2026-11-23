@@ -162,6 +162,7 @@ TEST(DynamicGUILocalSettings, ParsesPredefinedAliasesAndDefaults) {
     "ratio": { "type": "double", "value": 0.5 },
     "label": { "type": "string", "value": "hello" },
     "dataset": { "type": "path", "value": "/tmp/data.yaml" },
+    "recording": { "type": "filename", "value": "clip.pv" },
     "inputs": { "type": "path_array" },
     "selected_ids": { "type": "int_array", "value": [1, 2, 3] },
     "origin": { "type": "vec2", "value": [2, 3] },
@@ -185,6 +186,7 @@ TEST(DynamicGUILocalSettings, ParsesPredefinedAliasesAndDefaults) {
     EXPECT_DOUBLE_EQ(local_value<double>(context, "local.ratio"), 0.5);
     EXPECT_EQ(local_value<std::string>(context, "local.label"), "hello");
     EXPECT_EQ(local_value<file::Path>(context, "local.dataset"), file::Path("/tmp/data.yaml"));
+    EXPECT_EQ(local_value<file::Filename>(context, "local.recording"), file::Filename("clip.pv"));
     EXPECT_THAT(local_value<std::vector<int>>(context, "local.selected_ids"), ::testing::ElementsAre(1, 2, 3));
     EXPECT_EQ(local_value<Vec2>(context, "local.origin"), Vec2(2, 3));
     EXPECT_EQ(local_value<Size2>(context, "local.panel_size"), Size2(100, 40));
@@ -293,6 +295,71 @@ TEST(DynamicGUILocalSettings, SetLocalSystemActionUpdatesDeclaredValue) {
     ASSERT_NO_THROW(graph.mouse_up(true));
 
     EXPECT_EQ(local_value<int>(gui.context, "local.tab"), 1);
+}
+
+TEST(DynamicGUIFileRead, ClearWaitsForPendingReadAndDiscardsResult) {
+    DynamicGUI gui{.path = "pending.json"};
+    gui.previous = "previous layout";
+    gui.first_load = false;
+    // A promise-backed future does not implicitly wait when destroyed.
+    std::promise<decltype(load(""))> read;
+    gui.read_file_future = read.get_future();
+    std::promise<void> entered;
+    auto clearing = std::async(std::launch::async, [&]() {
+        entered.set_value();
+        gui.clear();
+    });
+
+    entered.get_future().wait();
+    EXPECT_EQ(clearing.wait_for(std::chrono::milliseconds(20)), std::future_status::timeout);
+    read.set_value(load(R"({"objects":[]})"));
+    ASSERT_NO_THROW(clearing.get());
+
+    EXPECT_FALSE(gui.read_file_future.valid());
+    EXPECT_TRUE(gui.path.empty());
+    EXPECT_TRUE(gui.previous.empty());
+    EXPECT_TRUE(gui.first_load);
+    EXPECT_NO_THROW(gui.clear());
+}
+
+TEST(DynamicGUIFileRead, ClearDiscardsReadyReadAndReloadsSameFile) {
+    const auto path = file::Path(TREX_TEST_FOLDER) / "dyngui_set_local.json";
+    DynamicGUI gui{.path = path};
+    DrawStructure graph(640, 480);
+    VerticalLayout parent;
+    ASSERT_TRUE(update_until_named(gui, graph, parent, "set-local-button"));
+    ASSERT_FALSE(gui.previous.empty());
+
+    std::promise<decltype(load(""))> read;
+    read.set_value(load(R"({"objects":[{"type":"stext","name":"stale","text":"stale"}]})"));
+    gui.read_file_future = read.get_future();
+    gui.clear();
+    EXPECT_FALSE(gui.read_file_future.valid());
+    EXPECT_TRUE(gui.objects.empty());
+    EXPECT_TRUE(gui.previous.empty());
+
+    gui.path = path;
+    ASSERT_TRUE(update_until_named(gui, graph, parent, "set-local-button"));
+    EXPECT_EQ(gui.previous, path.read_file());
+    EXPECT_EQ(local_value<int>(gui.context, "local.tab"), 0);
+    EXPECT_FALSE(gui.current_object_handler->retrieve_named("stale"));
+}
+
+TEST(DynamicGUIFileRead, ClearDiscardsUnsuccessfulReads) {
+    for(bool exceptional : {false, true}) {
+        SCOPED_TRACE(exceptional);
+        DynamicGUI gui;
+        std::promise<decltype(load(""))> read;
+        if(exceptional)
+            read.set_exception(std::make_exception_ptr(std::runtime_error("read failed")));
+        else
+            read.set_value(std::unexpected("No news."));
+        gui.read_file_future = read.get_future();
+
+        EXPECT_NO_THROW(gui.clear());
+        EXPECT_FALSE(gui.read_file_future.valid());
+        EXPECT_NO_THROW(gui.clear());
+    }
 }
 
 TEST(DynamicGUILocalSettings, OptionalMapInsertionAcceptsFirstAndFalseLikeNames) {
@@ -1073,6 +1140,373 @@ TEST(DynamicGUISettingsTest, PathFieldRefreshesAfterSettingChanges) {
     EXPECT_EQ(field._dropdown->textfield()->text(), "after");
 }
 
+TEST(DynamicGUISettingsTest, FilenameFieldDisplaysUnquotedValues) {
+    sprite::Map settings;
+    settings["filename"] = file::Filename("first clip.pv");
+    GUITaskQueue_t queue;
+    auto field = LabeledField::Make({}, &queue, "filename", &settings);
+    auto textfield = field->representative().to<Textfield>();
+    ASSERT_TRUE(textfield);
+    EXPECT_EQ(textfield->text(), "first clip.pv");
+
+    settings["filename"].get().set_value_from_string(R"("next clip.pv")");
+    field->update_ref_in_main_thread();
+    EXPECT_EQ(textfield->text(), "next clip.pv");
+    EXPECT_EQ(sprite::display_object(settings.at("filename").value<file::Filename>()), "next clip.pv");
+    EXPECT_EQ(settings.at("filename").get().valueString(), R"("next clip.pv")");
+
+    settings["filename"] = file::Filename{};
+    field->update_ref_in_main_thread();
+    EXPECT_TRUE(textfield->text().empty());
+}
+
+TEST(DynamicGUISettingsTest, ReboundPathFieldSurvivesOldContainerDestruction) {
+    sprite::Map settings;
+    settings["path"] = file::Path{};
+    GUITaskQueue_t queue;
+    State state;
+    const size_t hash = 1;
+    
+    auto old_container = Layout::Make<HorizontalLayout>{}();
+    state.get_monostate(hash, old_container)->_value_box =
+        std::make_shared<LabeledPath>(&queue, "path", "", file::Path{}, &settings);
+    std::weak_ptr<LabeledField> field = state._collectors->objects.at(hash)->_value_box;
+    old_container = nullptr;
+    EXPECT_TRUE(field.expired());
+
+    old_container = Layout::Make<HorizontalLayout>{}();
+    state.get_monostate(hash, old_container)->_value_box =
+        std::make_shared<LabeledPath>(&queue, "path", "", file::Path{}, &settings);
+
+    auto root = Layout::Make<HorizontalLayout>{}();
+    state.get_monostate(hash, root)->_value_box =
+        std::make_shared<LabeledPath>(&queue, "path", "", file::Path{}, &settings);
+    root->add_child(state._collectors->objects.at(hash)->_value_box->representative());
+    field = state._collectors->objects.at(hash)->_value_box;
+
+    // The displayed replacement must retain its field and callback owner.
+    old_container = nullptr;
+    EXPECT_TRUE(state._collectors->objects.contains(hash));
+    EXPECT_FALSE(field.expired());
+
+    root = nullptr;
+    EXPECT_FALSE(state._collectors->objects.contains(hash));
+    EXPECT_TRUE(field.expired());
+}
+
+TEST(DynamicGUISettingsTest, RetainedPathDropdownCanLoseFocusAfterFieldDestruction) {
+    sprite::Map settings;
+    settings["path"] = file::Path{};
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = std::make_unique<LabeledPath>(&queue, "path", "", file::Path{}, &settings);
+    auto dropdown = field->_dropdown;
+    graph.wrap_object(*dropdown);
+    graph.select(dropdown.get());
+    dropdown->textfield()->set_text("draft");
+    field.reset();
+
+    EXPECT_FALSE(dropdown->on_select());
+    graph.select(nullptr);
+    EXPECT_EQ(dropdown->text(), "draft");
+}
+
+TEST(DynamicGUISettingsTest, SupersededFolderListingStaysEmptyWhenNewLookupFails) {
+    sprite::Map settings;
+    const file::Path folder(TREX_TEST_FOLDER);
+    settings["path"] = folder;
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    LabeledPath field(&queue, "path", "", folder, &settings);
+    field._current_function.wait();
+    field.change_folder(folder / "dyngui_set_local.json");
+    queue.processTasks(nullptr, graph);
+    EXPECT_TRUE(field._dropdown->items().empty());
+}
+
+TEST(DynamicGUISettingsTest, CoalescedPathArrayEditsResolveTheLatestFile) {
+    sprite::Map settings;
+    settings["paths"] = file::PathArray{};
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = LabeledField::Make({}, &queue, "paths", &settings);
+    auto dropdown = field->representative().to<CustomDropdown>();
+    queue.processTasks(nullptr, graph);
+
+    const file::Path folder(TREX_TEST_FOLDER);
+    const auto latest = folder / "dyngui_set_local.json";
+    for(const auto& path : {folder / "test_dyngui.cpp", latest}) {
+        dropdown->textfield()->set_text(path.str());
+        static_cast<LabeledPathArray*>(field.get())->updateDropdownItems();
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while(settings["paths"].value<file::PathArray>().source() != latest.str()
+          && std::chrono::steady_clock::now() < deadline) {
+        queue.processTasks(nullptr, graph);
+        std::this_thread::yield();
+    }
+    auto paths = settings["paths"].value<file::PathArray>();
+    EXPECT_EQ(paths.get_paths(), std::vector<file::Path>{latest});
+    ASSERT_EQ(dropdown->items().size(), 1u);
+    EXPECT_EQ(dropdown->items().front().name(), latest.str());
+}
+
+TEST(DynamicGUISettingsTest, PathArrayFocusLossLeavesRangeExpansionToTheWorker) {
+    constexpr auto setting = "dyngui_test_path_array_focus_loss";
+    for(bool use_combobox : {false, true}) {
+        SCOPED_TRACE(use_combobox);
+        GlobalSettings::write([&](Configuration& config) {
+            config.values[setting] = file::PathArray("webcam");
+        });
+        GUITaskQueue_t queue;
+        DrawStructure graph(640, 480);
+        Context context;
+        State state;
+        auto handler = std::make_shared<CurrentObjectHandler>();
+        state._current_object_handler = handler;
+        const glz::generic::object_t object{{"type", "settings"}, {"var", use_combobox ? "" : setting}};
+        constexpr size_t hash = 1;
+        auto root = parse_object(&queue, object, context, state, context.defaults, hash);
+        ASSERT_TRUE(root.is<HorizontalLayout>());
+        const auto owner = state.get_monostate(hash, root)->_value_box;
+        ASSERT_TRUE(owner);
+        const LabeledField* field = owner.get();
+        if(use_combobox) {
+            auto combo = owner->representative().to<Combobox>();
+            combo->set(ParmName{setting});
+            field = combo->value_field();
+        }
+        ASSERT_NE(field, nullptr);
+        auto dropdown = field->representative().to<CustomDropdown>();
+        graph.wrap_object(*root);
+        graph.collect();
+        graph.select(dropdown->textfield().get());
+
+        const auto pattern = (file::Path(TREX_TEST_FOLDER) / "frame_%0.2.6d.png").str();
+        dropdown->textfield()->set_text(pattern.substr(0, pattern.size() - 1));
+        ASSERT_TRUE(graph.text_entered(pattern.back()));
+        graph.select(nullptr);
+        EXPECT_EQ(GlobalSettings::read_value<file::PathArray>(setting).value().source(), "webcam");
+        EXPECT_TRUE(handler->has_pending_global_path_lookup(setting));
+        EXPECT_FALSE(handler->has_pending_global_path_lookup("filename"));
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while(handler->has_pending_global_path_lookup(setting)) {
+            ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+            queue.processTasks(nullptr, graph);
+            std::this_thread::yield();
+        }
+        const auto paths = GlobalSettings::read_value<file::PathArray>(setting);
+        ASSERT_TRUE(paths);
+        EXPECT_EQ(paths->source(), pattern);
+        EXPECT_TRUE(paths->matched_patterns());
+    }
+}
+
+TEST(DynamicGUISettingsTest, PathArrayTypingRanksVisibleFilesWithoutCollapsingThePreview) {
+    const auto folder = file::Path(TREX_TEST_FOLDER) / "data" / "detector_e2e";
+    sprite::Map settings;
+    settings["paths"] = file::PathArray(folder);
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = LabeledField::Make({}, &queue, "paths", &settings);
+    auto dropdown = field->representative().to<CustomDropdown>();
+    std::vector<Layout::Ptr> controls;
+    field->add_to(controls);
+    auto panel = controls.back().to<Layout>();
+    graph.wrap_object(*panel);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while(dropdown->items().empty()) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        queue.processTasks(nullptr, graph);
+    }
+    panel->before_draw();
+    graph.select(dropdown->textfield().get());
+    panel->before_draw();
+    const auto& rows = dropdown->list().items();
+    ASSERT_EQ(rows.size(), 2u);
+    const auto target = rows.back().value().name();
+    const auto partial = (folder / target.substr(0, 5)).str();
+    const auto preview_height = dropdown->preview()->size().height;
+    const auto panel_height = panel->height();
+    ASSERT_GT(preview_height, 0);
+
+    dropdown->textfield()->set_text(partial.substr(0, partial.size() - 1));
+    graph.text_entered(partial.back());
+    panel->before_draw();
+    EXPECT_EQ(dropdown->preview()->size().height, preview_height);
+    EXPECT_EQ(panel->height(), panel_height);
+    ASSERT_FALSE(rows.empty());
+    EXPECT_EQ(rows.front().value().name(), target);
+
+    while(settings["paths"].value<file::PathArray>().source() != partial) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        queue.processTasks(nullptr, graph);
+    }
+    panel->before_draw();
+    ASSERT_FALSE(rows.empty());
+    EXPECT_EQ(rows.front().value().name(), target);
+    EXPECT_EQ(panel->height(), panel_height);
+}
+
+TEST(DynamicGUISettingsTest, PathArrayLookupPreservesNewerBoundValue) {
+    sprite::Map settings;
+    settings["paths"] = file::PathArray{};
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = LabeledField::Make({}, &queue, "paths", &settings);
+    auto dropdown = field->representative().to<CustomDropdown>();
+    queue.processTasks(nullptr, graph);
+
+    dropdown->textfield()->set_text("old.mp4");
+    static_cast<LabeledPathArray*>(field.get())->updateDropdownItems();
+    // The external write is visible before its GUI refresh is dispatched.
+    ASSERT_TRUE(settings["paths"].toProperty<file::PathArray>().assign_if(file::PathArray("webcam")));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while(not queue.processTasks(nullptr, graph)) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(settings["paths"].value<file::PathArray>().source(), "webcam");
+    field->update_ref_in_main_thread();
+    EXPECT_EQ(dropdown->text(), "webcam");
+}
+
+TEST(DynamicGUISettingsTest, PathArrayEditAfterExternalWriteWins) {
+    sprite::Map settings;
+    settings["paths"] = file::PathArray{};
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = LabeledField::Make({}, &queue, "paths", &settings);
+    auto dropdown = field->representative().to<CustomDropdown>();
+    queue.processTasks(nullptr, graph);
+    std::vector<Layout::Ptr> controls;
+    field->add_to(controls);
+    graph.wrap_object(*controls.back());
+    controls.back().to<Layout>()->before_draw();
+    graph.select(dropdown->textfield().get());
+
+    graph.text_entered('A');
+    settings["paths"] = file::PathArray(file::Path(TREX_TEST_FOLDER) / "test_dyngui.cpp");
+    const auto latest = file::Path(TREX_TEST_FOLDER) / "dyngui_set_local.json";
+    dropdown->textfield()->set_text(latest.str().substr(0, latest.str().size() - 1));
+    graph.text_entered(latest.str().back());
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while(settings["paths"].value<file::PathArray>().source() != latest.str()) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        queue.processTasks(nullptr, graph);
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(dropdown->text(), latest.str());
+    ASSERT_EQ(dropdown->items().size(), 1u);
+    EXPECT_EQ(dropdown->items().front().name(), latest.str());
+
+    const auto folder = latest.remove_filename().str();
+    dropdown->textfield()->set_text(folder);
+    graph.text_entered(file::Path::os_sep());
+    while(settings["paths"].value<file::PathArray>().source() != folder) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        queue.processTasks(nullptr, graph);
+        std::this_thread::yield();
+    }
+    queue.processTasks(nullptr, graph);
+    EXPECT_EQ(dropdown->text(), folder + file::Path::os_sep());
+}
+
+TEST(DynamicGUISettingsTest, PathArrayFieldClearsUpdateCallbackOnDestruction) {
+    sprite::Map settings;
+    settings["paths"] = file::PathArray{};
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = LabeledField::Make({}, &queue, "paths", &settings);
+    ASSERT_TRUE(dynamic_cast<LabeledPathArray*>(field.get()));
+    auto dropdown = field->representative();
+    queue.processTasks(nullptr, graph);
+
+    dropdown.to<CustomDropdown>()->textfield()->set_text("webcam");
+    static_cast<LabeledPathArray*>(field.get())->updateDropdownItems();
+
+    field.reset();
+    EXPECT_FALSE(dropdown.to<CustomDropdown>()->update_callback());
+
+    bool completed = false;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while(not completed && std::chrono::steady_clock::now() < deadline) {
+        completed = queue.processTasks(nullptr, graph);
+        std::this_thread::yield();
+    }
+    EXPECT_TRUE(completed);
+    EXPECT_TRUE(settings["paths"].value<file::PathArray>().source().empty());
+}
+
+TEST(DynamicGUISettingsTest, FailedPathArrayEditClearsThePreviousMatches) {
+    sprite::Map settings;
+    const auto file = file::Path(TREX_TEST_FOLDER) / "dyngui_set_local.json";
+    settings["paths"] = file::PathArray(file);
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = LabeledField::Make({}, &queue, "paths", &settings);
+    auto dropdown = field->representative().to<CustomDropdown>();
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while(dropdown->items().empty()) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        queue.processTasks(nullptr, graph);
+        std::this_thread::yield();
+    }
+
+    dropdown->textfield()->set_text("PathArray<invalid>");
+    static_cast<LabeledPathArray*>(field.get())->updateDropdownItems();
+    while(not queue.processTasks(nullptr, graph)) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        std::this_thread::yield();
+    }
+    EXPECT_TRUE(dropdown->items().empty());
+    EXPECT_EQ(dropdown->preview()->text(), "No matches found");
+    EXPECT_EQ(settings["paths"].value<file::PathArray>().source(), file.str());
+
+    dropdown->textfield()->set_text((file.remove_filename() / "test_dyngui.cpp").str());
+    static_cast<LabeledPathArray*>(field.get())->updateDropdownItems();
+    auto& property = settings["paths"].toProperty<file::PathArray>();
+    EXPECT_FALSE(property.assign_if(file::PathArray(file)));
+    property.triggerCallbacks();
+    while(dropdown->items().empty()) {
+        ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+        queue.processTasks(nullptr, graph);
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(dropdown->text(), file.str());
+    EXPECT_EQ(settings["paths"].value<file::PathArray>().source(), file.str());
+}
+
+TEST(DynamicGUISettingsTest, PathArrayFieldDiscardsResultAfterTextIsRestored) {
+    sprite::Map settings;
+    settings["paths"] = file::PathArray{};
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto field = LabeledField::Make({}, &queue, "paths", &settings);
+    auto* path_field = dynamic_cast<LabeledPathArray*>(field.get());
+    ASSERT_NE(path_field, nullptr);
+    auto dropdown = field->representative().to<CustomDropdown>();
+    queue.processTasks(nullptr, graph);
+
+    dropdown->textfield()->set_text("webcam");
+    path_field->updateDropdownItems();
+    dropdown->textfield()->set_text("");
+    path_field->updateDropdownItems();
+
+    bool completed = false;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while(not completed && std::chrono::steady_clock::now() < deadline) {
+        completed = queue.processTasks(nullptr, graph);
+        std::this_thread::yield();
+    }
+    EXPECT_TRUE(completed);
+    EXPECT_TRUE(settings["paths"].value<file::PathArray>().source().empty());
+    EXPECT_TRUE(dropdown->text().empty());
+}
+
 TEST(DynamicGUISettingsTest, OptionalCornersReachValueAndResetWithoutImplicitLabelOverride) {
     SETTING(dyngui_test_optional_corner_text) = std::optional<std::string>{"value"};
     SETTING(dyngui_test_optional_corner_path) = std::optional<file::Path>{file::Path("value")};
@@ -1167,6 +1601,42 @@ TEST(DynamicGUISettingsTest, ComboboxDelegatesLabelAndItemFonts) {
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(ItemFont_t{0.9f}, combo));
     EXPECT_FLOAT_EQ(combo->dropdown()->textfield()->font().size, 0.7f);
     EXPECT_FLOAT_EQ(combo->dropdown()->list().line_height(), Base::default_line_spacing(Font{0.9f}));
+}
+
+TEST(DynamicGUISettingsTest, TooltipClearsKeyboardHighlightedDropdownRow) {
+    for(bool inverted : {false, true}) {
+        GUITaskQueue_t queue;
+        DrawStructure graph(640, 480);
+        graph.set_dialog_window_size(Size2(640, 480));
+        derived_ptr<Combobox> combo{new Combobox(&queue, Box(20, inverted ? 360 : 20, 500, 40))};
+        const auto& dropdown = combo->dropdown();
+        dropdown->set(std::vector<std::string>{"First", "Second"});
+        dropdown->set_opened(true);
+        graph.wrap_object(*combo);
+        graph.collect();
+        // Recompute the dropdown's orientation with the full parent chain attached.
+        dropdown->set_bounds_changed();
+        dropdown->global_bounds();
+        ASSERT_EQ(dropdown->inverted(), inverted);
+        ASSERT_TRUE(dropdown->list().is_staged());
+
+        SettingsTooltip tooltip{combo.get_smart()};
+        tooltip.set_parameter(TooltipData{TooltipData::Both{.name = "Item", .docs = "Dropdown item"}});
+        graph.wrap_object(tooltip);
+
+        for(unsigned index : {0u, 1u}) {
+            dropdown->list().highlight_item(index);
+            ASSERT_EQ(dropdown->list().highlighted_item(), index);
+            tooltip.before_draw();
+
+            const auto list_bounds = dropdown->list().global_bounds();
+            const auto tooltip_bounds = tooltip.global_bounds();
+            if(inverted)
+                EXPECT_NEAR(tooltip_bounds.y + tooltip_bounds.height, list_bounds.y, 0.01);
+            else
+                EXPECT_NEAR(tooltip_bounds.y, list_bounds.y + list_bounds.height, 0.01);
+        }
+    }
 }
 
 TEST(DynamicGUISettingsTest, BooleanSelectionDoesNotLeaveTooltipHovered) {
@@ -2571,6 +3041,7 @@ TEST(EachElementTest, CustomLoopVariableNameWorksForStringArrayLoops) {
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
     ASSERT_TRUE(obj.is_object());
 
+    // A serialized list takes the string parser path when binding the custom item name.
     std::string items = "[alpha,beta]";
 
     Context context{
@@ -2698,6 +3169,7 @@ TEST(EachElementTest, ConditionBranchNewlyParsedKeepsOuterScopedVariables) {
                 "disabled:20-1"
         ));
 
+        // Both then branches are parsed for the first time using their own outer item.
         outer_data[0]["enabled"] = true;
         outer_data[1]["enabled"] = true;
 
@@ -2794,6 +3266,7 @@ TEST(EachElementTest, ConditionBranchNestedEachUpdatesWithoutOuterLoopCacheMiss)
                 "disabled:20-1"
         ));
 
+        // Only the nested list changes. The already-selected branch must still refresh it.
         outer_data[0]["inner"] = std::vector<int>{7};
 
         ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));

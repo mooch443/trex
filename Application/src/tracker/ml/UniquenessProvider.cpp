@@ -20,7 +20,7 @@ bool UniquenessProvider::busy() const noexcept
 bool UniquenessProvider::_busy() const noexcept
 {
     return _running && _running->valid()
-           && _running->wait_for(std::chrono::milliseconds(0)) != std::future_status::ready;
+           && not cmn::is_future_ready(*_running);
 }
 
 bool UniquenessProvider::ready() const noexcept

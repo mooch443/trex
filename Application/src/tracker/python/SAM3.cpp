@@ -1,5 +1,6 @@
 #include "SAM3.h"
 
+#include <core/SettingsPaths.h>
 #include <python/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <misc/Timer.h>
@@ -48,7 +49,7 @@ std::future<SegmentationData> SAM3::apply(TileImage&& tiled) {
 }
 
 void SAM3::reinit(track::ModuleProxy& proxy) {
-    auto weights = READ_SETTING(detect_model, file::Path);
+    auto weights = settings::resolve_output_path(READ_SETTING(detect_model, file::Path));
     if(weights.empty()) {
         throw U_EXCEPTION("SAM3 requires `detect_model` to point to the SAM3 weights path.");
     }

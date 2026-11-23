@@ -61,7 +61,7 @@ BackgroundSubtraction::BackgroundSubtraction(Image::Ptr&& average) {
             while(not data().has_background()
                   && not manager().is_terminated())
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(100ms);
 
                 auto elapsed = std::chrono::steady_clock::now() - message_time;
                 if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {

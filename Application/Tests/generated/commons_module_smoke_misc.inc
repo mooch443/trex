@@ -83,6 +83,7 @@ using ::cmn::SpatialTag;
 // misc/GlobalSettings.h
 namespace commons_module_smoke::commons_misc::cmn {
 using ::cmn::AccessLevel;
+using ::cmn::CommandLine;
 using ::cmn::Configuration;
 using ::cmn::GlobalSettings;
 using ::cmn::HistoryItem;
@@ -135,6 +136,7 @@ using ::cmn::ObjectManager;
 
 // misc/Path.h
 namespace commons_module_smoke::commons_misc::cmn::file {
+using ::cmn::file::Filename;
 using ::cmn::file::Path;
 using ::cmn::file::UseNotOsSep;
 using ::cmn::file::cd;
@@ -413,6 +415,18 @@ using ::cmn::MathArray;
 using ::cmn::RGBArray;
 using ::cmn::clamp;
 using ::cmn::is_rgb_array;
+}
+
+// misc/metastring.h
+namespace commons_module_smoke::commons_misc::cmn {
+using ::cmn::FileSize;
+using ::cmn::illegal_syntax;
+}
+
+namespace commons_module_smoke::commons_misc::cmn::util {
+using ::cmn::util::ConstexprString;
+using ::cmn::util::all_conststrings_v;
+using ::cmn::util::to_readable_errc;
 }
 
 // misc/pretty.h

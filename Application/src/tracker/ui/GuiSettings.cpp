@@ -38,7 +38,7 @@ std::string window_title() {
         version_prefix = "<"+(std::string)compile_mode_name()+"> ";
     }
     
-    auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
+    auto filename = READ_SETTING(filename, file::Filename).str();
     auto output_prefix = READ_SETTING(output_prefix, std::string);
     return version_prefix + READ_SETTING(app_name, std::string)
         + (READ_SETTING(version, std::string).empty() ? "" : (" " + READ_SETTING(version, std::string)))

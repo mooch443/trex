@@ -99,8 +99,8 @@ void YOLO::reinit(ModuleProxy& proxy) {
     auto path = detect::yolo::current_detect_model_path();
     
     if(path.empty()) {
-        Print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");
-        path = file::Path("yolov8n-pose");
+        Print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLO26n-pose");
+        path = file::Path("yolo26n-pose.pt");
     }
 
     using namespace track::detect;
@@ -123,11 +123,13 @@ void YOLO::reinit(ModuleProxy& proxy) {
     } else
         throw U_EXCEPTION("This does not seem like a valid model to use: ", path,". Either we cannot find it, or it is not in a valid format. Expected is a supported PyTorch .pt or .pth model file.");
 
-    if(READ_SETTING(region_model, file::Path).exists()) {
+    if(auto region_model = detect::yolo::current_region_model_path();
+       region_model.is_regular())
+    {
         _loaded_models.emplace_back(
             ModelTaskType::region,
             BOOL_SETTING(yolo_region_tracking_enabled), // region models dont have tracking
-            READ_SETTING(region_model, file::Path).str(),
+            region_model.str(),
             READ_SETTING(region_resolution, DetectResolution)
         );
         _loaded_models.back().try_optimize = BOOL_SETTING(detect_try_optimize_model);
@@ -1279,7 +1281,7 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
         if(std::unique_lock guard(init_mutex);
            init_future.valid())
         {
-            if(init_future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready) {
+            if(cmn::is_future_ready<1ms>(init_future)) {
                 init_future.get();
                 break;
             }

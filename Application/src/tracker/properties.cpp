@@ -102,7 +102,7 @@ void async_main(void*) {
 
 			while (!SETTING(terminate)) {
 				if(SETTING(track_pause)) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					std::this_thread::sleep_for(10ms);
 					continue;
 				}
 
@@ -112,7 +112,7 @@ void async_main(void*) {
 				else if(index + 1_f < file.length())
 					index += 1_f;
 				else {
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					std::this_thread::sleep_for(10ms);
 					continue;
 				}
 
@@ -361,7 +361,6 @@ int main(int argc, char**argv) {
 	GlobalSettings::map().set_print_by_default(true);
 
 	CommandLine::init(argc, argv);
-    file::cd(file::DataLocation::parse("app"));
 
 	gui::init_errorlog();
 	set_thread_name("main");

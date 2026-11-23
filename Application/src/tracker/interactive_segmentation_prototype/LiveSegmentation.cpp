@@ -447,12 +447,12 @@ void LiveSegmentation::activate() {
                         || _requested_frame.has_value()
                         || not _next_frame.has_value()
                         || (result.has_value()
-                            && std::get<2>(result.value()).wait_for(std::chrono::milliseconds(0)) == std::future_status::ready);
+                            && cmn::is_future_ready(std::get<2>(result.value())));
                     });
-                    _condition.wait_for(guard, std::chrono::milliseconds(1));
+                    _condition.wait_for(guard, 1ms);
                 } else {
                     //thread_print("short waiting locking _next_frame_mutex");
-                    _condition.wait_for(guard, std::chrono::milliseconds(1));
+                    _condition.wait_for(guard, 1ms);
                 }
                 
                 //thread_print("got locking _next_frame_mutex");

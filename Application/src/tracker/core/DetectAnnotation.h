@@ -26,6 +26,9 @@ struct Annotation {
     uint8_t clid{};
     AnnotationType type{};
     std::vector<Point_t> points{};
+
+    bool can_place_point(cmn::Vec2 position, cmn::Size2 image_size) const;
+    bool move_point(size_t index, cmn::Vec2 position, cmn::Size2 image_size);
     
     auto operator<=>(const Annotation& other) const = default;
     bool operator==(const Annotation& other) const noexcept = default;

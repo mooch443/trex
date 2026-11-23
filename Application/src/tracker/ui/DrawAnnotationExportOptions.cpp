@@ -1,4 +1,5 @@
 #include "DrawAnnotationExportOptions.h"
+#include <misc/Path.h>
 #include <tracking/AnnotationExporter.h>
 #include <core/DetectionTypes.h>
 #include <file/DataLocation.h>
@@ -90,7 +91,7 @@ struct DrawAnnotationExportOptions::Data {
                 : file::DataLocation::parse("output", *annotation_export_output_path);
         }
 
-        file::Path input = READ_SETTING(filename, file::Path).filename();
+        file::Path input = READ_SETTING(filename, file::Filename).path();
         if(input.empty()) {
             auto source = READ_SETTING(source, file::PathArray);
             input = file::Path(file::find_basename(source)).filename();

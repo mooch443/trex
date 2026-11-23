@@ -1,11 +1,11 @@
 #include <commons.pc.h>
 #include <gtest/gtest.h>
 #include <file/DataLocation.h>
+#include <file/PathArray.h>
 #include <misc/GlobalSettings.h>
 #include <ui/AnimatedBackground.h>
 #include <pv.h>
 #include <core/default_config.h>
-#include <core/SettingsPaths.h>
 
 using namespace cmn;
 using cmn::Image;
@@ -56,13 +56,11 @@ pv::File make_artificial_pv_file(const file::Path& path,
     metadata["source"] = file::PathArray(original_source);
     metadata["meta_source_path"] = original_source.str();
     metadata["output_prefix"] = output_prefix;
-    metadata["filename"] = file::Path{};//(output_dir ? *output_dir : original_source.remove_filename());
+    metadata["filename"] = file::Filename(path.remove_extension("pv").filename());
     metadata["output_dir"] = output_dir ? *output_dir : original_source.remove_filename();
     metadata["video_conversion_range"] = Range<long_t>(
         conversion_start,
         conversion_end);
-    
-    metadata["filename"] = settings::find_output_name(metadata, {}, false);
     
     video.set_metadata(std::move(metadata));
     return video;
@@ -70,9 +68,18 @@ pv::File make_artificial_pv_file(const file::Path& path,
 
 class AnimatedBackgroundTest : public ::testing::Test {
 protected:
+    std::filesystem::path root;
+
     void SetUp() override {
         reset_global_settings();
         register_data_locations_once();
+    }
+
+    void TearDown() override {
+        if(not root.empty()) {
+            std::error_code error;
+            std::filesystem::remove_all(root, error);
+        }
     }
 
     static Image::Ptr make_image(uint32_t rows = 2,
@@ -207,6 +214,43 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefixButPrefixIsNo
         auto video = make_artificial_pv_file(source, meta_source_path, "", std::nullopt, 10u, 1000u);
         ASSERT_EQ(result.tests, expected);
     }
+}
+
+TEST_F(AnimatedBackgroundTest, ReopenedPvFindsOriginalVideoAfterMovingTheFolder) {
+    namespace fs = std::filesystem;
+    const auto directory = fs::temp_directory_path() / ("trex-background-"
+        + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    ASSERT_TRUE(fs::create_directory(directory));
+    root = directory;
+    const file::Path workspace(fs::canonical(root).string());
+    const auto original = workspace / "original";
+    const auto relocated = workspace / "relocated";
+    const auto recording = relocated / "converted" / "shoal.pv";
+    ASSERT_TRUE(fs::create_directories(recording.remove_filename().str()));
+
+    // The legacy filename is the only metadata field recording the original PV directory.
+    auto video = pv::File::Write(recording, meta_encoding_t::gray);
+    video.set_source((original / "shoal.mp4").str());
+    video.set_conversion_range({10u, 11u});
+    sprite::Map metadata;
+    metadata["filename"] = original / "converted" / "shoal";
+    video.set_metadata(metadata);
+    video.set_resolution(Size2(2, 2));
+    video.set_start_time(std::chrono::system_clock::now());
+    pv::Frame frame;
+    frame.set_index(0_f);
+    frame.set_source_index(10_f);
+    frame.set_timestamp(video.header().timestamp);
+    video.add_individual(frame);
+    video.close();
+
+    SETTING(source) = file::PathArray(recording);
+    SETTING(output_dir) = file::Path{};
+    SETTING(output_prefix) = std::string{};
+    auto reopened = pv::File::Read(recording);
+    const auto result = AnimatedBackground::configure_video_source(&reopened);
+
+    EXPECT_TRUE(result.tests.contains({(relocated / "shoal.mp4").str(), 10}));
 }
 
 static_assert(not std::is_copy_constructible_v<AnimatedBackground>);
