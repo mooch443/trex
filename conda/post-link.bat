@@ -8,7 +8,7 @@ set "PYTHONIOENCODING=utf-8"
 set "PIP_DISABLE_PIP_VERSION_CHECK=1"
 set "PIP_PROGRESS_BAR=off"
 set "PIP_NO_INPUT=1"
-set "PIP_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color"
+set "PIP_FLAGS=--disable-pip-version-check --no-input --progress-bar raw --no-color"
 set "ULTRALYTICS_HUB_NO_PROGRESS=1"
 set "HF_HUB_DISABLE_PROGRESS_BAR=1"
 set "DISABLE_TQDM=1"
@@ -252,10 +252,8 @@ exit /b 0
 :install_selected_torch
 call :log "[post-link] Running one resolver transaction for !TORCH_TARGET!; no version or index retries are permitted."
 call :log_command python -X utf8 -m pip install !PIP_FLAGS! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
-set "PROGRESS_LABEL=Installing Python ML packages"
-call :run_with_reporting python -X utf8 -m pip install !PIP_FLAGS! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
+python -X utf8 -S "%~dp0trex_post_link_progress.py" !PIP_FLAGS! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
 set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
-set "PROGRESS_LABEL="
 if not "!LAST_COMMAND_STATUS!"=="0" exit /b 1
 exit /b 0
 

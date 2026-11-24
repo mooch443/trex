@@ -217,6 +217,11 @@ if args[:3] == ["-m", "pip", "install"]:
     )
     if os.environ.get("TREX_FAKE_EMIT_INSTALL_OUTPUT") == "1":
         print("[fake-pip] resolver output captured by Conda")
+        if "--progress-bar" in args and args[args.index("--progress-bar") + 1] == "raw":
+            print("Downloading torch-2.7.1-win_amd64.whl (2.0 GB)")
+            print("Progress 1073741824 of 2147483648")
+            print("Progress 2147483648 of 2147483648")
+            print("Installing collected packages: torchvision, torch")
     if outcome == "resolution":
         print("ERROR: ResolutionImpossible: simulated dependency conflict", file=sys.stderr)
         raise SystemExit(1)
@@ -1013,6 +1018,9 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 post_link_log = (prefix / ".messages.txt").read_text(encoding="utf-8")
                 self.assertIn("[fake-pip] resolver output captured by Conda", post_link_log)
                 self.assertNotIn("[fake-pip] resolver output captured by Conda", output)
+                self.assertIn("[post-link] Downloading torch-2.7.1-win_amd64.whl (50%)", post_link_log)
+                self.assertIn("[post-link] Downloading torch-2.7.1-win_amd64.whl (100%)", post_link_log)
+                self.assertIn("Installing collected packages: torchvision, torch", post_link_log)
                 self.assertEqual(list(root.glob("trex_post_link_progress_*")), [])
             installs = _install_events(state)
             pip_events = _index_events(state) + installs

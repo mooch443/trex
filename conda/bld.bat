@@ -54,6 +54,10 @@ echo copying %RECIPE_DIR%\menu-windows.json to %MENU_DIR%\trex.json
 copy %RECIPE_DIR%\menu-windows.json %MENU_DIR%\trex.json
 if errorlevel 1 exit 1
 
+if not exist "%PREFIX%\Scripts" mkdir "%PREFIX%\Scripts"
+copy "%RECIPE_DIR%\trex_post_link_progress.py" "%PREFIX%\Scripts\trex_post_link_progress.py"
+if errorlevel 1 exit 1
+
 for /f %%w in ('%PREFIX%\python -c "from shutil import which; print(which(\"python\"))"') do set var=%%w
 echo var is %var%
 
