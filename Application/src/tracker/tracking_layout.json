@@ -20,7 +20,7 @@
   "recording_symbol":"<small><sym>●</sym></small> ",
   "recording_alpha":"{min:1.0:{+:0.1:{/:{back_and_forth}:255}}}",
 
-  "highlighted_frame":"{int:{max:0:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}}}",
+  "highlighted_frame":"{int:{saturate:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}:0:{length}}}",
   "locked_on":"{&&:{<:{{*:{/:{abs:{-:{highlighted_frame}:{global.gui_frame}}}:{length}}:{width23}}}:10}:{not:{key.lalt}}}",
   "smart_highlighted":"{if:{locked_on}:{global.gui_frame}:{highlighted_frame}}",
 
@@ -161,7 +161,7 @@
                   "type":"circle",
                   "radius":7.5,
                   "origin":[0.5,0.5],
-                  "fill": [255,255,255,50],
+                  "fill": "{if:{j.z}:[220,220,220,250]:[20,20,20,150]}",
                   "color":[255,255,255,50],
                   "pos":"{addVector:{subVector:{2hud:{j}}:{2hud:[{i.x},{i.y}]}}:[25,25]}"
                 }
@@ -214,7 +214,7 @@
                 "z-index": 1,
                 "pos":"{2hud:{j}}",
                 "origin":[0.5,0.5],
-                "fill": [255,255,255,150],
+                "fill": "{if:{j.z}:[220,220,220,250]:[20,20,20,150]}",
                 "line":"{if:{not:{j.z}}:[255,0,0,255]:{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}}",
                 "color":[255,255,255,255],
                 "drag":"move_detect_annotation:{at:id:{at:{i.idx}:{detect_annotations}}}:{index}",
@@ -227,7 +227,7 @@
                 "z-index": 1,
                 "pos":"{2hud:{j}}",
                 "origin":[0.5,0.5],
-                "color":[50,50,50,255],
+                "color":"{if:{j.z}:[50,50,50,255]:[200,200,200,150]}",
                 "font":{"size":0.5,"align":"center"}
               }
             ]
@@ -319,7 +319,7 @@
       "font":{"size":0.555},
       "pad":[0,0]
     },
-    "pos":"{addVector:[5,5]:{2hud:{at:{at:1:{local.rightclicked_point}}:{at:pts:{at:{at:0:{local.rightclicked_point}}:{detect_annotations}}}}}}",
+    "pos":"{minVector:{subVector:[{window_size.x},{window_size.y}]:[200,145]}:{addVector:[5,5]:{2hud:{at:{at:1:{local.rightclicked_point}}:{at:pts:{at:{at:0:{local.rightclicked_point}}:{detect_annotations}}}}}}}",
     "items": [
       {
         "text":"<c> </c><sym>🖯</sym> <gray>Deselect</gray>",
@@ -359,7 +359,7 @@
       "font":{"size":0.555},
       "pad":[15,0]
     },
-    "pos":"{addVector:[-25,-55]:{2hud:{at:{local.change_class_of.idx}:{detect_annotations}}}}",
+    "pos":"{minVector:{subVector:[{window_size.x},{window_size.y}]:[200,130]}:{addVector:[-25,-55]:{2hud:{at:{local.change_class_of.idx}:{detect_annotations}}}}}",
     "template":{
       "text":"<c>{i}:</c> {at:{i}:{global.detect_classes}}",
       "disabled": "{equal:{i}:{local.change_class_of.clid}}",
@@ -385,7 +385,7 @@
       "font":{"size":0.555},
       "pad":[0,0]
     },
-    "pos":"{addVector:[-25,-55]:{2hud:{at:{local.clicked_pose_object.idx}:{detect_annotations}}}}",
+    "pos":"{minVector:{subVector:[{window_size.x},{window_size.y}]:[200,110]}:{addVector:[-25,-55]:{2hud:{at:{local.clicked_pose_object.idx}:{detect_annotations}}}}}",
     "items": [
       {
         "text":"<c> </c><sym>⯆</sym> <cyan>{if:{contains:{local.clicked_pose_object.clid}:{global.detect_classes}}:{at:{local.clicked_pose_object.clid}:{global.detect_classes}}:class{local.clicked_pose_object.clid}}</cyan> <c>{if:{equal:{local.clicked_pose_object.type}:1}:POSE:{if:{equal:{local.clicked_pose_object.type}:0}:BOX:{if:{equal:{local.clicked_pose_object.type}:2}:MASK:{if:{equal:{local.clicked_pose_object.type}:3}:OBB:{if:{equal:{local.clicked_pose_object.type}:4}:POINT:{local.clicked_pose_object.type}}}}}}</c>",
@@ -431,7 +431,7 @@
           "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
           "do":  {
             "type":"condition",
-            "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}:{||:{>:{at:0:{at:{at:0:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:0:{i}}:{a.pts}}}:0}}:{||:{>:{at:0:{at:{at:1:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:1:{i}}:{a.pts}}}:0}}}",
+            "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}:{||:{>:{at:0:{at:{at:0:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:0:{i}}:{a.pts}}}:0}}:{||:{>:{at:0:{at:{at:1:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:1:{i}}:{a.pts}}}:0}}:{at:2:{at:{at:0:{i}}:{a.pts}}}:{at:2:{at:{at:1:{i}}:{a.pts}}}}",
             "then":{
               "type":"line",
               "from":"{2hud:{at:{at:0:{i}}:{a.pts}}}",
@@ -1656,8 +1656,8 @@
               "line": [255,255,255,220],
               "clickable":true,
               "name":"timeline_outline",
-              "click": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}",
-              "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
+              "click": "set:gui_frame:{saturate:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}:0:{length}}",
+              "drag": "set:gui_frame:{saturate:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}:0:{length}}"
             },
             {
               "type": "rect",

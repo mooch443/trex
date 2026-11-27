@@ -9,7 +9,7 @@
 
 namespace track::detail {
 
-static_assert(sizeof(detect::Bone) == 2u * sizeof(float));
+static_assert(sizeof(detect::Bone) == 3u * sizeof(float));
 
 namespace {
 
@@ -69,6 +69,7 @@ struct MatchingSettings {
     float iou{};
     float containment{};
     float pose_distance{};
+    float keypoint_threshold{};
     bool compare_pose_keypoints{};
 };
 
@@ -83,9 +84,10 @@ void append_box(std::vector<float>& destination, const detect::Row& row) {
     });
 }
 
+template<typename T>
 void append_row(
-    std::vector<float>& destination,
-    const std::vector<float>& source,
+    std::vector<T>& destination,
+    const std::vector<T>& source,
     size_t row,
     size_t stride)
 {
@@ -96,7 +98,7 @@ void append_row(
 struct PayloadBuffers {
     std::vector<float> boxes;
     std::vector<detect::MaskData> masks;
-    std::vector<float> keypoints;
+    std::vector<detect::Bone> keypoints;
     std::vector<float> obbs;
     std::vector<float> points;
 
@@ -106,7 +108,7 @@ struct PayloadBuffers {
         if(mode == PayloadMode::masks)
             masks.reserve(rows);
         if(mode == PayloadMode::poses)
-            keypoints.reserve(rows * pose_bones * 2u);
+            keypoints.reserve(rows * pose_bones);
         if(mode == PayloadMode::obb)
             obbs.reserve(rows * 7u);
         if(mode == PayloadMode::points)
@@ -116,7 +118,7 @@ struct PayloadBuffers {
     void append_tile(detect::Result& result) {
         for(size_t row = 0; row < result.boxes().num_rows(); ++row)
             append_box(boxes, result.boxes()[row]);
-        append_values(keypoints, result.keypoints().xy_conf());
+        append_values(keypoints, result.keypoints().bones());
         append_values(obbs, result.obbdata().icxywhr());
         append_values(points, result.points().icxyr());
         if(!result.masks().empty()) {
@@ -243,12 +245,6 @@ float normalized_containment_depth(const cmn::Bounds& bounds, const cmn::Vec2& p
     return diagonal > 0.f ? depth / diagonal : 0.f;
 }
 
-bool valid_bone(const detect::Bone& bone) {
-    return std::isfinite(bone.x)
-        && std::isfinite(bone.y)
-        && (bone.x != 0.f || bone.y != 0.f);
-}
-
 bool better_candidate(const Candidate& lhs, const Candidate& rhs) {
     return std::tuple{
         lhs.owns_anchor,
@@ -352,7 +348,8 @@ Candidate make_candidate(
     size_t stable,
     const detect::Result& result,
     const std::vector<TileGeometry>& geometries,
-    const cmn::Bounds& frame)
+    const cmn::Bounds& frame,
+    float keypoint_threshold)
 {
     Candidate candidate{
         .tile = tile,
@@ -375,7 +372,7 @@ Candidate make_candidate(
         } else if(mode == PayloadMode::poses) {
             const auto pose = result.keypoints()[row_index];
             candidate.completeness = static_cast<size_t>(
-                std::count_if(pose.bones.begin(), pose.bones.end(), valid_bone));
+                 std::count_if(pose.bones.begin(), pose.bones.end(), [keypoint_threshold](const auto& bone) { return bone.is_visible(keypoint_threshold); }));
         } else {
             candidate.completeness = 1u;
         }
@@ -416,7 +413,8 @@ std::vector<Candidate> make_candidates(
     const std::vector<detect::Result>& results,
     const std::vector<TileGeometry>& geometries,
     const FramePayload& payload,
-    std::vector<std::vector<size_t>>& by_tile)
+    std::vector<std::vector<size_t>>& by_tile,
+    float keypoint_threshold)
 {
     const auto frame = frame_bounds(geometries);
     std::vector<Candidate> candidates;
@@ -428,7 +426,7 @@ std::vector<Candidate> make_candidates(
         for(size_t row = 0; row < rows; ++row, ++stable) {
             by_tile[tile].push_back(candidates.size());
             candidates.emplace_back(make_candidate(
-                payload.mode, tile, row, stable, results[tile], geometries, frame));
+                payload.mode, tile, row, stable, results[tile], geometries, frame, keypoint_threshold));
         }
     }
     return candidates;
@@ -461,14 +459,17 @@ std::optional<float> normalized_pose_distance(
     const Candidate& lhs,
     const Candidate& rhs,
     const std::vector<detect::Result>& results,
-    std::vector<float>& distances)
+    std::vector<float>& distances,
+    float keypoint_threshold)
 {
     const auto lhs_pose = results[lhs.tile].keypoints()[lhs.row];
     const auto rhs_pose = results[rhs.tile].keypoints()[rhs.row];
     const size_t count = std::min(lhs_pose.bones.size(), rhs_pose.bones.size());
     distances.clear();
     for(size_t index = 0; index < count; ++index) {
-        if(valid_bone(lhs_pose.bones[index]) && valid_bone(rhs_pose.bones[index])) {
+        if(lhs_pose.bones[index].is_visible(keypoint_threshold)
+           && rhs_pose.bones[index].is_visible(keypoint_threshold))
+        {
             distances.emplace_back(std::hypot(
                 lhs_pose.bones[index].x - rhs_pose.bones[index].x,
                 lhs_pose.bones[index].y - rhs_pose.bones[index].y));
@@ -523,7 +524,7 @@ std::optional<float> match_similarity(
 
     if(mode == PayloadMode::poses && settings.compare_pose_keypoints) {
         const auto distance = normalized_pose_distance(
-            lhs, rhs, results, pose_distances);
+            lhs, rhs, results, pose_distances, settings.keypoint_threshold);
         if(!distance || *distance > settings.pose_distance)
             return std::nullopt;
         *similarity = std::max(
@@ -627,35 +628,29 @@ void append_fused_pose(
     const OutputGroup& group,
     const std::vector<Candidate>& candidates,
     const std::vector<detect::Result>& results,
-    size_t pose_bones)
+    size_t pose_bones,
+    float keypoint_threshold)
 {
     const auto& representative = candidates[group.representative];
-    const size_t stride = pose_bones * 2u;
-    const auto& representative_data = results[representative.tile].keypoints().xy_conf();
+    const auto& representative_data = results[representative.tile].keypoints().bones();
     const size_t output_offset = output.keypoints.size();
-    append_row(output.keypoints, representative_data, representative.row, stride);
+    append_row(output.keypoints, representative_data, representative.row, pose_bones);
 
-    // Preserve every valid joint from the chosen detection. Other tiles only
-    // fill its gaps, in candidate-quality order, so fusion cannot move a joint.
+    // Preserve every visible joint from the chosen detection. Other tiles only
+    // fill its gaps in candidate-quality order, preferring visible estimates.
     for(const size_t member_index : group.members) {
         if(member_index == group.representative)
             continue;
         const auto& member = candidates[member_index];
-        const auto& source = results[member.tile].keypoints().xy_conf();
-        const size_t source_offset = member.row * stride;
+        const auto& source = results[member.tile].keypoints().bones();
+        const size_t source_offset = member.row * pose_bones;
         for(size_t bone = 0; bone < pose_bones; ++bone) {
-            const size_t xy = bone * 2u;
-            detect::Bone target{
-                output.keypoints[output_offset + xy],
-                output.keypoints[output_offset + xy + 1u]
-            };
-            detect::Bone replacement{
-                source[source_offset + xy],
-                source[source_offset + xy + 1u]
-            };
-            if(!valid_bone(target) && valid_bone(replacement)) {
-                output.keypoints[output_offset + xy] = replacement.x;
-                output.keypoints[output_offset + xy + 1u] = replacement.y;
+            auto& target = output.keypoints[output_offset + bone];
+            const auto& replacement = source[source_offset + bone];
+            if(not target.is_visible(keypoint_threshold)
+               && (replacement.is_visible(keypoint_threshold) || (not target.valid() && replacement.valid())))
+            {
+                target = replacement;
             }
         }
     }
@@ -667,7 +662,8 @@ void append_group(
     const OutputGroup& group,
     const std::vector<Candidate>& candidates,
     std::vector<detect::Result>& results,
-    size_t pose_bones)
+    size_t pose_bones,
+    float keypoint_threshold)
 {
     const auto& representative = candidates[group.representative];
     auto& result = results[representative.tile];
@@ -692,7 +688,7 @@ void append_group(
     }
     case PayloadMode::poses:
         append_box(output.boxes, result.boxes()[representative.row]);
-        append_fused_pose(output, group, candidates, results, pose_bones);
+        append_fused_pose(output, group, candidates, results, pose_bones, keypoint_threshold);
         break;
     case PayloadMode::obb:
         append_row(
@@ -737,9 +733,11 @@ detect::Result DetectionTilePostprocess::apply(
     if(READ_SETTING(detect_tile_overlap, float) <= 0.f)
         return flatten_results(tile_results, payload);
 
+    const float keypoint_threshold = payload.mode == PayloadMode::poses
+        ? READ_SETTING_WITH_DEFAULT(detect_keypoint_threshold, Float2_t{0.f}) : 0.f;
     std::vector<std::vector<size_t>> candidates_by_tile(tile_results.size());
     const auto candidates = make_candidates(
-        tile_results, tile_geometries, payload, candidates_by_tile);
+        tile_results, tile_geometries, payload, candidates_by_tile, keypoint_threshold);
     if(candidates.empty())
         return empty_result(payload.index);
 
@@ -747,6 +745,7 @@ detect::Result DetectionTilePostprocess::apply(
         .iou = static_cast<float>(READ_SETTING(detect_tile_merge_iou, Float2_t)),
         .containment = static_cast<float>(READ_SETTING(detect_tile_merge_containment, Float2_t)),
         .pose_distance = static_cast<float>(READ_SETTING(detect_tile_pose_match_distance, Float2_t)),
+        .keypoint_threshold = keypoint_threshold,
         .compare_pose_keypoints = READ_SETTING(
             detect_pose_bbx,
             default_config::detect_pose_bbx_t::Class)
@@ -787,7 +786,8 @@ detect::Result DetectionTilePostprocess::apply(
             group,
             candidates,
             tile_results,
-            payload.pose_bones);
+            payload.pose_bones,
+            keypoint_threshold);
     }
     return std::move(output).finish(payload.index, payload.pose_bones);
 }

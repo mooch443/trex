@@ -20,6 +20,21 @@ TileImage::~TileImage() {
     }
 }
 
+std::future<SegmentationData> TileImage::enqueue(PipelineManager<TileImage>& manager) && {
+    assert(not promise);
+    promise = std::make_unique<std::promise<SegmentationData>>();
+    auto future = promise->get_future();
+    try {
+        if(manager.enqueue(std::move(*this)))
+            return future;
+    } catch(...) {
+        promise.reset();
+        throw;
+    }
+    promise.reset();
+    return {};
+}
+
 std::pair<Size2, Size2> compute_tiling_dimensions(
     Size2 frame_size,
     Size2 detector_size,

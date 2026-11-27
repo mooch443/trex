@@ -1206,6 +1206,37 @@ TEST(PathArrayTest, MixedWildcardListChecksFilesFromBothPatterns) {
     EXPECT_EQ(recordings.size(), 2u);
 }
 
+namespace {
+struct SurveyFilesystem : trex_test::TestFilesystem {
+    SurveyFilesystem() : TestFilesystem{"/launch/clips/day01/fish000.pv", "/launch/clips/day01/fish001.pv",
+                                        "/launch/clips/day01/notes.txt", "/launch/calibration.tif"} {}
+};
+}
+
+TEST(PathArrayTest, RelativeWildcardKeepsItsDirectoryWhenExpandedAtLaunch) {
+    file::_PathArray<SurveyFilesystem> source;
+    source.add_path(R"(clips\day01\fish*.pv)");
+    ASSERT_TRUE(source.empty()) << "The process directory contains no matching recordings.";
+
+    const auto recordings = source.resolved_at("/launch");
+    const std::vector<file::Path> expected{"clips/day01/fish000.pv", "clips/day01/fish001.pv"};
+    EXPECT_EQ(recordings.get_paths(), expected) << "Only the lookup uses the absolute launch directory.";
+}
+
+TEST(PathArrayTest, RelativeNumberedSequenceAndAbsoluteLiteralKeepTheirSpelling) {
+    const file::_PathArray<SurveyFilesystem> source{R"(["clips/day01/fish%03d.pv","/launch/calibration.tif"])"};
+    const auto files = source.resolved_at("/launch");
+    const std::vector<file::Path> expected{"/launch/calibration.tif", "clips/day01/fish000.pv", "clips/day01/fish001.pv"};
+    EXPECT_EQ(files.get_paths(), expected);
+}
+
+TEST(PathArrayTest, ResolvedFilesKeepPatternCharactersLiteral) {
+    const std::vector<file::Path> names{"fish%03d.pv", "a*b.mov"};
+    const auto files = file::PathArray::from_files(names);
+    EXPECT_FALSE(files.matched_patterns());
+    EXPECT_EQ(files.resolved_at("/launch").get_paths(), names);
+}
+
 // Test constructor with a single path
 TEST(PathArrayTest, SinglePathConstructor) {
     file::_PathArray<MockFilesystem> paths("path/to/file");

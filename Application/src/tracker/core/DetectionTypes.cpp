@@ -1,7 +1,6 @@
 #include "DetectionTypes.h"
 
 #include <core/SoftException.h>
-#include <core/SettingsPaths.h>
 #include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>
 #include <misc/CropOffsets.h>
@@ -310,35 +309,48 @@ std::string default_model() {
 std::vector<file::Path> detect_model_candidates(file::Path path) {
     std::vector<file::Path> result;
     if(path.empty() || path.is_absolute()) {
-        result.emplace_back(settings::resolve_file_path(path));
+        result.emplace_back(file::DataLocation::parse("input", path));
         return result;
     }
 
     if(is_default_model(path) && not path.has_extension())
         path = path.add_extension("pt");
 
-    result.emplace_back(settings::resolve_file_path(path));
+    result.emplace_back(path);
     result.emplace_back(file::DataLocation::parse("output", path));
 
     return result;
 }
 
+// A bare model name can also be a downloadable model identifier.
+static file::Path available_model(const file::Path& path, const sprite::Map* map) {
+    if(path.empty() || path.is_absolute())
+        return file::DataLocation::parse("input", path, map);
+    if(path.is_regular())
+        return path;
+    const auto input = file::DataLocation::parse("input", path, map);
+    if(input.is_regular())
+        return input;
+    const auto output = file::DataLocation::parse("output", path, map);
+    return output.is_regular() ? output : path;
+}
+
 file::Path current_detect_model_path(const sprite::Map* source) {
-    auto path = source
-        ? source->value_with_default("detect_model", file::Path{})
-        : READ_SETTING_WITH_DEFAULT(detect_model, file::Path{});
+    if(not source)
+        return GlobalSettings::read([](const Configuration& config) { return current_detect_model_path(&config.values); });
+    auto path = source->value_with_default("detect_model", file::Path{});
     
     if(is_default_model(path) && not path.has_extension())
         path = path.add_extension("pt");
 
-    return settings::resolve_output_path(path, nullptr, source);
+    return available_model(path, source);
 }
 
 file::Path current_region_model_path(const sprite::Map* source) {
-    auto path = source
-        ? source->value_with_default("region_model", file::Path{})
-        : READ_SETTING_WITH_DEFAULT(region_model, file::Path{});
-    return settings::resolve_output_path(path, nullptr, source);
+    if(not source)
+        return GlobalSettings::read([](const Configuration& config) { return current_region_model_path(&config.values); });
+    auto path = source->value_with_default("region_model", file::Path{});
+    return available_model(path, source);
 }
 
 bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {
@@ -424,10 +436,16 @@ const Bone& Keypoint::bone(size_t index) const {
     return bones[index];
 }
 
-blob::Pose Keypoint::toPose() const {
+blob::Pose Keypoint::toPose(float threshold) const {
     std::vector<blob::Pose::Point> coords;
-    for (auto& b : bones)
-        coords.push_back(blob::Pose::Point(b.x, b.y, true));
+    coords.reserve(bones.size());
+    for (auto& b : bones) {
+        if(b.valid()) {
+            auto& point = coords.emplace_back(b.x, b.y, false);
+            point.set_visible(point.valid() && b.is_visible(threshold));
+        } else
+            coords.emplace_back(0, 0, false);
+    }
     return blob::Pose{
         .points = std::move(coords)
     };

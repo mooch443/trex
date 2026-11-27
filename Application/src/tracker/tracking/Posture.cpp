@@ -114,7 +114,7 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
     /// indexes are given:
     if(midline.indexes.empty()) {
         for(auto &pt : pose.points) {
-            if(pt.valid())
+            if(pt.valid() && pt.visible())
                 centers.push_back(pt);
         }
         
@@ -125,7 +125,7 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
                 FormatWarning("Index ", unsigned(index), " out of range, ignoring it.");
                 continue;
             }
-            if(pose.points[index].valid()) {
+            if(pose.points[index].valid() && pose.points[index].visible()) {
                 const Vec2& point = pose.points[index];
                 centers.push_back(point);
             }

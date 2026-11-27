@@ -85,6 +85,7 @@ class Segmenter {
     //std::condition_variable _cv_messages, _cv_ready_for_tracking;
     mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
+    bool _stopped_successfully{false};
     UninterruptableStep _writing_step, _tracking_step;
     GeneratorStep _generating_step; // the only one that can accumulate stuff
     Frame_t _last_generated_frame;

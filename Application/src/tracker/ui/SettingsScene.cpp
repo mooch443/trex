@@ -1,5 +1,6 @@
 #include "SettingsScene.h"
 #include <file/PathArray.h>
+#include <misc/CommandLine.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
@@ -162,10 +163,8 @@ struct SettingsScene::Data {
             return {};
         if(not existing_pv_path) {
             try {
-                existing_pv_path = GlobalSettings::read([](const Configuration& config) {
-                    auto path = settings::find_existing_output_name(config.values, {}, false);
-                    return path.empty() ? path : path.add_extension("pv");
-                });
+                const auto path = settings::resolve_recording_path();
+                existing_pv_path = path.is_regular() ? path : file::Path{};
             } catch(const std::exception&) {
                 existing_pv_path = file::Path{};
             }
@@ -224,17 +223,41 @@ struct SettingsScene::Data {
         const auto config = model_config(track::detect::ModelTaskType::detect);
         return config
             && config->output_format != track::detect::ObjectDetectionFormat::none
-            && track::detect::yolo::valid_model(
-                                                detect::yolo::current_detect_model_path());
+            && detect::yolo::valid_model(detect::yolo::current_detect_model_path());
     }
 
     file::PathArray current_conversion_source(const sprite::Map* values = nullptr) const {
         try {
-            if(values)
-                return settings::find_conversion_source(*values);
-            return GlobalSettings::read([](const Configuration& config) {
-                return settings::find_conversion_source(config.values);
-            });
+            if(not values) {
+                return GlobalSettings::read([&](const Configuration& config) {
+                    return current_conversion_source(&config.values);
+                });
+            }
+            const auto usable = [&](const file::PathArray& requested) -> file::PathArray {
+                if(settings::is_camera_source(requested.source()))
+                    return requested;
+                auto input = file::DataLocation::parse("input", requested, values);
+                const auto& paths = input.get_paths();
+                if(not paths.empty() && std::ranges::all_of(paths, [](const auto& path) {
+                    return not path.has_extension("pv") && path.is_regular();
+                }))
+                    return input;
+                return {};
+            };
+            const auto selected = values->at("source").value<file::PathArray>().resolved_at(CommandLine::instance().launch_dir());
+            if(selected.empty() || settings::video_source_error(selected))
+                return {};
+            auto input = usable(selected);
+            if(not input.empty())
+                return input;
+
+            const auto original = values->value_with_default("meta_source_path", std::string{});
+            if(original.empty())
+                return {};
+            input = usable(file::PathArray(original));
+            if(not input.empty() || file::Path(original).is_absolute())
+                return input;
+            return usable(file::PathArray(file::DataLocation::parse("output", original, values)));
         } catch(const std::exception&) {
             return {};
         }
@@ -599,11 +622,8 @@ struct SettingsScene::Data {
                             /// if we determine that we are actually reconverting a pv file
                             /// we need to load the source settings from the pv file, since we
                             /// cant use the pv file and convert it to itself:
-                            if(input != source && (not source.is_single_file()
-                               || input.source() != file::DataLocation::parse("input", source.get_paths().front(), &output_map->config.values).str()))
-                            {
+                            if(input != source && input != file::DataLocation::parse("input", source, &output_map->config.values)) {
                                 auto parent = file::find_parent(source);
-                                auto basename = file::find_basename(source);
 
                                 if(parent && copy.at("output_dir").value<file::Path>().empty()) {
                                     auto path = file::DataLocation::parse("input", *parent, &output_map->config.values);
@@ -611,8 +631,10 @@ struct SettingsScene::Data {
                                         copy["output_dir"] = path;
                                 }
 
-                                if(filename.path().empty())
-                                    filename = file::Filename(basename);
+                                if(filename.path().empty()) {
+                                    const auto name = settings::choose_output_name(output_map->config.values);
+                                    filename = file::Filename(name.path().remove_extension());
+                                }
                             }
                             source = std::move(input);
                             
@@ -666,9 +688,8 @@ struct SettingsScene::Data {
                                         rollback->commit();
                                     });
                                 };
-                                auto filename = settings::find_output_name(config.values);
-                                if(not filename.has_extension() || filename.extension() != "pv")
-                                    filename = filename.add_extension("pv");
+                                const auto name = settings::choose_output_name(config.values);
+                                const auto filename = file::DataLocation::parse("output", name.path(), &config.values);
                                 
                                 if(filename.exists()) {
                                     graph.dialog([open_file, pending_map = output_map](Dialog::Result result) mutable {
@@ -707,8 +728,8 @@ struct SettingsScene::Data {
                         auto output_map = GlobalSettings::mutable_snapshot();
                         const auto& config = output_map->config;
                         auto array = config.at("source").value<file::PathArray>();
-                        auto output_file = settings::find_existing_output_name(config.values, array, false);
-                        if(output_file.empty())
+                        existing_pv_path.reset();
+                        if(existing_pv_file().empty())
                             return;
                         WorkProgress::add_queue("loading...", [this, array = std::move(array), output_map = std::move(output_map)]() mutable
                         {
@@ -872,7 +893,7 @@ struct SettingsScene::Data {
                                     load_video_settings(file::PathArray{path}, false);
                                     
                                 } else {
-                                    path = settings::resolve_file_path(path);
+                                    path = file::DataLocation::parse("input", path);
                                     GlobalSettings::load_from_file(path.str(), {
                                         .deprecations = default_config::deprecations(),
                                         .access = AccessLevelType::LOAD
@@ -899,12 +920,11 @@ struct SettingsScene::Data {
                         SETTING(track_background_subtraction) = not BOOL_SETTING(track_background_subtraction);
                     }),
                     VarFunc("video_file", [this](const VarProps&) -> file::PathArray {
-                        if(current_path && current_path->is_single_file()
-                           && not is_in(current_path->source(), "webcam", "basler"))
-                        {
-                            return file::PathArray(file::DataLocation::parse("input", current_path->get_paths().front()));
-                        }
-                        return current_path.value_or(file::PathArray{});
+                        if(not current_path)
+                            return {};
+                        if(settings::is_camera_source(current_path->source()))
+                            return *current_path;
+                        return file::DataLocation::parse("input", *current_path);
                     }),
                     VarFunc("current_conversion_source", [this](const VarProps&) -> file::PathArray {
                         if(not conversion_input)
@@ -996,7 +1016,10 @@ struct SettingsScene::Data {
                     VarFunc("resulting_path", [this](const VarProps&) -> file::Path {
                         if(not last_output_name) {
                             last_output_name = GlobalSettings::read([](const Configuration& config) {
-                                return settings::find_output_name(config.values);
+                                const auto name = settings::choose_output_name(config.values);
+                                if(name.path().empty())
+                                    return file::Path{};
+                                return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
                             });
                         }
                         return last_output_name.value();
@@ -1105,32 +1128,26 @@ SettingsScene::~SettingsScene() {
 }
 
 SettingsScene::Data::CheckedSource SettingsScene::Data::check_video_source(file::PathArray source) {
-    if(auto error = settings::video_source_error(source))
-        return std::unexpected(*error);
     update_running_tasks(true);
-    
-    if(source.has_single_match("pv")) {
-        /// straight forward just opening a pv file
-        pv::File video(file::DataLocation::parse("input", source.get_paths().front()));
+    if(not source.has_source() || settings::is_camera_source(source.source()))
+        return source;
+
+    auto lookup = GlobalSettings::read([](const Configuration& config) { return config.values; });
+    const auto input = file::DataLocation::parse("input", source, &lookup);
+    lookup["source"] = input;
+    if(auto error = settings::video_source_error(input))
+        return std::unexpected(*error);
+
+    if(input.has_single_match("pv")) {
+        pv::File video(input[0]);
         video.header();
-        
-    } else if(source.has_source()
-              && not is_in(source.source(), "webcam", "basler"))
-    {
-        const auto input = source.is_single_file()
-            ? file::PathArray(file::DataLocation::parse("input", source.get_paths().front()))
-            : source;
-        
+    } else {
         // An existing PV can still be tracked when its original video has been moved.
-        if((input.empty()
-            || (input.has_single_match()
-                && not input.get_paths().front().is_regular()))
-           && GlobalSettings::read([&](const Configuration& config) {
-               /// search for an existing .pv file for this name
-               return not settings::find_existing_output_name(config.values, source, false).empty();
-           }))
+        if(input.has_single_match() && not input[0].is_regular())
         {
-            return source;
+            const auto name = settings::choose_output_name(lookup);
+            if(file::DataLocation::parse("output", name.path(), &lookup).is_regular())
+                return source;
         }
         
         if(input.empty())
@@ -1140,7 +1157,6 @@ SettingsScene::Data::CheckedSource SettingsScene::Data::check_video_source(file:
         Print("VideoSource for ", no_quotes(utils::ShortenText(source.toStr(), 1000)), " of size ", v.size(), ".");
     }
     
-    /// for webcam/basler/empty we just return the source
     return source;
 }
 
@@ -1162,11 +1178,14 @@ bool SettingsScene::Data::load_video_settings(const file::PathArray& source, boo
         sprite::Map promote;
         copy_file_locations(promote, config.values);
         
-        const auto source_path = source.has_single_match("pv")
-                    ? file::DataLocation::parse("input", source.get_paths().front(), &config.values)
-                    : file::Path{};
+        const auto selected = settings::is_camera_source(source.source())
+            ? source : file::DataLocation::parse("input", source, &config.values);
+        file::Path source_path;
+        if(selected.has_single_match("pv")) {
+            source_path = selected[0];
+        }
 
-        if(source.has_source() && not source.all_files_are("pv")) {
+        if(selected.has_source() && not selected.all_files_are("pv")) {
             settings::load(settings::LoadContext{
                 .source = source,
                 .filename = filename,
@@ -1177,7 +1196,7 @@ bool SettingsScene::Data::load_video_settings(const file::PathArray& source, boo
             });
             
         } else if(source_path.is_regular()) {
-            pv::File file(source_path.remove_extension());
+            pv::File file(source_path);
             auto& str = file.header().metadata;
             
             sprite::Map map;
@@ -1209,7 +1228,7 @@ bool SettingsScene::Data::load_video_settings(const file::PathArray& source, boo
                 .output_map = output_map
             });
             
-        } else if(not source.empty())
+        } else if(source.has_source())
             loaded = false;
 
         if(output_map && loaded && source.has_source()) {

@@ -9,9 +9,11 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import torch
+from ultralytics.cfg import DEFAULT_CFG_DICT, get_cfg
 
 import trex_sam3_interface as sam3
 
@@ -434,6 +436,24 @@ class Sam3InterfaceTest(unittest.TestCase):
         current = sam3._require_session()
 
         self.assertEqual(current.predictor.imgsz, (96, 64))
+
+    def test_create_session_uses_supported_full_precision_option_on_mps(self):
+        def configure_predictor(overrides):
+            """Validate the fake predictor's options with Ultralytics' config parser."""
+            predictor = FakePredictor(overrides)
+            predictor.args = get_cfg(overrides=overrides)
+            return predictor
+
+        with patch.object(FakeTRex, "choose_device", return_value="mps"), \
+             patch.object(sam3, "SAM3VideoSemanticPredictor", configure_predictor):
+            self.create_session(half=True)
+
+        overrides = sam3._require_session().predictor.overrides
+        if "quantize" in DEFAULT_CFG_DICT:
+            self.assertNotIn("half", overrides)
+            self.assertEqual(overrides["quantize"], 32)
+        else:
+            self.assertIs(overrides["half"], False)
 
     def test_session_applies_keep_alive_directly_to_predictor_and_survives_frame30(self):
         self.create_session()

@@ -66,11 +66,7 @@ void AbstractBaseVideoSource::move_back(Image::Ptr&& ptr) {
 }
 
 AVS::PreprocessResult_t AbstractBaseVideoSource::next() {
-    auto result = _resize_cvt.next();
-    if (!result)
-        return std::unexpected(result.error());
-    
-    return std::move(result.value());
+    return _resize_cvt.next();
 }
 
 AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
@@ -84,7 +80,9 @@ AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
         // get image from 1. step (source.frame) => here (resize+cvtColor)
         auto result = _source_frame.next();
         if(result) {
-            auto& [index, buffer] = result.value();
+            if(std::holds_alternative<ReachedEOF_t>(result.value()))
+                return ReachedEOF_t{};
+            auto& [index, buffer] = std::get<VideoFrame>(result.value());
             if (not index.valid())
                 throw U_EXCEPTION("Invalid index");
             

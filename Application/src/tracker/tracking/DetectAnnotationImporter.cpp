@@ -90,9 +90,9 @@ uint16_t yaml_class_id_key(const YamlNode& key) {
     }
 
     if(!id)
-        throw InvalidArgumentException("data.yaml names mapping keys must be numeric class ids.");
+        throw std::invalid_argument("data.yaml names mapping keys must be numeric class ids.");
     if(*id < 0 || *id > std::numeric_limits<uint16_t>::max())
-        throw InvalidArgumentException("data.yaml names class id ", *id, " is out of range.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("data.yaml names class id ", *id, " is out of range."));
     return narrow_cast<uint16_t>(*id);
 }
 
@@ -113,20 +113,20 @@ cmn::blob::ObjectClass_t yaml_names(const YamlNode& node) {
         return result;
     }
 
-    throw InvalidArgumentException("data.yaml names must be a sequence or class-id mapping.");
+    throw std::invalid_argument("data.yaml names must be a sequence or class-id mapping.");
 }
 
 std::pair<size_t, size_t> yaml_kpt_shape(const YamlNode& node) {
     if(!node.is_sequence() || node.size() < 2)
-        throw InvalidArgumentException("data.yaml kpt_shape must be a sequence like [count, dims].");
+        throw std::invalid_argument("data.yaml kpt_shape must be a sequence like [count, dims].");
 
     auto read_size = [&](size_t index) -> size_t {
         const auto& value = node.at(narrow_cast<int>(index));
         if(!value.is_integer())
-            throw InvalidArgumentException("data.yaml kpt_shape values must be integers.");
+            throw std::invalid_argument("data.yaml kpt_shape values must be integers.");
         const auto number = value.get_value<int64_t>();
         if(number < 0)
-            throw InvalidArgumentException("data.yaml kpt_shape values must be non-negative.");
+            throw std::invalid_argument("data.yaml kpt_shape values must be non-negative.");
         return narrow_cast<size_t>(number);
     };
 
@@ -334,7 +334,7 @@ std::vector<ImageEntry> collect_images(const DatasetConfig& config) {
         } else if(is_image_file(input)) {
             paths.push_back(input);
         } else {
-            throw InvalidArgumentException("Dataset image input ", input, " is neither an image folder, image file, nor .txt list.");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Dataset image input ", input, " is neither an image folder, image file, nor .txt list."));
         }
     }
 
@@ -355,31 +355,31 @@ std::vector<ImageEntry> collect_images(const DatasetConfig& config) {
 
 void add_point_radius(std::map<int, float>& radii, int clid, double radius) {
     if(!std::isfinite(radius) || radius <= 0 || radius > std::numeric_limits<float>::max())
-        throw InvalidArgumentException("POINT class ", clid, " requires a positive finite radius, got ", radius, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("POINT class ", clid, " requires a positive finite radius, got ", radius, "."));
     const float value = static_cast<float>(radius);
     if(value <= 0)
-        throw InvalidArgumentException("POINT radius is too small to represent.");
+        throw std::invalid_argument("POINT radius is too small to represent.");
     auto [it, inserted] = radii.emplace(clid, value);
     if(!inserted && std::abs(it->second - value) > 1e-6f * std::max(it->second, value))
-        throw InvalidArgumentException("Inconsistent POINT radii for class ", clid, ": ", it->second, " and ", value, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Inconsistent POINT radii for class ", clid, ": ", it->second, " and ", value, "."));
 }
 
 DatasetConfig parse_dataset_config(const file::Path& data_yaml, Task task) {
     if(data_yaml.empty())
-        throw InvalidArgumentException("Select a data.yaml file to import.");
+        throw std::invalid_argument("Select a data.yaml file to import.");
     if(!data_yaml.exists())
-        throw InvalidArgumentException("Cannot find data.yaml at ", data_yaml, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot find data.yaml at ", data_yaml, "."));
     if(data_yaml.is_folder())
-        throw InvalidArgumentException("Expected a data.yaml file but got folder ", data_yaml, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Expected a data.yaml file but got folder ", data_yaml, "."));
 
     auto yaml = YamlNode::deserialize(data_yaml.read_file());
     if(!yaml.is_mapping())
-        throw InvalidArgumentException("data.yaml must contain a YAML mapping.");
+        throw std::invalid_argument("data.yaml must contain a YAML mapping.");
 
     DatasetConfig config;
     config.task = task;
     if(config.task == task_t::mixed)
-        throw InvalidArgumentException("Select Auto or a single annotation task for import.");
+        throw std::invalid_argument("Select Auto or a single annotation task for import.");
     if(config.task == task_t::unknown) {
         if(auto node = yaml_find(yaml, "task"); node) {
             const auto value = node->get_value<std::string>();
@@ -388,15 +388,15 @@ DatasetConfig parse_dataset_config(const file::Path& data_yaml, Task task) {
             else if(value == "pose") config.task = task_t::pose;
             else if(value == "obb") config.task = task_t::obb;
             else if(value == "locate") config.task = task_t::points;
-            else throw InvalidArgumentException("Unsupported data.yaml task: ", value, ".");
+            else throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Unsupported data.yaml task: ", value, "."));
         }
     }
     if(auto radii = yaml_find(yaml, "radii"); radii) {
         if(!radii->is_mapping())
-            throw InvalidArgumentException("data.yaml radii must be a class-id mapping.");
+            throw std::invalid_argument("data.yaml radii must be a class-id mapping.");
         for(const auto& [key, value] : radii->as_map()) {
             if(!value.is_integer() && !value.is_float_number())
-                throw InvalidArgumentException("data.yaml radii values must be numbers.");
+                throw std::invalid_argument("data.yaml radii values must be numbers.");
             add_point_radius(config.point_radii, yaml_class_id_key(key), value.get_value<double>());
         }
     }
@@ -419,7 +419,7 @@ DatasetConfig parse_dataset_config(const file::Path& data_yaml, Task task) {
     add_inputs("val");
 
     if(config.image_inputs.empty())
-        throw InvalidArgumentException("data.yaml must define at least a train or val image path.");
+        throw std::invalid_argument("data.yaml must define at least a train or val image path.");
 
     if(auto names = yaml_find(yaml, "names"); names)
         config.class_names = yaml_names(*names);
@@ -435,7 +435,7 @@ DatasetConfig parse_dataset_config(const file::Path& data_yaml, Task task) {
     if(auto kpt_shape = yaml_find(yaml, "kpt_shape"); kpt_shape) {
         std::tie(config.keypoint_count, config.keypoint_dims) = yaml_kpt_shape(*kpt_shape);
         if(config.keypoint_count == 0 || config.keypoint_dims < 2 || config.keypoint_dims > 3)
-            throw InvalidArgumentException("Unsupported kpt_shape in data.yaml: ", YamlNode::serialize(*kpt_shape), ".");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Unsupported kpt_shape in data.yaml: ", YamlNode::serialize(*kpt_shape), "."));
     }
 
     if(config.keypoint_names.empty() && config.keypoint_count > 0) {
@@ -451,7 +451,7 @@ std::unordered_map<std::string, CsvFrameMapping> read_mapping_csv(const file::Pa
     if(csv_path.empty())
         return mapping;
     if(!csv_path.exists())
-        throw InvalidArgumentException("Cannot find frame mapping CSV at ", csv_path, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot find frame mapping CSV at ", csv_path, "."));
 
     auto data = csv_path.read_file();
     CSVReader reader(data, ',', true);
@@ -460,7 +460,7 @@ std::unordered_map<std::string, CsvFrameMapping> read_mapping_csv(const file::Pa
     auto video_it = std::find(header.begin(), header.end(), "video_source");
     auto source_it = std::find(header.begin(), header.end(), "source_index");
     if(image_it == header.end() || video_it == header.end() || source_it == header.end())
-        throw InvalidArgumentException("Frame mapping CSV must have image,video_source,source_index columns.");
+        throw std::invalid_argument("Frame mapping CSV must have image,video_source,source_index columns.");
 
     const auto image_col = std::distance(header.begin(), image_it);
     const auto video_col = std::distance(header.begin(), video_it);
@@ -470,7 +470,7 @@ std::unordered_map<std::string, CsvFrameMapping> read_mapping_csv(const file::Pa
         if(row.empty())
             continue;
         if(row.size() <= narrow_cast<size_t>(std::max({image_col, video_col, source_col})))
-            throw InvalidArgumentException("Frame mapping CSV row has too few columns.");
+            throw std::invalid_argument("Frame mapping CSV row has too few columns.");
         auto image = normalized_mapping_key(row.at(narrow_cast<size_t>(image_col)));
         auto video_source = unquote_field(row.at(narrow_cast<size_t>(video_col)));
         auto source = std::string(utils::trim(row.at(narrow_cast<size_t>(source_col))));
@@ -743,16 +743,16 @@ Annotation::Point_t point_from_normalized(double x, double y, const Size2& size,
     const auto px = saturate(std::round(x * size.width), 0.0, (double)size.width);
     const auto py = saturate(std::round(y * size.height), 0.0, (double)size.height);
     if(pixel && (px >= size.width || py >= size.height))
-        throw InvalidArgumentException("Pixel point [", px, ", ", py, "] is outside ", size, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Pixel point [", px, ", ", py, "] is outside ", size, "."));
     if(px > 0x7FFF)
-        throw InvalidArgumentException("Annotation x coordinate ", px, " exceeds the supported range 0-32767.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Annotation x coordinate ", px, " exceeds the supported range 0-32767."));
     return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py), visible);
 }
 
 Annotation parse_label_row(const std::string& row, const DatasetConfig& config, const Size2& video_size, Task& row_task, std::map<int, float>& point_radii) {
     if(!std::isfinite(video_size.width) || !std::isfinite(video_size.height)
        || video_size.width <= 0 || video_size.height <= 0)
-        throw InvalidArgumentException("Current video_size must be known before importing YOLO annotations.");
+        throw std::invalid_argument("Current video_size must be known before importing YOLO annotations.");
 
     auto normalized = row;
     std::replace(normalized.begin(), normalized.end(), '\t', ' ');
@@ -760,23 +760,23 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
     for(const auto& token : utils::split(normalized, ' ', true, true)) {
         const auto value = Meta::fromStr<double>(token);
         if(!std::isfinite(value))
-            throw InvalidArgumentException("YOLO labels must contain finite numbers.");
+            throw std::invalid_argument("YOLO labels must contain finite numbers.");
         values.push_back(value);
     }
 
     if(values.empty())
-        throw InvalidArgumentException("Empty YOLO row.");
+        throw std::invalid_argument("Empty YOLO row.");
     if(values.front() < 0 || values.front() > 255 || std::floor(values.front()) != values.front())
-        throw InvalidArgumentException("Class id ", values.front(), " is outside the supported Annotation range 0-255.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Class id ", values.front(), " is outside the supported Annotation range 0-255."));
 
     Annotation annotation;
     annotation.clid = narrow_cast<uint8_t>(values.front());
 
     if(config.task == task_t::points || (config.task == task_t::unknown && values.size() == 4)) {
         if(values.size() != 4)
-            throw InvalidArgumentException("POLO POINT rows require class, radius, x, y.");
+            throw std::invalid_argument("POLO POINT rows require class, radius, x, y.");
         if(values[2] < 0 || values[2] > 1 || values[3] < 0 || values[3] > 1)
-            throw InvalidArgumentException("POINT coordinates must be normalized to [0,1].");
+            throw std::invalid_argument("POINT coordinates must be normalized to [0,1].");
         add_point_radius(point_radii, annotation.clid, values[1]);
         annotation.type = AnnotationType::POINT;
         annotation.points = {point_from_normalized(values[2], values[3], video_size, true, true)};
@@ -786,11 +786,11 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
 
     if(config.task == task_t::obb) {
         if(values.size() != 9)
-            throw InvalidArgumentException("OBB rows require a class and exactly four corners.");
+            throw std::invalid_argument("OBB rows require a class and exactly four corners.");
         annotation.type = AnnotationType::OBB;
         for(size_t i = 1; i < values.size(); i += 2) {
             if(values[i] < 0 || values[i] > 1 || values[i + 1] < 0 || values[i + 1] > 1)
-                throw InvalidArgumentException("OBB coordinates must be normalized to [0,1].");
+                throw std::invalid_argument("OBB coordinates must be normalized to [0,1].");
             annotation.points.push_back(point_from_normalized(values[i], values[i + 1], video_size));
         }
         row_task = task_t::obb;
@@ -823,7 +823,7 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
         const double w = values.at(3);
         const double h = values.at(4);
         if(w < 0 || h < 0)
-            throw InvalidArgumentException("YOLO box width/height cannot be negative.");
+            throw std::invalid_argument("YOLO box width/height cannot be negative.");
         const double x0 = cx - w * 0.5;
         const double y0 = cy - h * 0.5;
         const double x1 = cx + w * 0.5;
@@ -849,7 +849,7 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
         return annotation;
     }
 
-    throw InvalidArgumentException("Unsupported YOLO row with ", values.size(), " fields.");
+    throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Unsupported YOLO row with ", values.size(), " fields."));
 }
 
 Task combine_task(Task current, Task next) {
@@ -905,7 +905,7 @@ const glz::generic* object_value(const glz::generic::object_t& object, const std
 double required_number(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = object_value(object, key);
     if(!value || !value->is_number())
-        throw InvalidArgumentException(context, " is missing numeric field '", key, "'.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " is missing numeric field '", key, "'."));
     return value->get_number();
 }
 
@@ -916,31 +916,31 @@ bool is_integer_number(double value) {
 uint64_t required_coco_id(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = required_number(object, key, context);
     if(value < 0 || !is_integer_number(value))
-        throw InvalidArgumentException(context, " field '", key, "' must be a non-negative integer.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " field '", key, "' must be a non-negative integer."));
     return narrow_cast<uint64_t>(value);
 }
 
 uint8_t required_coco_class_id(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = required_number(object, key, context);
     if(value < 0 || value > 255 || !is_integer_number(value))
-        throw InvalidArgumentException(context, " field '", key, "' must be an integer in the supported Annotation range 0-255.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " field '", key, "' must be an integer in the supported Annotation range 0-255."));
     return narrow_cast<uint8_t>(value);
 }
 
 std::string required_string(const glz::generic::object_t& object, const std::string& key, const std::string& context) {
     auto value = object_value(object, key);
     if(!value || !value->is_string())
-        throw InvalidArgumentException(context, " is missing string field '", key, "'.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " is missing string field '", key, "'."));
     return value->get_string();
 }
 
 std::vector<double> json_number_array(const glz::generic& json, const std::string& context) {
     if(!json.is_array())
-        throw InvalidArgumentException(context, " must be an array.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " must be an array."));
     std::vector<double> values;
     for(const auto& item : json.get_array()) {
         if(!item.is_number())
-            throw InvalidArgumentException(context, " contains a non-numeric value.");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " contains a non-numeric value."));
         values.push_back(item.get_number());
     }
     return values;
@@ -948,15 +948,15 @@ std::vector<double> json_number_array(const glz::generic& json, const std::strin
 
 std::vector<blob::Pose::Skeleton::Connection> coco_skeleton_connections(const glz::generic& skeleton, const std::string& context) {
     if(!skeleton.is_array())
-        throw InvalidArgumentException(context, " skeleton must be an array.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " skeleton must be an array."));
 
     std::vector<blob::Pose::Skeleton::Connection> connections;
     for(const auto& connection_json : skeleton.get_array()) {
         auto values = json_number_array(connection_json, context + " skeleton connection");
         if(values.size() != 2)
-            throw InvalidArgumentException(context, " skeleton connections must contain exactly two keypoint ids.");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " skeleton connections must contain exactly two keypoint ids."));
         if(values.at(0) < 1 || values.at(1) < 1 || !is_integer_number(values.at(0)) || !is_integer_number(values.at(1)))
-            throw InvalidArgumentException(context, " skeleton uses invalid COCO keypoint ids.");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " skeleton uses invalid COCO keypoint ids."));
 
         // COCO skeleton ids are 1-based. TRex Pose::Skeleton::Connection is 0-based.
         connections.push_back(blob::Pose::Skeleton::Connection{
@@ -971,30 +971,30 @@ std::vector<blob::Pose::Skeleton::Connection> coco_skeleton_connections(const gl
 Annotation::Point_t point_from_coco_absolute(double x, double y, const Size2& image_size, bool visible = true, bool pixel = false) {
     if(!std::isfinite(image_size.width) || !std::isfinite(image_size.height)
        || image_size.width <= 0 || image_size.height <= 0)
-        throw InvalidArgumentException("COCO image size must be positive, got ", image_size, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("COCO image size must be positive, got ", image_size, "."));
     if(!std::isfinite(x) || !std::isfinite(y)
        || x < -1e-6 || y < -1e-6 || x > image_size.width + 1e-6 || y > image_size.height + 1e-6)
-        throw InvalidArgumentException("COCO point [", x, ", ", y, "] is outside image bounds ", image_size, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("COCO point [", x, ", ", y, "] is outside image bounds ", image_size, "."));
 
     // COCO stores keypoints, segmentations, and bboxes as absolute pixels.
     const auto px = saturate(std::round(x), 0.0, double(std::numeric_limits<uint16_t>::max()));
     const auto py = saturate(std::round(y), 0.0, double(std::numeric_limits<uint16_t>::max()));
     if(pixel && (px >= image_size.width || py >= image_size.height))
-        throw InvalidArgumentException("COCO pixel point [", px, ", ", py, "] is outside ", image_size, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("COCO pixel point [", px, ", ", py, "] is outside ", image_size, "."));
     if(px > 0x7FFF)
-        throw InvalidArgumentException("Annotation x coordinate ", px, " exceeds the supported range 0-32767.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Annotation x coordinate ", px, " exceeds the supported range 0-32767."));
     return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py), visible);
 }
 
 Annotation coco_bbox_annotation(uint8_t clid, const std::vector<double>& bbox, const Size2& image_size) {
     if(bbox.size() != 4)
-        throw InvalidArgumentException("COCO bbox must have 4 values.");
+        throw std::invalid_argument("COCO bbox must have 4 values.");
     const double x = bbox.at(0);
     const double y = bbox.at(1);
     const double w = bbox.at(2);
     const double h = bbox.at(3);
     if(w < 0 || h < 0)
-        throw InvalidArgumentException("COCO bbox width/height cannot be negative.");
+        throw std::invalid_argument("COCO bbox width/height cannot be negative.");
 
     return Annotation{
         .clid = clid,
@@ -1012,7 +1012,7 @@ std::optional<std::vector<Annotation::Point_t>> coco_segmentation_points(const g
     if(segmentation.is_null())
         return std::nullopt;
     if(!segmentation.is_array())
-        throw InvalidArgumentException(context, " uses unsupported COCO RLE segmentation. Polygon segmentation is required.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " uses unsupported COCO RLE segmentation. Polygon segmentation is required."));
 
     const glz::generic* polygon = nullptr;
     const auto& array = segmentation.get_array();
@@ -1026,7 +1026,7 @@ std::optional<std::vector<Annotation::Point_t>> coco_segmentation_points(const g
 
     auto coords = json_number_array(*polygon, context + " segmentation");
     if(coords.size() < 6 || coords.size() % 2 != 0)
-        throw InvalidArgumentException(context, " segmentation polygon must contain x/y pairs for at least 3 points.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " segmentation polygon must contain x/y pairs for at least 3 points."));
 
     std::vector<Annotation::Point_t> points;
     points.reserve(coords.size() / 2);
@@ -1042,7 +1042,7 @@ std::optional<std::vector<Annotation::Point_t>> coco_keypoints(const glz::generi
     if(values.empty())
         return std::nullopt;
     if(values.size() % 3 != 0)
-        throw InvalidArgumentException(context, " keypoints must be x/y/visibility triples.");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " keypoints must be x/y/visibility triples."));
 
     std::vector<Annotation::Point_t> points;
     points.reserve(values.size() / 3);
@@ -1242,27 +1242,27 @@ ImportPreview preview_coco_import(const ImportOptions& options, ImportScope scop
 
     try {
         if(options.dataset_file.empty())
-            throw InvalidArgumentException("Select a COCO annotations JSON file to import.");
+            throw std::invalid_argument("Select a COCO annotations JSON file to import.");
         if(!options.dataset_file.exists())
-            throw InvalidArgumentException("Cannot find COCO annotations file at ", options.dataset_file, ".");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot find COCO annotations file at ", options.dataset_file, "."));
         if(options.dataset_file.is_folder())
-            throw InvalidArgumentException("Expected a COCO annotations JSON file but got folder ", options.dataset_file, ".");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Expected a COCO annotations JSON file but got folder ", options.dataset_file, "."));
 
         glz::generic root;
         auto text = options.dataset_file.read_file();
         if(auto error = glz::read_json(root, text); error != glz::error_code::none)
-            throw InvalidArgumentException("Cannot parse COCO JSON: ", glz::format_error(error, text));
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot parse COCO JSON: ", glz::format_error(error, text)));
         if(!root.is_object())
-            throw InvalidArgumentException("COCO annotations file must contain a JSON object.");
+            throw std::invalid_argument("COCO annotations file must contain a JSON object.");
 
         const auto& root_object = root.get_object();
         auto images_json = object_value(root_object, "images");
         auto annotations_json = object_value(root_object, "annotations");
         auto categories_json = object_value(root_object, "categories");
         if(!images_json || !images_json->is_array())
-            throw InvalidArgumentException("COCO annotations file must contain an images array.");
+            throw std::invalid_argument("COCO annotations file must contain an images array.");
         if(!annotations_json || !annotations_json->is_array())
-            throw InvalidArgumentException("COCO annotations file must contain an annotations array.");
+            throw std::invalid_argument("COCO annotations file must contain an annotations array.");
 
         DatasetConfig config;
         config.yaml_dir = options.dataset_file.absolute().remove_filename();
@@ -1427,28 +1427,28 @@ ImportPreview preview_coco_import(const ImportOptions& options, ImportScope scop
                     if(type == "obb") {
                         auto segmentation = object_value(object, "segmentation");
                         if(!segmentation || !segmentation->is_array())
-                            throw InvalidArgumentException(context, " OBB requires a four-corner polygon.");
+                            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " OBB requires a four-corner polygon."));
                         const auto& polygons = segmentation->get_array();
                         if(!polygons.empty() && polygons.front().is_array() && polygons.size() != 1)
-                            throw InvalidArgumentException(context, " OBB requires exactly one polygon.");
+                            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " OBB requires exactly one polygon."));
                         auto points = coco_segmentation_points(*segmentation, image_size, context);
                         if(!points || points->size() != 4)
-                            throw InvalidArgumentException(context, " OBB requires exactly four corners.");
+                            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " OBB requires exactly four corners."));
                         annotation.type = AnnotationType::OBB;
                         annotation.points = std::move(*points);
                         preview.task = combine_task(preview.task, task_t::obb);
                     } else if(type == "point") {
                         auto keypoints = object_value(object, "keypoints");
                         if(!keypoints)
-                            throw InvalidArgumentException(context, " POINT requires one labeled keypoint.");
+                            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " POINT requires one labeled keypoint."));
                         auto values = json_number_array(*keypoints, context + " POINT keypoints");
                         if(values.size() != 3 || !std::isfinite(values[2]) || (values[2] != 1 && values[2] != 2))
-                            throw InvalidArgumentException(context, " POINT requires exactly one labeled x/y/visibility triple.");
+                            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " POINT requires exactly one labeled x/y/visibility triple."));
                         annotation.type = AnnotationType::POINT;
                         annotation.points = {point_from_coco_absolute(values[0], values[1], image_size, values[2] > 1, true)};
                         preview.task = combine_task(preview.task, task_t::points);
                     } else {
-                        throw InvalidArgumentException(context, " has unsupported trex_annotation_type ", type, ".");
+                        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>(context, " has unsupported trex_annotation_type ", type, "."));
                     }
                     parsed = true;
                 }
@@ -1537,7 +1537,7 @@ ImportPreview preview_dataset_import(const ImportOptions& options, ImportScope s
 
 AnnotationMap apply_dataset_import(const ImportPreview& preview, const AnnotationMap& existing, MergeMode mode, ImportScope scope) {
     if(!preview.can_import())
-        throw InvalidArgumentException("Cannot import annotations: ", no_quotes(utils::ShortenText(Meta::toStr(preview.errors), 1000)));
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot import annotations: ", no_quotes(utils::ShortenText(Meta::toStr(preview.errors), 1000))));
 
     AnnotationMap result = mode == merge_mode_t::replace ? AnnotationMap{} : existing;
     for(const auto& [frame, annotations] : preview.annotations) {

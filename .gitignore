@@ -69,3 +69,9 @@ tmp-precomputed-implementation-20260910/
 .empty-annotation-review-t6i9g3ux/
 tmp-parser-benchmark-*/
 benchmark-results/
+
+# Local reports and investigation notes
+/summary.md
+/docs/docs-audit-20260820-150853.md
+/dyngui_reload_crash_handoff.md
+/Application/src/tracker/compilation_cleanup.md

@@ -76,7 +76,7 @@ constexpr std::string_view kLabelsDir = "labels";
 
 Bounds annotation_bounds(const Annotation& annotation, const std::vector<Vec2>& points) {
     if(points.empty())
-        throw InvalidArgumentException("Annotation has no points.");
+        throw std::invalid_argument("Annotation has no points.");
 
     // Missing pose slots do not contribute to bounds; labeled hidden points do.
     const bool skip_invalid = annotation.type == AnnotationType::POSE;
@@ -93,7 +93,7 @@ Bounds annotation_bounds(const Annotation& annotation, const std::vector<Vec2>& 
     }
 
     if(!min_x)
-        throw InvalidArgumentException("POSE annotation has no valid keypoints.");
+        throw std::invalid_argument("POSE annotation has no valid keypoints.");
 
     return Bounds(*min_x, *min_y, *max_x - *min_x, *max_y - *min_y);
 }
@@ -103,40 +103,40 @@ void validate_point(const Annotation::Point_t& point, const Size2& image_size, A
     const bool pixel = type == AnnotationType::POINT || type == AnnotationType::POSE;
     if(point.x() > image_size.width || point.y() > image_size.height
        || (pixel && (point.x() == image_size.width || point.y() == image_size.height)))
-        throw InvalidArgumentException("Annotation point ", point, " is out of image bounds ", image_size, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Annotation point ", point, " is out of image bounds ", image_size, "."));
 }
 
 std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
     if(!std::isfinite(image_size.width) || !std::isfinite(image_size.height)
        || image_size.width <= 0 || image_size.height <= 0)
-        throw InvalidArgumentException("Image size must be positive, got ", image_size, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Image size must be positive, got ", image_size, "."));
 
     switch(annotation.type) {
         case AnnotationType::EMPTY:
             if(!annotation.points.empty())
-                throw InvalidArgumentException("EMPTY marks a whole frame and cannot contain points.");
+                throw std::invalid_argument("EMPTY marks a whole frame and cannot contain points.");
             return {};
         case AnnotationType::BOX:
             if(annotation.points.size() < 2u)
-                throw InvalidArgumentException("BOX annotation needs at least 2 points, got ", annotation.points.size(), ".");
+                throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("BOX annotation needs at least 2 points, got ", annotation.points.size(), "."));
             break;
         case AnnotationType::SEGMENTATION:
             if(annotation.points.size() < 3)
-                throw InvalidArgumentException("SEGMENTATION annotation needs at least 3 points, got ", annotation.points.size(), ".");
+                throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("SEGMENTATION annotation needs at least 3 points, got ", annotation.points.size(), "."));
             break;
         case AnnotationType::POSE:
             if(annotation.points.empty())
-                throw InvalidArgumentException("POSE annotation needs at least one point.");
+                throw std::invalid_argument("POSE annotation needs at least one point.");
             if(annotation.points.size() > keypoint_names.size())
-                throw InvalidArgumentException("POSE annotation has ", annotation.points.size(), " points, but the keypoint schema has only ", keypoint_names.size(), " names.");
+                throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("POSE annotation has ", annotation.points.size(), " points, but the keypoint schema has only ", keypoint_names.size(), " names."));
             break;
         case AnnotationType::OBB:
             if(annotation.points.size() != 4u)
-                throw InvalidArgumentException("OBB annotation needs exactly 4 corners, got ", annotation.points.size(), ".");
+                throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("OBB annotation needs exactly 4 corners, got ", annotation.points.size(), "."));
             break;
         case AnnotationType::POINT:
             if(annotation.points.size() != 1u)
-                throw InvalidArgumentException("POINT annotation needs exactly one point, got ", annotation.points.size(), ".");
+                throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("POINT annotation needs exactly one point, got ", annotation.points.size(), "."));
             break;
     }
 
@@ -150,7 +150,7 @@ std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& ima
             points.pop_back();
         auto hull = poly_convex_hull(&points);
         if(!hull)
-            throw InvalidArgumentException("Annotation needs at least three distinct, non-collinear points.");
+            throw std::invalid_argument("Annotation needs at least three distinct, non-collinear points.");
 
         if(annotation.type == AnnotationType::OBB) {
             // Keep existing rectangles and their corner order; edited corners
@@ -174,7 +174,7 @@ std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& ima
                     if(!std::isfinite(corner.x) || !std::isfinite(corner.y)
                        || corner.x < -tolerance || corner.y < -tolerance
                        || corner.x > image_size.width + tolerance || corner.y > image_size.height + tolerance)
-                        throw InvalidArgumentException("Fitted OBB extends outside image bounds ", image_size, ".");
+                        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Fitted OBB extends outside image bounds ", image_size, "."));
                     points.emplace_back(std::clamp(corner.x, 0.f, image_size.width),
                                         std::clamp(corner.y, 0.f, image_size.height));
                 }
@@ -212,7 +212,7 @@ std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& ima
 
     const auto bounds = annotation_bounds(annotation, points);
     if(annotation.type == AnnotationType::BOX && (bounds.width <= 0 || bounds.height <= 0))
-        throw InvalidArgumentException("BOX annotation needs positive width and height.");
+        throw std::invalid_argument("BOX annotation needs positive width and height.");
     return points;
 }
 
@@ -220,7 +220,7 @@ float point_radius(int clid, const std::map<int, float>& radii, float fallback) 
     auto it = radii.find(clid);
     const float radius = it == radii.end() ? fallback : it->second;
     if(!std::isfinite(radius) || radius <= 0.f)
-        throw InvalidArgumentException("POINT class ", clid, " requires a positive finite radius, got ", radius, ".");
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("POINT class ", clid, " requires a positive finite radius, got ", radius, "."));
     return radius;
 }
 
@@ -228,9 +228,9 @@ void validate_keypoint_names(const std::vector<std::string>& names) {
     std::set<std::string> seen;
     for(const auto& name : names) {
         if(name.empty())
-            throw InvalidArgumentException("Keypoint names cannot be empty.");
+            throw std::invalid_argument("Keypoint names cannot be empty.");
         if(!seen.insert(name).second)
-            throw InvalidArgumentException("Duplicate keypoint name ", name, ".");
+            throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Duplicate keypoint name ", name, "."));
     }
 }
 
@@ -265,7 +265,7 @@ file::Path yolo_label_path(const file::PathArray& source, const file::Path& root
 void write_text(const file::Path& path, const std::string& text) {
     auto f = path.fopen("wb");
     if(!f)
-        throw U_EXCEPTION("Cannot open ", path, " for writing.");
+        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot open ", path, " for writing."));
     if(!text.empty())
         f.write(text.data(), text.size());
 }
@@ -284,25 +284,25 @@ std::string export_video_source(const Options& options) {
 
 void ensure_folder(const file::Path& path) {
     if(!path.create_folder())
-        throw U_EXCEPTION("Cannot create folder ", path, ".");
+        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot create folder ", path, "."));
 }
 
 void validate_source_paths(const file::PathArray& source) {
     if(source.empty())
-        throw U_EXCEPTION("Cannot export annotations: source is empty.");
+        throw cmn::UtilsException("Cannot export annotations: source is empty.");
 
     for(const auto& path : source) {
         if(path.empty() || !path.exists())
-            throw U_EXCEPTION("Cannot open source file ", path, ".");
+            throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot open source file ", path, "."));
     }
 }
 
 void write_jpeg(VideoSource& source, Frame_t frame, const file::Path& path, int quality) {
     cv::Mat input;
     if(!source.frame(frame, input))
-        throw U_EXCEPTION("Cannot retrieve frame ", frame, " from ", source.source(), ".");
+        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot retrieve frame ", frame, " from ", source.source(), "."));
     if(input.empty())
-        throw U_EXCEPTION("Frame ", frame, " from ", source.source(), " is empty.");
+        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Frame ", frame, " from ", source.source(), " is empty."));
 
     cv::Mat output;
     if(input.channels() == 4)
@@ -313,7 +313,7 @@ void write_jpeg(VideoSource& source, Frame_t frame, const file::Path& path, int 
         output = input;
 
     if(!cv::imwrite(path.str(), output, {cv::IMWRITE_JPEG_QUALITY, quality}))
-        throw U_EXCEPTION("Cannot write image ", path, ".");
+        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot write image ", path, "."));
 }
 
 std::string yolo_bbox(const Bounds& bounds, const Size2& image_size) {
@@ -647,7 +647,7 @@ void export_tag_annotations(TagDatasetConfig config) {
     };
     
     auto data_prefix = READ_SETTING(data_prefix, file::Path);
-    auto fishdata = file::DataLocation::parse("output", data_prefix);
+    auto fishdata = file::DataLocation::parse("output", data_prefix.empty() ? file::Path(".") : data_prefix);
     const auto annotation_export_output_path = READ_SETTING_WITH_DEFAULT(annotation_export_output_path, std::optional<file::Path>{});
     if(annotation_export_output_path
        && not annotation_export_output_path->empty())
@@ -658,7 +658,7 @@ void export_tag_annotations(TagDatasetConfig config) {
     }
     if(not fishdata.exists())
         if(not fishdata.create_folder())
-            throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
+            throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot create folder ",fishdata.str()," for saving fishdata."));
     
     file::Path input = READ_SETTING(filename, file::Filename).path();
     if(input.has_extension("pv"))
@@ -1220,7 +1220,7 @@ glz::generic build_coco_json(const cmn::file::PathArray& source, const Annotatio
 Summary export_dataset(const Options& options) {
     auto summary = summarize(options);
     if(!summary.can_export())
-        throw InvalidArgumentException("Cannot export annotations: ", summary.errors);
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot export annotations: ", summary.errors));
     validate_source_paths(options.source);
 
     VideoSource source(options.source);
@@ -1228,7 +1228,7 @@ Summary export_dataset(const Options& options) {
 
     summary = summarize(options, source.length(), source.size());
     if(!summary.can_export()) {
-        throw InvalidArgumentException("Cannot export annotations: ", summary.errors);
+        throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot export annotations: ", summary.errors));
     }
 
     const auto background_frames = sample_background_frames(options.annotations, source.length(), summary.background_frames, options.background_seed);

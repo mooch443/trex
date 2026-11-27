@@ -471,6 +471,7 @@ void YOLO::process_obbs(
 {
     size_t N_rows = result.obbdata().size();
     auto& obbdata = result.obbdata();
+    const float keypoint_threshold = READ_SETTING_WITH_DEFAULT(detect_keypoint_threshold, Float2_t{0.f});
 
     struct IllegalOBBExtent : std::runtime_error {
         using std::runtime_error::runtime_error;
@@ -584,9 +585,12 @@ void YOLO::process_obbs(
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_binary, Background::meta_encoding() == meta_encoding_t::binary);
 
         blob::Pose pose;
+        detect::Keypoint keypoint;
         const bool has_keypoint = not result.keypoints().empty() && idx < result.keypoints().size();
-        if(has_keypoint)
-            pose = result.keypoints()[idx].toPose();
+        if(has_keypoint) {
+            keypoint = result.keypoints()[idx];
+            pose = keypoint.toPose(keypoint_threshold);
+        }
 
         /// add_object first; only record the parallel predictions/keypoints arrays
         /// once it has succeeded. These insertions are not atomic: a failure can
@@ -603,7 +607,7 @@ void YOLO::process_obbs(
             .p = float(row.conf)
         });
         if(has_keypoint)
-            data.keypoints.push_back(result.keypoints()[idx]);
+            data.keypoints.push_back(std::move(keypoint));
     };
 
     for(size_t idx = 0; idx < N_rows; ++idx) {
@@ -628,6 +632,7 @@ void YOLO::process_boxes_only(
 {
     auto& boxes = result.boxes();
     const size_t total_rows = boxes.num_rows();
+    const float keypoint_threshold = READ_SETTING_WITH_DEFAULT(detect_keypoint_threshold, Float2_t{0.f});
 
     auto process_row = [&](const track::detect::Row& row, std::optional<size_t> idx) {
         if (not detect_only_classes.allowed(row.clid)) {
@@ -673,7 +678,7 @@ void YOLO::process_boxes_only(
         blob::Pose pose;
         if(idx && not result.keypoints().empty() && *idx < result.keypoints().size()) {
             auto p = result.keypoints()[*idx];
-            pose = p.toPose();
+            pose = p.toPose(keypoint_threshold);
             data.keypoints.push_back(std::move(p));
         }
 

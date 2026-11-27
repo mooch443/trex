@@ -383,8 +383,8 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
             np.asarray([[2.0, 1.0, 4.0, 3.0, 0.8, 1.0]], dtype=np.float32),
         ]
         keypoints = [
-            np.asarray([[[1.0, 2.0], [0.0, 0.0]]], dtype=np.float32),
-            np.asarray([[[2.0, 2.0], [3.0, 3.0]]], dtype=np.float32),
+            np.asarray([[[1.0, 2.0, 1.0], [2.0, 3.0, 0.0]]], dtype=np.float32),
+            np.asarray([[[2.0, 2.0, 0.0], [3.0, 3.0, 1.0]]], dtype=np.float32),
         ]
         detections = self.make_detection([
             self.stripped(boxes=boxes[0], keypoints=[keypoints[0]]),
@@ -398,6 +398,7 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
         for index, result in enumerate(results):
             np.testing.assert_array_equal(result.boxes.data, boxes[index])
             np.testing.assert_array_equal(result.keypoints.data, keypoints[index])
+            self.assertTrue(np.shares_memory(result.keypoints.data, keypoints[index]))
             self.assertEqual(result.keypoints.data.dtype, np.float32)
             self.assertTrue(result.keypoints.data.flags["C_CONTIGUOUS"])
 

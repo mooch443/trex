@@ -63,10 +63,24 @@ SceneManager::SceneManager()
 void SceneManager::set_active(Scene* scene, std::function<void()> prepare, std::function<void()> activated) {
     auto fn = [this, scene, prepare = std::move(prepare), activated = std::move(activated)]() mutable {
         try {
-            if(active_scene == scene) return;
+            if(active_scene == scene)
+                return;
+            
+            /// dont force close dialogs if we dont have a scene
+            bool dialogs_closed{active_scene == nullptr};
 
-            if (active_scene && active_scene != scene) {
+            if (active_scene
+                && active_scene != scene)
+            {
                 prefixed_print("SceneManager", "Deactivating ", active_scene->name());
+                
+                if(auto ptr = dynamic_cast<IMGUIBase*>( active_scene->window());
+                   ptr != nullptr && ptr->graph() && is_gui_thread())
+                {
+                    ptr->graph()->close_dialogs();
+                    dialogs_closed = true;
+                }
+                
                 active_scene->deactivate();
                 
                 {
@@ -81,7 +95,16 @@ void SceneManager::set_active(Scene* scene, std::function<void()> prepare, std::
                 prefixed_print("SceneManager", "Switching to ", scene->name());
             if(prepare)
                 prepare();
+            
             active_scene = scene;
+            
+            if(not dialogs_closed) {
+                FormatWarning("No gui thread or window found, have to delay dialog destruction to after the scene closed.");
+                enqueue([](auto, DrawStructure& graph) {
+                    graph.close_dialogs();
+                });
+            }
+            
             if (scene) {
                 scene->activate();
             } else

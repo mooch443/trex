@@ -19,6 +19,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <gui/DrawStructure.h>
 #include <gui/Dispatcher.h>
 #include <gui/IMGUIBase.h>
+#include <gui/LabeledField.h>
 #include <gui/SFLoop.h>
 #include <gui/types/Button.h>
 #include <video/VideoSource.h>
@@ -127,63 +128,34 @@ void save_rst_files() {
 }
 
 TRexTask determineTaskType() {
-    file::Path output_file;
-    GlobalSettings::read([&output_file](const Configuration& config){
-        output_file = settings::find_output_name(config.values);
-    });
-    
-    if (auto array = READ_SETTING(source, file::PathArray);
-        array.empty())
-    {
-        return TRexTask_t::none;
+    return GlobalSettings::read([](const Configuration& config) -> TRexTask {
+        const auto source = config.at("source").value<file::PathArray>().resolved_at(CommandLine::instance().launch_dir());
+        if(source.empty())
+            return TRexTask_t::none;
         
-    } else if (not output_file.empty()
-               && ((    output_file.has_extension("pv")
-                         && output_file.is_regular())
-                   || output_file.add_extension("pv").is_regular()))
-    {
-        if(output_file.has_extension("pv"))
-            output_file = output_file.remove_extension();
-        SETTING(filename) = file::Filename(output_file.filename());
-        return TRexTask_t::track;
-        
-    } else if(output_file.empty()) {
-        auto front = file::Path(file::find_basename(array));
-        /*output_file = !front.has_extension() ?
-                      file::DataLocation::parse("input", front.add_extension("pv")) :
-                      file::DataLocation::parse("input", front.replace_extension("pv"));*/
+        /// if we have a single file with no extension and it's not a camera source, assume tracking task
+        /// we can't technically know, its just a special case to accept "-i video" because we're being nice.
+        if(source.is_single_file() 
+           && not source[0].has_extension()
+           && not settings::is_camera_source(source.source()))
+        {
+            return TRexTask_t::track;
+        }
 
-        output_file = (not front.has_extension() || front.extension() != "pv") ?
-                      file::DataLocation::parse("output", front.add_extension("pv")) :
-                      file::DataLocation::parse("output", front.replace_extension("pv"));
+        /// Try to see what a .pv file path would look like with our current settings, then
+        /// we can see if it exists and open it if it does.
+        /// Otherwise we'd have to convert again.
+        const auto pv = settings::resolve_recording_path(config.values, source);
         
-        if (output_file.exists()) {
-            if(array.source() == "webcam") {
-                SETTING(filename) = file::Filename("webcam");
-            } else {
-                if(output_file.has_extension("pv"))
-                    output_file = output_file.remove_extension();
-                SETTING(filename) = file::Filename(output_file.filename());
-            }
-            
+        /// if we have the pv file, open it for tracking, otherwise we will need to convert the source video file first
+        /// but force tracking if we have a single pv file. dont try to turn it into a conversion task when this
+        /// is clearly not what we meant.
+        if(pv.is_regular() || source.has_single_match("pv"))
             return TRexTask_t::track;
-        } else {
-            return TRexTask_t::convert;
-        }
-        
-    } else if(array.has_single_match()) {
-        auto path = array.is_single_file()
-            ? file::DataLocation::parse("input", array.get_paths().front())
-            : array.get_paths().front();
-        if((path.has_extension("pv") && path.is_regular()) || path.add_extension("pv").is_regular()) {
-            if(path.has_extension("pv"))
-                path = path.remove_extension();
-            SETTING(filename) = file::Filename(path.filename());
-            return TRexTask_t::track;
-        }
-    }
-    
-    return TRexTask_t::convert;
+
+        /// last resort, try to convert this bs
+        return TRexTask_t::convert;
+    });
 }
 
 void check_pause() {
@@ -196,6 +168,9 @@ void check_pause() {
 }
 
 void launch_gui(std::future<void>& f) {
+    gui::dyn::LabeledPathArray::set_literal_value_filter([](std::string_view parameter, std::string_view text) {
+        return parameter == "source" && settings::is_camera_source(text);
+    });
     IMGUIBase base(cmn::settings::window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
@@ -239,11 +214,10 @@ void launch_gui(std::future<void>& f) {
     WorkProgress::instance().start();
     
     std::unique_ptr<Segmenter> segmenter;
-    bool errored_out{false};
+    std::atomic<bool> errored_out{false};
     
     ConvertScene converting(base, [&](ConvertScene& scene){
-        segmenter = std::make_unique<Segmenter>(
-        [&manager, &errored_out, &segmenter]() {
+        auto on_eof = [&manager, &errored_out, &segmenter](IMGUIBase*, DrawStructure&) {
             if(errored_out) {
                 return;
             }
@@ -268,7 +242,9 @@ void launch_gui(std::future<void>& f) {
                     manager.set_active("tracking-scene");
                 }
             }
-        },
+        };
+        segmenter = std::make_unique<Segmenter>(
+        [on_eof] { SceneManager::enqueue(on_eof); },
         [&manager, &errored_out](std::string error) {
             if(BOOL_SETTING(nowindow))
                 throw U_EXCEPTION("Error converting: ", error);
@@ -319,7 +295,7 @@ void launch_gui(std::future<void>& f) {
     CalibrateScene calibrate{base};
     manager.register_scene(&calibrate);
 
-    LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
+    LoadingScene loading(base, file::DataLocation::parse("output", "."), ".pv", [](const file::Path&, std::string) {
         }, [](const file::Path&, std::string) {
 
         });
@@ -338,12 +314,13 @@ void launch_gui(std::future<void>& f) {
 	};
 
     const auto task = READ_SETTING(task, TRexTask);
-    if(settings::video_source_error(READ_SETTING(source, file::PathArray))) {
+    const auto source = READ_SETTING(source, file::PathArray).resolved_at(CommandLine::instance().launch_dir());
+    if(settings::video_source_error(source)) {
         manager.set_active(&settings_scene);
     } else if(task == TRexTask_t::none) {
         TRexTask taskType = determineTaskType();
         settings::load(settings::LoadContext{
-            .source = READ_SETTING(source, file::PathArray),
+            .source = source,
             .filename = READ_SETTING(filename, file::Filename).path(),
             .task = taskType,
             .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
@@ -361,7 +338,7 @@ void launch_gui(std::future<void>& f) {
         {
             if(it->second == &converting) {
                 settings::load(settings::LoadContext{
-                    .source = READ_SETTING(source, file::PathArray),
+                    .source = source,
                     .filename = READ_SETTING(filename, file::Filename).path(),
                     .task = TRexTask_t::convert,
                     .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
@@ -373,7 +350,7 @@ void launch_gui(std::future<void>& f) {
                 
             } else if(it->second == &tracking_scene) {
                 settings::load(settings::LoadContext{
-                    .source = READ_SETTING(source, file::PathArray),
+                    .source = source,
                     .filename = READ_SETTING(filename, file::Filename).path(),
                     .task = TRexTask_t::track,
                     .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
@@ -549,10 +526,11 @@ void init_signals() {
 }
 
 std::string start_tracking(std::future<void>& f) {
-    const auto filename = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_existing_output_name(config.values);
-    });
-    SETTING(filename) = file::Filename(filename.filename());
+    const auto filename = settings::resolve_recording_path();
+    if(not filename.is_regular())
+        throw U_EXCEPTION("Cannot open PV recording ", filename, " for source ", READ_SETTING(source, file::PathArray), ".");
+    if(READ_SETTING(filename, file::Filename).path().empty())
+        SETTING(filename) = file::Filename(filename.remove_extension().filename());
     
     std::atomic<bool> terminate{false};
     TrackingState state{nullptr, filename};
@@ -609,10 +587,8 @@ std::string start_tracking(std::future<void>& f) {
 
 std::string start_converting(std::future<void>& f) {
     if(READ_SETTING(filename, file::Filename).path().empty()) {
-        file::Path path = GlobalSettings::read([](const Configuration& config) {
-            return settings::find_output_name(config.values);
-        });
-        SETTING(filename) = file::Filename(path.filename());
+        const auto name = settings::choose_output_name(READ_SETTING(source, file::PathArray));
+        SETTING(filename) = file::Filename(name.path().remove_extension());
     }
     
     /// this needs to go first so it gets destroyed last
@@ -651,7 +627,7 @@ std::string start_converting(std::future<void>& f) {
     Timer last_tick;
     size_t bar_spinner_index = 0;
     
-    if (is_in(READ_SETTING(source, file::PathArray), "webcam", "basler")) {
+    if (settings::is_camera_source(READ_SETTING(source, file::PathArray).source())) {
         segmenter.open_camera();
     } else {
         segmenter.open_video();
@@ -946,6 +922,22 @@ int main(int argc, char**argv) {
 
     try {
         CommandLine::instance().load_settings();
+        const auto source = READ_SETTING(source, file::PathArray).resolved_at(CommandLine::instance().launch_dir());
+        if(BOOL_SETTING(nowindow)) {
+            if(auto error = settings::video_source_error(source))
+                throw InvalidArgumentException(*error);
+        }
+        if(source.all_files_are("pv")) {
+            if(CommandLine::instance().settings_keys().contains("filename"))
+                throw InvalidArgumentException("Cannot supply an output name (-o) when selecting a PV recording (-i).");
+            if(READ_SETTING(task, TRexTask) == TRexTask_t::convert)
+                throw InvalidArgumentException("Cannot convert a PV recording. Select the original video with -i.");
+            if(source.has_single_match("pv")) {
+                const auto pv = file::DataLocation::parse("input", source[0]);
+                if(not pv.is_regular())
+                    throw InvalidArgumentException("Cannot open the specified pv recording ", pv, ".");
+            }
+        }
     } catch(const std::exception& ex) {
         FormatError("Cannot load command-line settings: ", ex.what());
         return 1;
@@ -953,40 +945,36 @@ int main(int argc, char**argv) {
     
     std::string last_error;
     if(BOOL_SETTING(nowindow)) {
-        if(auto error = settings::video_source_error(READ_SETTING(source, file::PathArray))) {
-            FormatError(*error);
-            return 1;
-        }
-        auto task = READ_SETTING(task, TRexTask);
-        if(task == TRexTask_t::none)
-            task = determineTaskType();
-        if(task == TRexTask_t::none)
-            throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
-        
-        Print(SETTING(output_dir));
-        
-        sprite::Map cmd_options;
-        CommandLine::instance().load_settings(cmd_options);
-        
-        settings::load(settings::LoadContext{
-            .source = READ_SETTING(source, file::PathArray),
-            .filename = READ_SETTING(filename, file::Filename).path(),
-            .task = task,
-            .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
-            .source_map = cmd_options,
-            .quiet = false
-        });
-        Print(SETTING(output_dir));
-        
-        /// in terminal we dont want to async a GUI anyway.
-        /// also, on windows we might get in trouble here
-        /// if GlobalSettings isnt assigned the right instance
-        /// yet in python_dll:
-        Print("Waiting for python...");
-        if(f.valid())
-            f.get();
-
         try {
+            auto task = READ_SETTING(task, TRexTask);
+            if(task == TRexTask_t::none)
+                task = determineTaskType();
+            if(task == TRexTask_t::none)
+                throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
+
+            Print(SETTING(output_dir));
+
+            sprite::Map cmd_options;
+            CommandLine::instance().load_settings(cmd_options);
+
+            settings::load(settings::LoadContext{
+                .source = READ_SETTING(source, file::PathArray),
+                .filename = READ_SETTING(filename, file::Filename).path(),
+                .task = task,
+                .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
+                .source_map = cmd_options,
+                .quiet = false
+            });
+            Print(SETTING(output_dir));
+
+            /// in terminal we dont want to async a GUI anyway.
+            /// also, on windows we might get in trouble here
+            /// if GlobalSettings isnt assigned the right instance
+            /// yet in python_dll:
+            Print("Waiting for python...");
+            if(f.valid())
+                f.get();
+
             if(task == TRexTask_t::convert) {
                 last_error = start_converting(f);
                 

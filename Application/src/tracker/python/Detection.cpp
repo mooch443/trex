@@ -157,12 +157,7 @@ std::future<cmn::SegmentationData> Detection::apply(TileImage&& tiled) {
     case ObjectDetectionType::background_subtraction:
     case ObjectDetectionType::precomputed:
     case ObjectDetectionType::none:
-        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-        {
-            auto future = tiled.promise->get_future();
-            manager().enqueue(std::move(tiled));
-            return future;
-        }
+        return std::move(tiled).enqueue(manager());
     default:
         break;
     }

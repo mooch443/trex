@@ -153,20 +153,38 @@ struct KeypointNames {
 
 class Bone {
 public:
+    static constexpr size_t dimensions = 3u;
     float x;
     float y;
-    //float conf;
+    float conf;
+
+    /// Checks pose coordinate bounds. The origin is reserved for missing joints.
+    bool valid() const {
+        // Pose coordinates reserve the high bit of X for visibility.
+        return x >= 0.f && x < 0x8000 && y >= 0.f && y < 0x10000
+            && (x != 0.f || y != 0.f);
+    }
+
+    /// Requires valid coordinates and finite, positive confidence at or above the threshold.
+    bool is_visible(float threshold) const {
+        return conf > 0.f && conf >= threshold && std::isfinite(conf) && valid();
+    }
+
     std::string toStr() const {
         return "Bone<" + cmn::Meta::toStr(x) + "," + cmn::Meta::toStr(y) + ">";
     }
 };
+
+static_assert(sizeof(float) == 4u
+              && std::is_standard_layout_v<Bone> && std::is_trivially_copyable_v<Bone>
+              && sizeof(Bone) == Bone::dimensions * sizeof(float));
 
 class Keypoint {
 public:
     std::vector<Bone> bones;
     std::string toStr() const;
     const Bone& bone(size_t index) const;
-    cmn::blob::Pose toPose() const;
+    cmn::blob::Pose toPose(float threshold) const;
 };
 
 struct DetectResolution {
@@ -204,7 +222,8 @@ namespace yolo {
 /// that can be automatically retrieved from the ultralytics repo
 bool is_valid_default_model(const std::string&);
 
-cmn::file::Path current_detect_model_path(const cmn::sprite::Map* = nullptr);
+/// Resolves the detection model from the supplied snapshot or within a global settings read.
+cmn::file::Path current_detect_model_path(const cmn::sprite::Map* source = nullptr);
 cmn::file::Path current_region_model_path(const cmn::sprite::Map* = nullptr);
 std::vector<cmn::file::Path> detect_model_candidates(cmn::file::Path detect_model);
 bool valid_model(const cmn::file::Path&, const cmn::file::FilesystemInterface& = cmn::file::RealFilesystem{});

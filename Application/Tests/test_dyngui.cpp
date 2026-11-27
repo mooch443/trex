@@ -1160,6 +1160,18 @@ TEST(DynamicGUISettingsTest, FilenameFieldDisplaysUnquotedValues) {
     EXPECT_TRUE(textfield->text().empty());
 }
 
+TEST(DynamicGUISettingsTest, OutputPrefixFieldDisplaysTheRelativeSubdirectory) {
+    sprite::Map settings;
+    const file::RelativePath prefix("site/morning run");
+    settings["output_prefix"] = prefix;
+    GUITaskQueue_t queue;
+    auto field = LabeledField::Make({}, &queue, "output_prefix", &settings);
+    auto textfield = field->representative().to<Textfield>();
+    ASSERT_TRUE(textfield);
+    EXPECT_EQ(textfield->text(), prefix.str());
+    EXPECT_EQ(sprite::display_object(prefix), prefix.str());
+}
+
 TEST(DynamicGUISettingsTest, ReboundPathFieldSurvivesOldContainerDestruction) {
     sprite::Map settings;
     settings["path"] = file::Path{};

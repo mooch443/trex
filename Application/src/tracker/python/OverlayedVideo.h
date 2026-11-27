@@ -20,7 +20,17 @@ class BasicProcessor {
     GETTER(std::unique_ptr<AbstractBaseVideoSource>, source);  // Video source
 public:
     // Type alias for the result of an asynchronous network call
-    using AsyncResult = Expected<std::tuple<Frame_t, std::future<SegmentationData>>>;
+    using FrameResult = std::tuple<Frame_t, std::future<SegmentationData>>;
+    using AsyncResult = VideoResult<FrameResult>;
+
+    /// Keeps the start and tail of long detector and video diagnostics.
+    static std::string shorten_error(std::string error_msg) {
+        constexpr size_t max_len = 300u;
+        if (error_msg.length() > max_len) {
+            error_msg = error_msg.substr(0u, max_len / 2u) + "[...]" + error_msg.substr(error_msg.length() - max_len / 2u - 1u);
+        }
+        return error_msg;
+    }
 
     BasicProcessor() = default;
     BasicProcessor(const BasicProcessor&) = delete;
@@ -46,6 +56,7 @@ template<typename F>
     requires track::ObjectDetection<F>
 class VideoProcessor : public BasicProcessor {
     F _processor_fn;  // Processing function to apply to each frame
+    const std::atomic<bool>& _stop_requested;
 
     mutable std::mutex _index_mutex;  // Mutex for synchronizing frame index updates
     GETTER_I(Frame_t, current_frame_index, 0_f); // Current frame index
@@ -72,9 +83,10 @@ public:
     // Constructor for VideoSource
     template<typename SourceType, typename Callback>
         requires _clean_same<SourceType, VideoSource>
-    VideoProcessor(F&& fn, SourceType&& src, Callback&& callback)
+    VideoProcessor(F&& fn, SourceType&& src, const std::atomic<bool>& stop_requested, Callback&& callback)
         : BasicProcessor(std::make_unique<VideoSourceVideoSource>(std::move(src))),
           _processor_fn(std::move(fn)),
+          _stop_requested(stop_requested),
           _async_queue(10u, 5u, "ApplyProcessor", [this, callback = std::move(callback)]() {
               return retrieve_and_process_next(callback);
           })
@@ -85,9 +97,10 @@ public:
     // Constructor for WebcamSource
     template<typename SourceType, typename Callback>
         requires _clean_same<SourceType, fg::Webcam>
-    VideoProcessor(F&& fn, SourceType&& src, Callback&& callback)
+    VideoProcessor(F&& fn, SourceType&& src, const std::atomic<bool>& stop_requested, Callback&& callback)
         : BasicProcessor(std::make_unique<WebcamVideoSource>(std::move(src))),
           _processor_fn(std::move(fn)),
+          _stop_requested(stop_requested),
           _async_queue(10u, 5u, "ApplyProcessor", [this, callback = std::move(callback)]() {
               return retrieve_and_process_next(callback);
           })
@@ -99,9 +112,10 @@ public:
 #if WITH_PYLON
     template<typename SourceType, typename Callback>
         requires _clean_same<SourceType, fg::PylonCamera>
-    VideoProcessor(F&& fn, SourceType&& src, Callback&& callback)
+    VideoProcessor(F&& fn, SourceType&& src, const std::atomic<bool>& stop_requested, Callback&& callback)
         : BasicProcessor(std::make_unique<BaslerVideoSource>(std::move(src))),
           _processor_fn(std::move(fn)),
+          _stop_requested(stop_requested),
           _async_queue(10u, 5u, "ApplyProcessor", [this, callback = std::move(callback)]() {
               return retrieve_and_process_next(callback);
           })
@@ -112,6 +126,8 @@ public:
 
     // Checks if EOF has been reached for finite video sources
     bool eof() const noexcept override {
+        if(_stop_requested)
+            return true;
         assert(_source);
         if (not _source->is_finite())
             return false;
@@ -121,10 +137,12 @@ public:
     // Retrieves and processes the next frame from the video source
     AsyncResult retrieve_and_process_next(const std::function<void()>& callback) {
         std::scoped_lock guard(_index_mutex);
+        if(_stop_requested)
+            return ReachedEOF_t{};
         Frame_t loaded_frame;
         if(not _source)
             return std::unexpected("Video source is null.");
-        
+
         try {
             Timer timer_;
             assert(_source);
@@ -133,9 +151,11 @@ public:
             // => here (ApplyProcessor)
             auto maybe_image = _source->next();
             if(not maybe_image)
-                return std::unexpected(maybe_image.error());
+                return std::unexpected(shorten_error(std::move(maybe_image.error())));
 
-            auto& image = maybe_image.value();
+            if(std::holds_alternative<ReachedEOF_t>(maybe_image.value()))
+                return ReachedEOF_t{};
+            auto& image = std::get<PreprocessedFrame>(maybe_image.value());
             loaded_frame = image.index + 1_f;
             
 #ifndef NDEBUG
@@ -198,18 +218,23 @@ public:
             tiled.callback = callback;
             _source->move_back(std::move(image.buffer));
             
-            return std::make_tuple(image.index, _processor_fn.apply(std::move(tiled)));
+            try {
+                auto future = _processor_fn.apply(std::move(tiled));
+                if(not future.valid()) {
+                    if(_stop_requested)
+                        return ReachedEOF_t{};
+                    return std::unexpected("Object detection stopped accepting frames.");
+                }
+                return std::make_tuple(image.index, std::move(future));
+            } catch(const std::exception& e) {
+                return std::unexpected("Object detection: " + shorten_error(e.what()));
+            }
             
         } catch(const std::exception& e) {
-            FormatExcept("Error loading frame ", loaded_frame, " from video ", *_source, ": ", e.what());
-            
-            auto error_msg = std::string(e.what());
-            constexpr size_t max_len = 300u;
-            if (error_msg.length() > max_len) {
-                error_msg = error_msg.substr(0u, max_len / 2u) + "[...]" + error_msg.substr(error_msg.length() - max_len / 2u - 1u);
-            }
-            static std::string error = "Error loading frame " + Meta::toStr(loaded_frame) + " from video " + Meta::toStr(*_source) + ": " + error_msg;
-            return std::unexpected(error.c_str());
+            auto context = loaded_frame.valid()
+                ? "Could not prepare frame " + Meta::toStr(loaded_frame) + " from "
+                : "Could not read ";
+            return std::unexpected(context + Meta::toStr(*_source) + ": " + shorten_error(e.what()));
         }
     }
 

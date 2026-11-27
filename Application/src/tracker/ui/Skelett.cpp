@@ -60,7 +60,7 @@ void Skelett::update() {
                         circle = new Circle{};
                     
                     circle->create(Loc{ bone },
-                                   LineClr{ _color },
+                                   LineClr{ Gray },
                                    Radius{ 5 },
                                    FillClr{ Gray.alpha(75) },
                                    min(Scale{1}, sca),
@@ -75,7 +75,14 @@ void Skelett::update() {
                         name = Meta::toStr(i);
                     
                     texts.emplace_back([this, name = name.value(), bone, sca, hovered](){
-                        add<Text>(Str{ name }, Loc{ (Vec2)bone - Vec2(0,5 + Base::default_line_spacing(font)).mul(sca) }, Origin{ 0.5,1 }, TextClr{ Color::blend(White, _color) }, sca, Font_t{font}, Rotation{0}, Text::Shadow_t{hovered});
+                        add<Text>(Str{ name },
+                                  Loc{ (Vec2)bone - Vec2(0,5 + Base::default_line_spacing(font)).mul(sca) },
+                                  Origin{ 0.5,1 },
+                                  TextClr{ Color::blend(bone.visible() ? White : Gray, _color) },
+                                  sca,
+                                  Font_t{font},
+                                  Rotation{0},
+                                  Text::Shadow_t{hovered});
                     });
                 }
             }
@@ -98,13 +105,14 @@ void Skelett::update() {
                     v = v.normalize();
                     Rotation a{ atan2(v) };
 
-                    add<Line>(p0, p1, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
+                    if(A.visible() && B.visible())
+                        add<Line>(p0, p1, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
                     if(_show_text) {
-                        texts.emplace_back([this, c, sca, a, loc = Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525))]()
+                        texts.emplace_back([this, visible = A.visible() && B.visible(), c, sca, a, loc = Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525))]()
                         {
                             add<Text>(Str(c.name),
                                       loc,
-                                      TextClr(Cyan.alpha(200)),
+                                      visible ? TextClr(Cyan.alpha(200)) : TextClr(Gray.alpha(200)),
                                       Font_t{font},
                                       sca,
                                       Origin(0.5),
@@ -118,13 +126,20 @@ void Skelett::update() {
     }
     else {
         size_t i = 0;
-        Line::Point_t last { _pose.points.empty() ? Line::Point_t{} : _pose.points.back() };
+        Pose::Point last { _pose.points.empty() ? Pose::Point{} : _pose.points.back() };
         for (auto& bone : _pose.points) {
             if (bone.valid()) {
-                add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
+                add<Circle>(Loc{ bone },
+                            LineClr{ bone.visible() ? _color : Gray },
+                            Radius{ 3 },
+                            FillClr{ (bone.visible() ? _color : Gray).alpha(75) },
+                            Scale{ coord.bowl_scale().reciprocal() });
 
-                if (last.x > 0 && last.y > 0)
+                if (   bone.valid() && last.valid()
+                    && bone.visible() && last.visible())
+                {
                     add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
+                }
                 
                 if(_show_text) {
                     auto name = _names.name(i);
@@ -132,7 +147,7 @@ void Skelett::update() {
                         name = Meta::toStr(i);
                     
                     texts.emplace_back([this, bone, name = name.value(), sca]() {
-                        add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, sca, Font_t{font});
+                        add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ bone.visible() ? White : Gray }, sca, Font_t{font});
                     });
                 }
                 

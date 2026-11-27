@@ -2,23 +2,19 @@
 
 namespace track::detect {
 
-KeypointData::KeypointData(std::vector<float>&& data, size_t bones)
-    : _num_bones(bones), _xy_conf(std::move(data))
+KeypointData::KeypointData(std::vector<Bone>&& data, size_t bones)
+    : _num_bones(bones), _bones(std::move(data))
 {
-    if(data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) != 0u)
-        throw InvalidArgumentException("Invalid size for KeypointData constructor. Please use a size that is divisible by ", sizeof(Bone) / sizeof(decltype(Bone::x)), " and is a flat ", Meta::name<decltype(Bone::x)>(), " array.");
-    assert(data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) == 0u);
-    assert(data.size() % _num_bones == 0);
+    if(not empty() && (bones == 0u || _bones.size() % bones != 0u))
+        throw InvalidArgumentException("Keypoint data must contain complete poses.");
 }
 
 Keypoint KeypointData::operator[](size_t index) const {
-    if(index * num_bones() * 2u >= xy_conf().size())
+    if(index >= size())
         throw OutOfRangeException("The index ", index, " is outside the keypoints arrays dimensions of ", size());
+    const auto begin = _bones.begin() + num_bones() * index;
     return Keypoint{
-        .bones = std::vector<Bone>{
-            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * index,
-            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * (index + 1)
-        }
+        .bones = std::vector<Bone>{begin, begin + num_bones()}
     };
 }
 

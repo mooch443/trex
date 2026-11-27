@@ -55,7 +55,7 @@ pv::File make_artificial_pv_file(const file::Path& path,
     sprite::Map metadata;
     metadata["source"] = file::PathArray(original_source);
     metadata["meta_source_path"] = original_source.str();
-    metadata["output_prefix"] = output_prefix;
+    metadata["output_prefix"] = file::RelativePath(output_prefix);
     metadata["filename"] = file::Filename(path.remove_extension("pv").filename());
     metadata["output_dir"] = output_dir ? *output_dir : original_source.remove_filename();
     metadata["video_conversion_range"] = Range<long_t>(
@@ -112,7 +112,7 @@ TEST_F(AnimatedBackgroundTest, UnixSourceWithoutStoredFilenameDoesNotThrow) {
     SETTING(meta_source_path) = original_source;
     SETTING(source) = file::PathArray{source};
     SETTING(output_dir) = file::Path{};
-    SETTING(output_prefix) = std::string{};
+    SETTING(output_prefix) = file::RelativePath{};
 
     // Writing is lazy; only the header is needed for the background source search.
     auto video = pv::File::Write<pv::FileMode::WRITE>(source, meta_encoding_t::gray);
@@ -246,7 +246,7 @@ TEST_F(AnimatedBackgroundTest, ReopenedPvFindsOriginalVideoAfterMovingTheFolder)
 
     SETTING(source) = file::PathArray(recording);
     SETTING(output_dir) = file::Path{};
-    SETTING(output_prefix) = std::string{};
+    SETTING(output_prefix) = file::RelativePath{};
     auto reopened = pv::File::Read(recording);
     const auto result = AnimatedBackground::configure_video_source(&reopened);
 

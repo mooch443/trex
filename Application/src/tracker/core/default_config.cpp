@@ -738,9 +738,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
         CONFIG("blobs_per_thread", 150.f, "Number of blobs for which properties will be calculated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
-        CONFIG("filename", file::Filename{}, "Name of the converted video (.pv), without directory components. Use `output_dir` to choose the output directory and `output_prefix` to choose a subdirectory.", LOAD);
+        CONFIG("filename", file::Filename{}, "Name of the converted video (.pv), without directory components or source patterns. Use `output_dir` to choose the output directory and `output_prefix` to choose a subdirectory.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
-        CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
+        CONFIG("output_dir", Path(""), "Root directory for converted recordings and other outputs. By default, outputs go in the same directory as the source/original video file, or the launch directory (e.g. for a camera or relative `output_dir`). Can be set in the command-line via `-d <path>`.", INIT);
         CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_fields`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", LOAD);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
@@ -1077,7 +1077,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
-        CONFIG("output_prefix", std::string(), "Optional subdirectory for output files under `output_dir`. The output directory is usually the folder containing the source video. The prefix also applies when `filename` is absolute.", INIT);
+        CONFIG("output_prefix", file::RelativePath{}, "Optional relative subdirectory for output files under `output_dir`, for example `session` or `site/session`. The output directory defaults to the folder containing the source video.", INIT);
         CONFIG("output_auto_pose", true, "Automatically adds pose coordinate (X/Y) and visibility (V) fields to `output_fields` based on what the keypoint model reports. Generated fields use `poseX_<name>`, `poseY_<name>`, and `poseV_<name>` for named keypoints, or `poseX0`, `poseY0`, and `poseV0` for an unnamed keypoint at index 0 (and similarly for other indices). Set this to false to disable automatic field generation; fields can still be added manually.");
         CONFIG("output_auto_detection_fields", true, "If set to true then this will automatically add fields like `detection_p` to the output files saved by TRex. You can also set this to false and add them manually if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV or NPZ, or shown in the graph. `[['X',[option], ...]]` Exact duplicate field, modifier, and calculation selections are used once; modifier order does not make an otherwise identical selection distinct. CSV always contains exactly one leading `frame` column, regardless of whether `frame` is listed here. NPZ contains one `frame` array when it is configured.");
@@ -1170,7 +1170,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_requires_exact_input_size", false, "Whether C++ must prepare detector images at exactly `detect_resolution` rather than preserving the source aspect ratio. Set from loaded model metadata.", SYSTEM);
         CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream models default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
-        CONFIG("detect_keypoint_threshold", Float2_t(0.1), "For pose models that provide a confidence value for each keypoint, points below this value are treated as missing. This is separate from `detect_conf_threshold`, which filters whole detections.");
+        CONFIG("detect_keypoint_threshold", Float2_t(0.1), "Points below this confidence are marked hidden and excluded from pose matching and posture calculation. Their estimated coordinates are retained. Models without per-keypoint confidence use 1 for visible points and 0 for hidden points. Located points default to visible when the model supplies neither. `detect_conf_threshold` filters whole detections.");
         CONFIG("detect_try_optimize_model", true, "If enabled, loaded detection models may try their backend-specific high-performance inference optimization. Each model receives this value as `ModelConfig.try_optimize` and decides how to use it. Changing it requires reloading the model.");
 
         CONFIG("track_behavior_window", uchar(50), "A window (in frames) around any annotated localized behavior that will be exported alongside the actually labeled frame. Surrounding labels ranges might be merged.");
@@ -1461,7 +1461,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             explicitly_include.insert("output_dir");
         }
         
-        if(const auto output_prefix = READ_SETTING_WITH_DEFAULT(output_prefix, std::string{});
+        if(const auto output_prefix = READ_SETTING_WITH_DEFAULT(output_prefix, file::RelativePath{});
            not output_prefix.empty())
         {
             explicitly_include.insert("output_prefix");
@@ -1585,10 +1585,59 @@ inline bool isRunningInAppBundle() {
 }
 #endif
     
+    /// Canonicalizes directory traversal when possible while preserving the final filename.
+    file::Path resolve_relative_path(const file::Path& path) {
+        static constexpr auto same_folder_pattern = []() -> std::string_view {
+            if constexpr(file::Path::os_sep() == '\\') {
+                return "\\.\\";
+            } else {
+                return "/./";
+            }
+        }();
+        
+        static constexpr auto same_folder_prefix = []() -> std::string_view {
+            if constexpr(file::Path::os_sep() == '\\') {
+                return ".\\";
+            } else {
+                return "./";
+            }
+        }();
+        
+        if(path.empty())
+            return {};
+        
+        if(is_in(path.str(), "..", ".")) {
+            return path.absolute().canonical().value_or(path);
+        }
+        
+        /// shortcut technically covered by the next one
+        if(is_in(path.filename(), "..", ".")) {
+            return path.absolute().canonical().value_or(path);
+        }
+        
+        if(path.str().find(same_folder_pattern) == std::string::npos
+           && not utils::beginsWith(path.str(), same_folder_prefix)
+           && path.str().find("..") == std::string::npos)
+        {
+            return path;
+        }
+        
+        const auto parent = path.remove_filename();
+        const auto components = utils::split(std::string_view(parent.str()), file::Path::os_sep());
+        if(contains(components, std::string_view(".."))
+           || contains(components, std::string_view("."))
+           )
+        {
+            if(auto resolved = parent.absolute().canonical())
+                return *resolved / path.filename();
+        }
+        return path;
+    }
+
     void register_default_locations() {
         file::DataLocation::register_path("app", [](const sprite::Map& map, file::Path path) -> file::Path {
             if(path.is_absolute())
-                return settings::resolve_file_path(path);
+                return resolve_relative_path(path);
 
             auto wd = map.at("wd").value<file::Path>();
 #if defined(TREX_CONDA_PACKAGE_INSTALL)
@@ -1601,7 +1650,7 @@ inline bool isRunningInAppBundle() {
                 wd = wd / ".." / "Resources";
             }
 #endif
-            return settings::resolve_file_path(path.empty() ? wd : wd / path);
+            return resolve_relative_path(path.empty() ? wd : wd / path);
         });
         
         file::DataLocation::register_path("default.settings", [](const sprite::Map& map, file::Path) -> file::Path {
@@ -1639,7 +1688,7 @@ inline bool isRunningInAppBundle() {
                 
                 return settings_file;
             } else {
-                return settings::resolve_file_path(path);
+                return resolve_relative_path(path);
             }
         });
         
@@ -1665,126 +1714,101 @@ inline bool isRunningInAppBundle() {
             return file::DataLocation::parse("output", "backup", &map) / settings_file;
         });
         
-        file::DataLocation::register_path("input", [](const sprite::Map& map, file::Path filename) -> file::Path {
+        file::DataLocation::register_path("input", [](const sprite::Map&, file::Path filename) -> file::Path {
             if(filename.empty() || filename.is_absolute())
-                return settings::resolve_file_path(filename);
+                return resolve_relative_path(filename);
             
             auto base = CommandLine::instance().launch_dir();
             if(base.empty())
-                base = map.value_with_default("output_dir", file::Path{});
-            return settings::resolve_file_path(base / filename);
+                base = file::cwd();
+            //if(base.empty())
+                //base = map.value_with_default("output_dir", file::Path{});
+            return resolve_relative_path(base / filename);
         });
         
-        file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path
-        {
+        file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path {
             if(filename.empty())
                 return {};
             
-            auto prefix = map.value_with_default("output_prefix", std::string{});
-            auto output_path = map.value_with_default("output_dir", file::Path{});
+            auto output_prefix = map.value_with_default("output_prefix", file::RelativePath{});
+            auto output_dir = map.value_with_default("output_dir", file::Path{});
+            
+            auto source = map.value_with_default("source", file::PathArray{});
+            auto launch = CommandLine::instance().launch_dir();
+            if(launch.empty()) {
+                launch = file::cwd();
+            }
+            
             auto absolute = filename.is_absolute();
+            if(absolute) {
+                /// we have an absolute input file, so we only have to check output directory / prefix
+                return resolve_relative_path(filename);
+            }
             
             std::optional<std::vector<file::Path>> components;
+            auto fallback_directory = launch;
             
-            if(output_path.empty()) {
-                auto source = map.value_with_default("source", file::PathArray{});
-                auto base = file::find_parent(source);
-                if(base && source.source() != "webcam")
-                    output_path = *base;
-            }
-            if(not output_path.is_absolute())
-                output_path = CommandLine::instance().launch_dir() / output_path;
-            
-            //! an output file is specified, we want to change whatever folder
-            //! the input comes from to whatever folder we want to write to:
-            if(not absolute) {
-                //! file is not an absolute path
-                if(not output_path.empty()) {
-                    if(not prefix.empty()) {
-                        components = std::vector<file::Path>{
-                            output_path,
-                            file::Path(prefix),
-                            filename
-                        };
-                    } else {
-                        components = std::vector<file::Path>{
-                            output_path,
-                            filename
-                        };
-                    }
-                    //filename = output_path / filename;
-                }
-                
-            } else if(not filename.has_extension("pv")) {
-                if(not output_path.empty()) {
-                    if(not prefix.empty()) {
-                        components = {
-                            output_path,
-                            file::Path(prefix),
-                            file::Path(filename.filename())
-                        };
-                    } else {
-                        components = {
-                            output_path,
-                            file::Path(filename.filename())
-                        };
-                    }
-                    //filename = output_path / filename.filename();
-                }
-            }
-            
-            if(not components) {
-                if(not prefix.empty()
-                   && not absolute)
+            /// a defined `output_dir` takes prescedence over source location
+            /// when it comes to outputs. otherwise we'll use the `launch` as
+            /// fallback if necessary.
+            if(output_dir.empty()) {
+                /// but if none is set, replace fallback directory with the source directory
+                /// (i.e. the folder where the video source is located)
+                if(not source.empty()
+                   && source.has_single_match()) //! TODO: or if we have a combined parent?
                 {
-                    components = std::vector<file::Path>{
-                        file::Path(prefix),
-                        filename
-                    };
-                } else if(prefix.empty()) {
-                    components = std::vector<file::Path>{
-                        filename
-                    };
-                } else {
-                    /// implicitly this means the same as setting the `output_dir` => /absolute/path/
-                    components = std::vector<file::Path>{
-                        filename.remove_filename(),
-                        file::Path(prefix),
-                        filename.filename()
-                    };
+                    auto p = source.get_paths().front();
+                    if(p.is_absolute()) {
+                        /// if its a relative path, apply it:
+                        p = p.remove_filename();
+                        if(not p.empty()) {
+                            fallback_directory = p;
+                        }
+                    } else {
+                        p = p.remove_filename();
+                        if(not p.empty()) {
+                            fallback_directory = fallback_directory / p;
+                        }
+                    }
                 }
             }
+            
+            std::vector<file::Path> c;
+            
+            /// by default, an empty / unset `output_path` implicitly references the
+            /// launch directory. if an input `source` is set with an absolute path,
+            /// that overrides the launch directory:
+            if(output_dir.empty()) {
+                /// we did not set `output_dir` so we will set it to launch directory
+                c.push_back(fallback_directory);
+                
+            } else {
+                if(not output_dir.is_absolute()) {
+                    c.push_back(fallback_directory);
+                }
+                c.push_back(output_dir);
+            }
+            
+            if(not output_prefix.empty()) {
+                c.push_back(output_prefix.path());
+            }
+            
+            c.push_back(filename);
+            
+            components = std::move(c);
             
             filename = {};
             for(auto &element : *components) {
+                if(element.empty())
+                    continue;
+                
                 if(filename.empty())
                     filename = element;
                 else
                     filename = filename / element;
             }
             
-            /*if(not prefix.empty()) {
-                //! insert a prefix in between the filename and the path
-                if(not filename.remove_filename().empty()
-                   && not absolute)
-                {
-                    filename = filename.remove_filename() / prefix / filename.filename();
-                } else if(not absolute) {
-                    filename = prefix / filename;
-                } else {
-                    filename = filename.remove_filename() / prefix / filename.filename();
-                }
-            }*/
-            
-            /*if(!filename.empty() && filename.is_absolute()) {
-#ifndef NDEBUG
-                if(!GlobalSettings::is_runtime_quiet())
-                    Print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
-#endif
-                return filename;
-            }*/
-            
-            return settings::resolve_file_path(filename);
+            return resolve_relative_path(filename);
         });
     }
 

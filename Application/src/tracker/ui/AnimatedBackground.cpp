@@ -2,6 +2,7 @@
 #include <pv.h>
 #include <misc/create_struct.h>
 #include <core/default_config.h>
+#include <core/SettingsPaths.h>
 #include <file/DataLocation.h>
 #include <core/TimingStatsCollector.h>
 #include <ui/Scene.h>
@@ -107,7 +108,7 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
     std::optional<std::string> meta_source_path_from_video;
     std::optional<int> video_offset_from_video;
     std::optional<file::Path> video_output_dir;
-    std::string video_prefix_path;
+    file::RelativePath video_prefix_path;
     
     if (video) {
         auto metadata = video->header().metadata;
@@ -148,7 +149,7 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
         }
         
         if(combined.has("output_prefix")) {
-            video_prefix_path = combined.at("output_prefix").value<std::string>();
+            video_prefix_path = combined.at("output_prefix").value<file::RelativePath>();
         }
         if(combined.has("output_dir")) {
             video_output_dir = combined.at("output_dir").value<file::Path>();
@@ -158,19 +159,22 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
     if(video_offset_from_video)
         offset = video_offset_from_video;
 
-    if(not meta_source_path.empty()) {
+    if(not meta_source_path.empty() && not settings::is_camera_source(meta_source_path)) {
+        const file::Path path(meta_source_path);
+        const auto output_name = path.is_absolute() ? path.filename() : meta_source_path;
         result.tests = {
             {meta_source_path, offset}
         };
         result.tests.emplace(file::DataLocation::parse("input", meta_source_path).str(), offset);
-        result.tests.emplace(file::DataLocation::parse("output", meta_source_path).str(), offset);
+        result.tests.emplace(file::DataLocation::parse("output", output_name).str(), offset);
     }
     
-    if(meta_source_path_from_video.has_value()) {
+    if(meta_source_path_from_video && not meta_source_path_from_video->empty() && not settings::is_camera_source(*meta_source_path_from_video)) {
         std::string path = meta_source_path_from_video.value();
         
-        const auto mp4_filename = file::Path(path).filename();
-        const auto mp4_folder = file::Path(path).remove_filename();
+        const file::Path mp4_path(path);
+        const auto mp4_filename = mp4_path.filename();
+        const auto mp4_folder = mp4_path.remove_filename();
         
         if(video && video_output_dir)
         {
@@ -194,7 +198,8 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
         
         result.tests.emplace(path, video_offset_from_video);
         result.tests.emplace(file::DataLocation::parse("input", path).str(), video_offset_from_video);
-        result.tests.emplace(file::DataLocation::parse("output", path).str(), video_offset_from_video);
+        const auto output_name = mp4_path.is_absolute() ? mp4_filename : path;
+        result.tests.emplace(file::DataLocation::parse("output", output_name).str(), video_offset_from_video);
     }
     
     return result;

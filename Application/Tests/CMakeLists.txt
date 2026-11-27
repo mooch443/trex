@@ -461,6 +461,7 @@ target_link_libraries(test_tracking_export_e2e PUBLIC
 trex_link_static_python_impl(test_tracking_export_e2e)
 
 target_link_libraries(test_tracking_filename_resolution PUBLIC
+    tracker_gui
     tracker_tracking
     tracker_misc
     pv
@@ -633,12 +634,12 @@ add_test(NAME test-tracking-export-e2e COMMAND test_tracking_export_e2e)
 trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
 set_tests_properties(test-tracking-export-e2e PROPERTIES TIMEOUT 600)
 add_test(NAME test-tracking-filename-resolution COMMAND test_tracking_filename_resolution
-    "--gtest_filter=-OutputSettingsInitialization/*:OutputSettingsDelta/*:OutputSettingsRoundTripTest.*")
-add_test(NAME test-output-settings-initialization COMMAND test_tracking_filename_resolution
-    "--gtest_filter=OutputSettingsInitialization/*")
+    "--gtest_filter=-PathTable/*:OutputSettingsDelta/*:OutputSettingsRoundTripTest.*")
+add_test(NAME test-path-resolution-rules COMMAND test_tracking_filename_resolution
+    "--gtest_filter=PathTable/*")
 add_test(NAME test-output-settings-delta COMMAND test_tracking_filename_resolution
     "--gtest_filter=OutputSettingsDelta/*")
-set_tests_properties(test-output-settings-delta PROPERTIES DEPENDS test-output-settings-initialization)
+set_tests_properties(test-output-settings-delta PROPERTIES DEPENDS test-path-resolution-rules)
 add_test(NAME test-output-settings-round-trip COMMAND test_tracking_filename_resolution
     "--gtest_filter=OutputSettingsRoundTripTest.*")
 set_tests_properties(test-output-settings-round-trip PROPERTIES DEPENDS test-output-settings-delta)

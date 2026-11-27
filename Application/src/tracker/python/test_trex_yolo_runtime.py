@@ -9,6 +9,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -392,6 +393,13 @@ class RuntimePolicyTest(unittest.TestCase):
         self.bbx_saved_model.predict("frame")
         self.assertEqual(calls[-1]["kwargs"]["iou_threshold"], 0.55)
 
+    def test_pose_model_reports_checkpoint_keypoint_shape(self):
+        for dimensions in (2, 3):
+            with self.subTest(dimensions=dimensions), patch.object(FakeYOLO, "kpt_shape", (17, dimensions), create=True):
+                model, _ = self._make_model(modern=True, end2end=True, task="pose")
+                self.assertEqual(model.config.keypoint_format.n_points, 17)
+                self.assertEqual(model.config.keypoint_format.n_dims, dimensions)
+
     def test_keypoint_threshold_uses_missing_sentinel_and_keeps_float32_layout(self):
         torch = self.trex_yolo.torch
 
@@ -418,12 +426,31 @@ class RuntimePolicyTest(unittest.TestCase):
         self.assertIsNotNone(stripped.keypoints)
         self.assertEqual(len(stripped.keypoints), 1)
         keypoints = stripped.keypoints[0]
-        self.assertEqual(keypoints.shape, (1, 3, 2))
+        self.assertEqual(keypoints.shape, (1, 3, 3))
         self.assertEqual(keypoints.dtype, np.float32)
         self.assertTrue(keypoints.flags["C_CONTIGUOUS"])
-        np.testing.assert_array_equal(keypoints[0, 0], [0.0, 0.0])
-        np.testing.assert_array_equal(keypoints[0, 1], [26.0, 72.0])
-        np.testing.assert_array_equal(keypoints[0, 2], [0.0, 0.0])
+        self.assertTrue(np.shares_memory(keypoints, result.keypoints.data.numpy()))
+        np.testing.assert_allclose(keypoints[0, 0], [22.0, 66.0, 0.2])
+        np.testing.assert_allclose(keypoints[0, 1], [26.0, 72.0, 0.8])
+        np.testing.assert_array_equal(keypoints[0, 2], [0.0, 0.0, 0.0])
+
+        result.keypoints.data = torch.tensor([[[1., 2.], [3., 4.], [0., 0.]]])
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([2.0, 3.0], dtype=np.float32),
+            offset=np.array([10.0, 20.0], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(stripped.keypoints[0][0, 0], [22.0, 66.0, 1.0])
+
+        result.keypoints.visible = torch.tensor([[False, True, True]])
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([2.0, 3.0], dtype=np.float32),
+            offset=np.array([10.0, 20.0], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(stripped.keypoints[0][0], [
+            [22.0, 66.0, 0.0], [26.0, 72.0, 1.0], [0.0, 0.0, 0.0],
+        ])
 
     def test_mask_box_uses_floor_ceil_xyxy_and_exact_raster_size(self):
         torch = self.trex_yolo.torch

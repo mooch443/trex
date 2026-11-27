@@ -170,14 +170,11 @@ using ::cmn::SegmentationData;
 
 // core/SettingsPaths.h
 namespace trex_module_smoke::trex_core::cmn::settings {
-using ::cmn::settings::conversion_source_exists;
-using ::cmn::settings::find_conversion_source;
-using ::cmn::settings::find_existing_output_name;
-using ::cmn::settings::find_output_name;
+using ::cmn::settings::choose_output_name;
 using ::cmn::settings::infer_cm_per_pixel;
 using ::cmn::settings::infer_meta_real_width_from;
-using ::cmn::settings::resolve_file_path;
-using ::cmn::settings::resolve_output_path;
+using ::cmn::settings::is_camera_source;
+using ::cmn::settings::resolve_recording_path;
 using ::cmn::settings::video_source_error;
 }
 

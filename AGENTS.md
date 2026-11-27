@@ -285,6 +285,14 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
+- Follow `docs/path-resolution.md` for recording paths. Choose the PV filename
+  before resolving its location. Use `settings::choose_output_name(map)` when a
+  settings snapshot is available. It honors an explicit output name and falls
+  back to the `file::PathArray` overload to name the selected inputs. Both
+  return one `file::Filename`. Only `input` and `output` locate recording files.
+  Pass the chosen name or input path and the effective settings map to
+  `DataLocation::parse`. Reuse these operations. Do not add per-case naming
+  helpers or new recording DataLocation purposes.
 - Never revert, discard, or undo existing changes unless the user explicitly
   requests that reversal. Criticism, statements that a change should not have
   been made, or suggestions of an alternative do not authorize a revert. This
@@ -328,7 +336,9 @@ conda build -c conda-forge .
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
 - If the task is to add or edit tests, change only tests and the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). Do not implement fixes, compatibility branches, format/version changes, or other production changes unless the user explicitly requests implementation. A suggested possible solution is not authorization to implement it. Keep regressions short and focused, reuse existing fixtures or contracts, and report any exposed failure without expanding the task.
-- Spell out each test scenario so the setup, action, and expected result are clear on first reading. Use meaningful inputs and explicit assertions. Avoid encoding different behaviors as combinations of strings and numbers that the reader has to decode.
+- In all tests, including C++, Python, integration tests, and GUI release cases, spell out the setup, action, and expected result so each scenario is clear on first reading. Use meaningful inputs and explicit assertions. Avoid encoding different behaviors as combinations of strings and numbers that the reader has to decode.
+- In every automated GUI test, type or paste paths directly into the corresponding TRex fields and verify the committed values in the window. The native file chooser opens in a separate window that the agent cannot operate. Reserve chooser coverage for manual testing.
+- When changing recording or output path rules, update `docs/path-resolution.md` and the named `PathTable` cases in `Application/Tests/test_tracking_filename_resolution.cpp` together.
 - when fixing a bug, first reproduce the actual failure with a minimal viable test or local repro that matches the real issue. make sure that repro fails before changing production code, then fix the code until that same repro passes.
 - do not add speculative, broad, or low-value tests just to increase coverage. prefer the smallest targeted regression test for a real bug, and skip adding tests when they do not materially validate the reported failure.
 - Never edit `docs/parameters_trex.rst` directly; it is regenerated automatically. Update parameter definitions and descriptions in `Application/src/tracker/core/default_config.cpp` instead.

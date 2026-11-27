@@ -10,8 +10,15 @@ value. A pass requires the visible outcome, not just successful input delivery.
 
 ## GUI-01 — Startup
 
+On macOS, record `pwd -P` in the launch shell outside the app bundle.
+Record whether `imgui.ini` exists in the launch directory and, on macOS, in
+`Contents/Resources`. Record the modification time of each existing file.
+
 Launch the selected build without a source. Wait for the starting menu, inspect
 its title/version, logo, text, and buttons, then open the configuration screen.
+
+Once the macOS window is visible, verify that `lsof -a -p "$PID" -d cwd -Fn`
+reports the recorded directory for the running TRex process.
 
 Assert: the intended binary opens a responsive native window; the main controls
 are readable and usable; resources load without a blocking error. Capture
@@ -19,8 +26,9 @@ are readable and usable; resources load without a blocking error. Capture
 
 ## GUI-02 — Fresh conversion and tracking
 
-1. Select the copied `first.mp4` through the input picker. Load the copied sample
-   settings if they were not loaded automatically. Verify source, background
+1. Paste the absolute path of the copied `first.mp4` into the source field and
+   commit it. If the matching settings did not load automatically, enter their
+   path in `settings_file` and reload the source. Verify source, background
    subtraction, threshold, and tracking settings in the UI.
 2. Leave the output folder/prefix at their default empty values. Record the
    resolved target before starting. If a default from the prepared installation
@@ -29,6 +37,11 @@ are readable and usable; resources load without a blocking error. Capture
 3. Click **Convert**. Observe progress and wait for completion. Open the resulting
    PV for tracking through the UI if the build does not transition automatically.
 4. Wait for analysis, play and pause, and scrub near the start, middle, and end.
+5. On this unannotated recording, check the log for an unexpected
+   `Failed to resolve FOI id for type annotated` error. In annotation mode,
+   use **Add ∅ annotation** on one frame. Select **FOIs → annotated** and verify
+   that frame is marked on the timeline. Use **Remove ∅ annotation** and verify
+   the marker disappears.
 
 Assert: conversion produces a readable PV in the displayed target, tracking shows
 moving objects, the timeline changes, and the last source frame is reachable.
@@ -71,10 +84,27 @@ Capture `04-overwrite-dialog` and `04-result`; record hashes and frame count.
    sample finishes too quickly, create a short PV through the GUI with
    `video_conversion_range = [0,80]`, or reuse a copy of GUI-04's result. Preserve
    the short PV before extension and identify this as the range proxy.
-2. Open the partial PV and record its last readable frame. Reopen configuration,
-   request the same full range, and choose **Convert** → **Continue (if possible)**.
-3. Wait for completion, track the result, and scrub across the recorded resume
-   boundary and to the end.
+2. Open the partial PV. Record its last readable frame and the range in its
+   saved tracking state. Reopen configuration, request the same full range,
+   and choose **Convert** → **Continue (if possible)**.
+3. After completion, scrub from the end to the last frame of the partial PV
+   and step to the first appended frame. Verify that both video frames are
+   readable and that the identities and trails align on the newly tracked
+   frames. Record the extended PV frame count and the first and last frames
+   in the loaded `.results`. Continue currently supports a tracking state
+   covering only the appended frames.
+4. On a separate conversion, click **Stop** near the final frame and
+   leave **End recording** open until the conversion finishes and tracking
+   opens. Capture the open dialog with the current frame and total visible.
+   If the guppy clip finishes too quickly, concatenate copies of it into a
+   longer run-local video with the same settings. The confirmation should
+   close automatically. If it remains visible,
+   capture it and click **Yes, stop**. Verify tracking still responds, the
+   completed PV contains its final frame, and a subsequent conversion starts
+   and finishes normally. If the preceding recording's trails briefly appear
+   while TRex computes the new background, capture them as a cosmetic
+   observation. Check alignment once the new recording has tracked identities.
+   Record the delayed confirmation separately from stopping an active conversion.
 
 Assert: the same output extends beyond its previous end; the prefix remains
 readable, frames progress across the boundary without an obvious jump/repetition,
@@ -91,45 +121,77 @@ range cannot test extension. Do not use a forced process kill.
    Convert and track. Record the resolved PV path; the prefix is a subdirectory.
 2. Use **Menu → Save config** and **Save state**. Inspect the actual `.settings`
    and `.results` locations, then use **Load state** to reopen the saved state.
-3. Close the file, paste the PV's absolute path, and track again. Exercise the
-   **Results exist → Load Results** choice if offered. Repeat using the file picker.
-4. Open the saved configuration through the settings-file picker and verify a
-   recorded nondefault scalar and string value in the UI.
+3. Close the file, paste the PV's absolute path into the source field, and track
+   again. Exercise the **Results exist → Load Results** choice if offered.
+4. In configuration, enter the saved settings path in `settings_file`, reload
+   the source, and verify a recorded nondefault scalar and string value in the UI.
+5. With an existing PV selected, choose SAM3 in Detection. Verify the prompt
+   field appears and Locations names SAM3 in the summary. Restore the original mode.
 
 Assert: displayed and actual output paths agree, the explicit folder/prefix are
 used, saved results reopen with the same data, and saved nondefault settings
-reload. Neither opening route silently selects another PV with the same basename.
+reload. The reopened PV must be the one at the entered path, even when another
+PV has the same basename.
 Capture `06-locations` and `06-reloaded`; list files created. Check saved keys or
 effective UI values; PV metadata and `.settings` files are sparse deltas, not
 complete configuration snapshots.
 
+For a separate manual check, repeat the PV and settings reloads using the native
+file choosers and verify the same recording and settings values.
+
 ## GUI-07 — Property editing, undo, redo, and invalid input
 
-In the tracking settings editor, record and change these values one at a time:
+Pause on a tracked guppy frame with outlines visible. Show the timeline and
+History panel. Record the starting values before changing the fish selection.
+Commit one edit at a time.
 
 | Kind | Setting | Exercise |
 | --- | --- | --- |
 | Number | `track_threshold` | Change 12 to 13, or use another distinct valid pair. |
-| Boolean | `gui_show_outline` | Toggle and observe outlines disappear/reappear. |
+| Boolean | `output_interpolate_positions` | Change the guppy fixture's `false` to `true`. |
 | String | `individual_prefix` | Set `gui-suite` and inspect identity labels. |
-| List | `heatmap_ids` | Set `[0,1]`, then `[]`; read the committed values back. |
+| List | `categories_ordered` | Change `[]` to `["resting","swimming"]` and verify the order. |
 | Nested list | `output_fields` | Set `[["X",["wcentroid"]],["SPEED",["wcentroid"]]]` and read it back. |
 
-After committing each edit, move focus out of the text editor. Use the app's
-system-modifier+Z undo and system-modifier+Shift+Z redo (Command on macOS), verifying
-the setting's value at each step. This must exercise application history, not
-the textfield's local undo buffer. Leave the valid edits applied for the reload
-check below.
+For each setting, verify the edit appears in TRex's History. Click an empty
+part of the video to defocus the editor. Press Command+Z on macOS or Ctrl+Z
+elsewhere, then read back the original value. Defocus again, add Shift to
+the same shortcut, and read back the edited value. TRex logs `* reverted`
+with the affected keys, or `* nothing to revert` for empty history.
 
-Enter `not-a-number` for the numeric setting and a malformed bracketed value for
-the list. Commit and inspect validation. Correct the value and continue editing.
-Save and reload the valid string/list/nested-list changes using GUI-06's controls.
-After verifying reload, restore each starting value through the UI.
+If the first shortcut has no effect, use a disposable PV with an existing
+`.results` file to check which key the tracking window receives as Z. With
+the editor defocused, an unmodified Z opens **Overwrite** for Save State.
+Cancel it. The active keyboard layout can map the driver's physical Y to Z.
+Retry the modified shortcut with the confirmed key. If it also opens
+**Overwrite**, cancel and stop retrying that chord. Record shortcut delivery
+in the action trace and continue testing the remaining editors.
 
-Assert: committed values retain their type and contents; undo/redo restores the
-expected values and visible boolean effect; invalid input is rejected without a
-crash or unintended value change; valid input works afterward. Capture
-`07-edits`, `07-undo-redo`, and `07-validation`. Record values after reopening.
+For that fallback, use the matching prepared test executables. Run `test_strings` with
+`'--gtest_filter=GlobalSettingsTests.UnduOperation:GlobalSettingsTests.ComplexUnduOperation:GlobalSettingsTests.RemovesHistorySimple:GlobalSettingsTests.RemovesHistory:GlobalSettingsTests.DoesNotCrashWithEmptyHistory'`.
+These tests call the same settings-history operations as the tracking scene
+and assert restored and reapplied values. Run `test_gui_scroll` with
+`'--gtest_filter=KeyboardEventTest.*'` to check layout and modifier translation.
+Record the number of tests run and their results alongside the window edits. Credit an
+end-to-end shortcut only after the window shows the original value on Undo
+and the edited value on Redo. A handled shortcut that restores an incorrect
+value is a product failure.
+
+The tracking scene excludes `gui_*` and `heatmap_ids` from History. Toggle
+`gui_show_outline` off and on and verify the fish outline disappears and
+reappears. Set `heatmap_ids` to `[0,1]`, then `[]`, and read each value back.
+Verify neither key appears in History after its edit.
+
+Enter `not-a-number` for `track_threshold` and `[0,broken` for `heatmap_ids`.
+Commit, defocus and reopen each editor. Its effective value must still be the
+last valid value. Enter a valid value again and verify it commits.
+
+Before saving, set `heatmap_ids` to `[0,1]` after the last fish selection.
+Changing the selection synchronizes the list with the selected IDs. Save and
+reload through GUI-06's controls. In Configuration, verify `individual_prefix`
+is `gui-suite`, `heatmap_ids` is `[0,1]` and `output_fields` contains the two
+edited entries before selecting another fish. Restore the starting
+values through the UI. Capture `07-edits`, `07-undo-redo` and `07-validation`.
 
 ## GUI-08 — Reset between files and preserve window usability
 
@@ -144,7 +206,10 @@ crash or unintended value change; valid input works afterward. Capture
    restored window without resizing it and capture `08-after-move`; control sizes
    must remain unchanged. A later recovery does not pass the restored-size check.
    Record `gui_interface_scale` at each checkpoint if exposed by the settings editor.
-3. Use **Menu → Close file** to return to the starting screen. Open `second.mp4`
+3. Press **R** to start screen recording. Wait for a `[rec] frame` line in the
+   log, then choose **Menu → Close file** while recording. Verify that the log
+   reports the clip was stopped and that the starting screen responds to input.
+   Open `second.mp4`
    and its prepared settings in configuration. Inspect `individual_prefix` and
    `track_threshold` before converting/tracking the second video.
 4. Close and reopen the first PV, then navigate to the starting screen again.
@@ -167,6 +232,15 @@ and rendering remains finite and responsive. Smoothing may intentionally change
 shape and detail. Capture `09-outline-0`, `09-outline-1`, and `09-outline-3` at
 the same view, then restore the starting value. Do not infer alignment solely
 from the absence of a crash.
+
+Use a pose recording with a known frame where one individual's stored joint
+visibility flags are all false and some joints have valid estimated positions.
+Enable `gui_show_skeletons` and `gui_show_selections`, then select that individual.
+Verify the selection outline encloses the blob. Valid hidden estimates should
+appear as faint gray markers at their recorded positions. Any joint without a
+valid position has no marker. Verify the individual has no identity-colored
+joint markers or skeleton limbs. Record the input, frame and individual and
+capture the selection.
 
 ## GUI-10 — Hole-outline alignment
 
@@ -209,3 +283,6 @@ Assert: cancelling quit preserves the session, confirmed quit closes it without
 a hang, and a healthy run exits successfully. A previous application error must
 remain in the report even if quit succeeds. Capture `12-quit-dialog`; record any
 forced termination as a failure/blocker rather than a successful quit.
+
+After TRex exits, verify that the existence and modification time of each
+`imgui.ini` path match the observations from GUI-01.

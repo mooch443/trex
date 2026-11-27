@@ -8,11 +8,13 @@
     "window_color":[10,10,10],
     "vars":{
         "label_w":200,
+        "tab_scale":"{min:1:{max:0.8:{/:{window_size.x}:1000}}}",
         "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:108}}",
         "is_small_window":"{<:{element_w}:1020004}",
         "inside_label_w":"{+:{label_w}:10}",
         "textfield_w":"{max:100:{+:{element_w}:160}}",
         "machine_learning":"{equal:{global.detect_type}:yolo}",
+        "sam3":"{equal:{global.detect_type}:sam3}",
         "precomputed":"{equal:{global.detect_type}:precomputed}",
         "label_offset":[15,0],
         "label_origin":[0,0],
@@ -67,6 +69,7 @@
             "children":[
                 {
                     "type":"hlayout",
+                    "scale":"[{tab_scale},{tab_scale}]",
                     "align":"center",
                     "origin":[0,0],
                     "clickable":true,
@@ -314,7 +317,7 @@
                                 "type":"stext",
                                 "max_size": "[{min:900:{element_w}},50]",
                                 "font":{"size":0.5},
-                                "text": "{if:{precomputed}:'<cyan><c>Precomputed detections</c></cyan> are read from a CSV file containing boxes or positions for the source video. Select the CSV below; no detection model is required.':{if:{machine_learning}:'<cyan><c>Machine learning</c></cyan> is used to find the individuals. This is very versatile and can deal with dynamic backgrounds, but requires a (<i>potentially custom</i>) trained object detection model. There are some default choices listed below the selection box.':'A <cyan><c>background image</c></cyan> is generated and then subtracted from each frame. Then, any color differences greater than <c>threshold</c> are understood to be <i>\"of interest\"</i>. This is very fast, but requires a relatively static background (e.g. a camera trap, lab videos).'}}"
+                                "text": "{if:{sam3}:'<cyan><c>SAM3</c></cyan> segments objects that match the prompt below.':{if:{precomputed}:'<cyan><c>Precomputed detections</c></cyan> are read from a CSV file containing boxes or positions for the source video. Select the CSV below; no detection model is required.':{if:{machine_learning}:'<cyan><c>Machine learning</c></cyan> is used to find the individuals. This is very versatile and can deal with dynamic backgrounds, but requires a (<i>potentially custom</i>) trained object detection model. There are some default choices listed below the selection box.':'A <cyan><c>background image</c></cyan> is generated and then subtracted from each frame. Then, any color differences greater than <c>threshold</c> are understood to be <i>\"of interest\"</i>. This is very fast, but requires a relatively static background (e.g. a camera trap, lab videos).'}}}"
                             }
                         ]
                     }]
@@ -340,6 +343,31 @@
                                 "type":"rect",
                                 "fill":[0,0,0,0],
                                 "size":[1,15]
+                            },
+                            {
+                                "type":"condition",
+                                "var":"{sam3}",
+                                "then":{
+                                    "type":"hlayout",
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"<b>SAM3 prompt</b>\n<gray>For example, <c>fish</c>.</gray>",
+                                            "pad":[10,3,10,4],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_sam3_prompt",
+                                            "corners":["all"],
+                                            "cleartext":"<sym>⮾</sym>",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:100:{-:{element_w}:{inside_label_w}}},45]",
+                                            "desc":""
+                                        }
+                                    ]
+                                }
                             },
                             {
                                 "type":"condition",

@@ -56,5 +56,6 @@ private:
     
     void init_undistortion();
     void redraw_all();
+    void redraw_tracking();
 };
 }

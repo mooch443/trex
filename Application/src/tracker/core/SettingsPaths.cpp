@@ -1,8 +1,6 @@
 #include "SettingsPaths.h"
-#include <file/PathArray.h>
 #include <core/TrackingSettings.h>
 #include <file/DataLocation.h>
-#include <misc/CommandLine.h>
 #include <misc/GlobalSettings.h>
 #include <pv.h>
 
@@ -11,170 +9,51 @@ namespace cmn::settings {
 std::optional<std::string> video_source_error(const file::PathArray& source) {
     if(source.any_files_are("pv") && not source.all_files_are("pv"))
         return "The source mixes PV recordings with raw input files. Select PV recordings or raw inputs separately.";
+    if(source.all_files_are("pv") && not source.has_single_match())
+        return "Tracking requires one PV recording. Selected " + source.blocking_toStr() + ".";
     return std::nullopt;
 }
 
-file::Path resolve_file_path(const file::Path& path) {
-    if(path.str().find("..") == std::string::npos)
-        return path;
-    if(path.filename() == "..")
-        return path.absolute().canonical().value_or(path);
-    const auto parent = path.remove_filename();
-    if(contains(utils::split(std::string_view(parent.str()), file::Path::os_sep()), std::string_view(".."))) {
-        if(auto resolved = parent.absolute().canonical())
-            return *resolved / path.filename();
-    }
-    return path;
+file::Filename choose_output_name(const file::PathArray& source) {
+    if(source.has_single_match("pv"))
+        return file::Filename(source[0].filename());
+
+    const file::Path name(file::find_basename(source));
+    return name.empty() ? file::Filename{} : file::Filename(name.add_extension("pv"));
 }
 
-file::Path resolve_output_path(const file::Path& path, bool (*available)(const file::Path&), const sprite::Map* map) {
-    if(not available)
-        available = [](const file::Path& candidate) { return candidate.is_regular(); };
-    auto candidate = resolve_file_path(path);
-    if(path.empty() || path.is_absolute() || available(candidate))
-        return candidate;
+file::Filename choose_output_name(const sprite::Map& map) {
+    const auto requested = map.value_with_default("filename", file::Filename{});
+    if(not requested.path().empty())
+        return file::Filename(requested.path().add_extension("pv"));
 
-    auto output = file::DataLocation::parse("output", path, map);
-    return available(output) ? output : candidate;
+    auto source = map.value_with_default("source", file::PathArray{});
+    if(source.has_source() && not source.is_single_file())
+        source = file::DataLocation::parse("input", source, &map);
+    return choose_output_name(source);
 }
 
-file::Path find_output_name(const sprite::Map& map,
-                            file::PathArray source,
-                            bool respect_user_choice)
-{
-    const auto _source = source.has_source()
-        ? source
-        : map.value_with_default("source", file::PathArray{});
-
-    auto name = file::Path{};
-    if(respect_user_choice)
-        name = map.value_with_default("filename", file::Filename{}).path();
-
-    file::Path filename;
-    if(not name.empty())
-        filename = file::DataLocation::parse("output", name, &map);
-
-    if(filename.empty()) {
-        if(_source.has_single_match("pv")) {
-            file::Path path = _source.get_paths().front();
-            if(not path.empty()) {
-                filename = file::DataLocation::parse("input", path, &map).absolute();
-            } else {
-                filename = {};
-            }
-        } else {
-            filename = file::find_basename(_source);
-        }
-
-        if(not filename.empty()
-           && not filename.has_extension("pv"))
-        {
-            filename = file::DataLocation::parse("output", filename, &map);
-        } else if(filename.empty()) {
-            filename = {};
-        }
-    }
-
-    if(filename.has_extension("pv")) {
-        filename = filename.remove_extension();
-    }
-
-    return filename;
+file::Path resolve_recording_path() {
+    return GlobalSettings::read([](const Configuration& config) {
+        return resolve_recording_path(config.values);
+    });
 }
 
-file::Path find_existing_output_name(const sprite::Map& map,
-                                     file::PathArray source,
-                                     bool required)
-{
-    if(not source.has_source())
-        source = map.value_with_default("source", source);
-    if(auto error = video_source_error(source)) {
-        if(required)
-            throw InvalidArgumentException(*error);
+file::Path resolve_recording_path(const sprite::Map& map) {
+    const auto source = map.at("source").value<file::PathArray>();
+    if(source.empty() || video_source_error(source))
         return {};
-    }
-    
-    auto output_name = find_output_name(map, source);
-    if(output_name.empty() && source.empty()) {
-        return "";
-    }
-
-    const auto path = file::DataLocation::parse(
-        "output", file::Path(output_name.filename()).add_extension("pv"), &map);
-
-    if(path.is_regular()) {
-        return path.remove_extension();
-    }
-
-    if(source.has_single_match()) {
-        const auto& input = source.get_paths().front();
-        const auto base = input.remove_filename()
-            / file::find_basename(source);
-
-        const auto candidate = input.has_extension("pv")
-            ? file::DataLocation::parse("input", input, &map)
-            : (source.is_single_file() && not CommandLine::instance().launch_dir().empty()
-                ? file::DataLocation::parse("input", base.add_extension("pv"), &map)
-                : resolve_file_path(base.add_extension("pv")));
-
-        if(candidate != path && candidate.is_regular())
-            return candidate.remove_extension();
-    }
-
-    if(not required)
-        return {};
-    throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", source, " seems to be a .pv file.");
+    return resolve_recording_path(map, source);
 }
 
-file::PathArray find_conversion_source(const sprite::Map& map) {
-    const auto usable_source = [&map](file::PathArray source) -> file::PathArray {
-        if(is_in(source.source(), "webcam", "basler"))
-            return source;
-        const auto& launch = CommandLine::instance().launch_dir();
-        if(   not launch.empty() 
-           && source.is_single_file()) 
-        {
-            source = file::PathArray(file::DataLocation::parse("input", source.get_paths().front(), &map));
-        }
-        const auto& paths = source.get_paths();
-        if(not paths.empty()
-            && std::all_of(paths.begin(), paths.end(), [](const file::Path& path) {
-                return not path.has_extension("pv") && path.is_regular();
-            }))
-        {
-            return source;
-        }
-        return {};
-    };
-
-    if(auto ref = map.at("source"); ref.valid()) {
-        auto selected = ref.value<file::PathArray>();
-        if(video_source_error(selected))
-            return {};
-        auto source = usable_source(std::move(selected));
-        if(not source.empty())
-            return source;
-    }
-
-    // Conversion recovers the original video from metadata using these locations.
-    if(const auto path = map.value_with_default("meta_source_path", std::string{});
-       not path.empty())
-    {
-        for(const auto& candidate : std::array{
-            path,
-            file::DataLocation::parse("input", path, &map).str(),
-            file::DataLocation::parse("output", path, &map).str()
-        }) {
-            auto source = usable_source(file::PathArray(candidate));
-            if(not source.empty())
-                return source;
-        }
-    }
-    return {};
-}
-
-bool conversion_source_exists(const sprite::Map& map) {
-    return not find_conversion_source(map).empty();
+file::Path resolve_recording_path(const sprite::Map& map, const file::PathArray& source) {
+    // One PV match identifies the recording to open. A raw source uses the
+    // configured conversion output. Source validation rejects multiple PVs
+    // and selections that mix PVs with raw files.
+    if(source.has_single_match("pv"))
+        return file::DataLocation::parse("input", source[0], &map);
+    const auto name = choose_output_name(map);
+    return file::DataLocation::parse("output", name.path(), &map);
 }
 
 Float2_t infer_cm_per_pixel(const sprite::Map* map) {

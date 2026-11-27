@@ -16,6 +16,7 @@
 #include <pv.h>
 #include <tracking/Output.h>
 #include <tracking/Tracker.h>
+#include <ui/RecentItems.h>
 #include <video/VideoSource.h>
 #include "test_filesystem.h"
 
@@ -171,36 +172,32 @@ file::Path basename_without_extension(const file::Path& path) {
 }
 
 file::Path resolve_tracking_filename() {
-    const auto filename = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_existing_output_name(config.values);
+    const auto recording = GlobalSettings::read([](const Configuration& config) {
+        const auto source = config.at("source").value<file::PathArray>();
+        if(source.empty() || settings::video_source_error(source))
+            return file::Path{};
+        if(source.has_single_match("pv"))
+            return file::DataLocation::parse("input", source[0], &config.values);
+        return file::DataLocation::parse("output", settings::choose_output_name(config.values).path(), &config.values);
     });
-    SETTING(filename) = file::Filename(filename.filename());
-    return filename;
+    EXPECT_TRUE(recording.is_regular()) << "Tracking requires an existing PV at " << recording.str();
+    if(READ_SETTING(filename, file::Filename).path().empty())
+        SETTING(filename) = file::Filename(recording.remove_extension().filename());
+    return recording;
 }
 
-class TrackingFilenameResolutionTest : public ::testing::Test {
+class PathResolutionTest : public ::testing::Test {
 protected:
     fs::path root;
     file::Path input_dir;
     file::Path output_dir;
 
     void SetUp() override {
-        register_data_locations_once();
-        reset_global_settings();
-        CommandLine::instance() = CommandLine{};
-
         root = fs::canonical(fs::temp_directory_path()) / ("trex-filename-resolution-" + unique_suffix());
         input_dir = file::Path((root / "input").string());
         output_dir = file::Path((root / "output").string());
         fs::create_directories(input_dir.str());
         fs::create_directories(output_dir.str());
-
-        SETTING(wd) = file::Path{};
-        SETTING(source) = file::PathArray{};
-        SETTING(filename) = file::Filename{};
-        SETTING(output_dir) = output_dir;
-        SETTING(output_prefix) = std::string{};
-        SETTING(quiet) = true;
     }
 
     void TearDown() override {
@@ -216,6 +213,23 @@ protected:
             throw std::runtime_error("Cannot create test file " + path.str());
         return path;
     }
+};
+
+class TrackingFilenameResolutionTest : public PathResolutionTest {
+protected:
+    void SetUp() override {
+        register_data_locations_once();
+        reset_global_settings();
+        CommandLine::instance() = CommandLine{};
+        PathResolutionTest::SetUp();
+
+        SETTING(wd) = file::Path{};
+        SETTING(source) = file::PathArray{};
+        SETTING(filename) = file::Filename{};
+        SETTING(output_dir) = output_dir;
+        SETTING(output_prefix) = file::RelativePath{};
+        SETTING(quiet) = true;
+    }
 
     sprite::Map settings_map(const file::PathArray& source,
                              const std::optional<file::Path>& output_dir = std::nullopt,
@@ -230,12 +244,177 @@ protected:
             map["output_dir"] = output_dir.value();
         
         if(output_prefix)
-            map["output_prefix"] = std::move(output_prefix.value());
+            map["output_prefix"] = file::RelativePath(*output_prefix);
         
         map["wd"] = file::Path{};
         return map;
     }
 };
+
+// The /work, /media and /exports paths in docs/path-resolution.md live under the fixture root.
+struct RecordingPathCase {
+    std::string name;
+    std::string input;
+    std::string prefix{};
+    std::string directory{};
+    std::string recording;
+    std::string outputs;
+};
+
+void PrintTo(const RecordingPathCase& rule, std::ostream* os) {
+    *os << rule.name << "  -i '" << rule.input << "'  -p '" << rule.prefix
+        << "'  -d '" << rule.directory << "'  expected PV '" << rule.recording
+        << "', expected output directory '" << rule.outputs << "'";
+}
+
+const RecordingPathCase recording_paths[] = {
+    {.name = "PvBesideLaunch", .input = "clip.pv",
+     .recording = "/work/clip.pv", .outputs = "/work"},
+    {.name = "PvWithPrefix", .input = "clip.pv", .prefix = "run",
+     .recording = "/work/clip.pv", .outputs = "/work/run"},
+    {.name = "RelativePvWithPrefix", .input = "rel/clip.pv", .prefix = "run",
+     .recording = "/work/rel/clip.pv", .outputs = "/work/rel/run"},
+    {.name = "AbsolutePvWithPrefix", .input = "/media/clip.pv", .prefix = "run",
+     .recording = "/media/clip.pv", .outputs = "/media/run"},
+    {.name = "AbsolutePvWithRelativeDirectory", .input = "/media/clip.pv", .directory = "out",
+     .recording = "/media/clip.pv", .outputs = "/work/out"},
+    {.name = "AbsolutePvWithRelativeDirectoryAndPrefix", .input = "/media/clip.pv", .prefix = "run", .directory = "out",
+     .recording = "/media/clip.pv", .outputs = "/work/out/run"},
+    {.name = "RelativePvWithAbsoluteDirectoryAndPrefix", .input = "rel/clip.pv", .prefix = "run", .directory = "/exports",
+     .recording = "/work/rel/clip.pv", .outputs = "/exports/run"},
+    {.name = "MovieBesideLaunch", .input = "clip.mov",
+     .recording = "/work/clip.pv", .outputs = "/work"},
+    {.name = "MovieWithPrefix", .input = "clip.mov", .prefix = "run",
+     .recording = "/work/run/clip.pv", .outputs = "/work/run"},
+    {.name = "RelativeMovieWithPrefix", .input = "rel/clip.mov", .prefix = "run",
+     .recording = "/work/rel/run/clip.pv", .outputs = "/work/rel/run"},
+    {.name = "AbsoluteMovieWithPrefix", .input = "/media/clip.mov", .prefix = "run",
+     .recording = "/media/run/clip.pv", .outputs = "/media/run"},
+    {.name = "AbsoluteMovieWithRelativeDirectory", .input = "/media/clip.mov", .directory = "out",
+     .recording = "/work/out/clip.pv", .outputs = "/work/out"},
+    {.name = "AbsoluteMovieWithRelativeDirectoryAndPrefix", .input = "/media/clip.mov", .prefix = "run", .directory = "out",
+     .recording = "/work/out/run/clip.pv", .outputs = "/work/out/run"},
+    {.name = "RelativeMovieWithAbsoluteDirectoryAndPrefix", .input = "rel/clip.mov", .prefix = "run", .directory = "/exports",
+     .recording = "/exports/run/clip.pv", .outputs = "/exports/run"},
+    {.name = "BareRecordingBesideLaunch", .input = "clip",
+     .recording = "/work/clip.pv", .outputs = "/work"},
+    {.name = "BareRecordingWithPrefix", .input = "clip", .prefix = "run",
+     .recording = "/work/run/clip.pv", .outputs = "/work/run"},
+    {.name = "BareRecordingWithAbsoluteDirectoryAndPrefix", .input = "clip", .prefix = "run", .directory = "/exports",
+     .recording = "/exports/run/clip.pv", .outputs = "/exports/run"},
+    {.name = "WebcamWithDirectoryAndPrefix", .input = "webcam", .prefix = "run", .directory = "out",
+     .recording = "/work/out/run/webcam.pv", .outputs = "/work/out/run"},
+    {.name = "NoSourceWithDirectoryAndPrefix", .input = "", .prefix = "run", .directory = "out",
+     .recording = "", .outputs = "/work/out/run"},
+    {.name = "BaslerWithDirectoryAndPrefix", .input = "basler", .prefix = "run", .directory = "out",
+     .recording = "/work/out/run/basler.pv", .outputs = "/work/out/run"},
+    {.name = "SourceDirectoryHasSameNameAsPrefix", .input = "run/clip.mov", .prefix = "run",
+     .recording = "/work/run/run/clip.pv", .outputs = "/work/run/run"}
+};
+
+class RecordingPathRules : public TrackingFilenameResolutionTest,
+                           public ::testing::WithParamInterface<RecordingPathCase> {
+protected:
+    file::Path input;
+    sprite::Map map;
+    std::optional<ScopedCurrentPath> current_path;
+
+    file::Path fixture_path(std::string_view name) const {
+        if(name.starts_with('/'))
+            return file::Path((root / fs::path(name.substr(1))).string());
+        return file::Path(name);
+    }
+
+    void SetUp() override {
+        TrackingFilenameResolutionTest::SetUp();
+        const auto work = fixture_path("/work");
+        fs::create_directories(work.str());
+        {
+            const ScopedCurrentPath launch(work.str());
+            char executable[] = "test_tracking_filename_resolution";
+            char* argv[]{executable, nullptr};
+            CommandLine::init(1, argv, true);
+        }
+        current_path.emplace(output_dir.str());
+
+        const auto& rule = GetParam();
+        input = fixture_path(rule.input);
+        map = settings_map(file::PathArray(input), fixture_path(rule.directory), std::nullopt, rule.prefix);
+        if(input.has_extension("pv") || input.has_extension("mov"))
+            create_regular_file(input.is_absolute() ? input : work / input);
+    }
+
+    void TearDown() override {
+        current_path.reset();
+        TrackingFilenameResolutionTest::TearDown();
+    }
+};
+
+TEST_P(RecordingPathRules, SelectsRecording) {
+    SCOPED_TRACE(::testing::PrintToString(GetParam()));
+    if(input.has_extension("pv") || input.has_extension("mov")) {
+        const auto expected_input = input.is_absolute() ? input : fixture_path("/work") / input;
+        const auto resolved = file::DataLocation::parse("input", input, &map);
+        EXPECT_EQ(resolved, expected_input) << "The literal input must resolve from launch.";
+        EXPECT_EQ(file::DataLocation::parse("input", resolved, &map), expected_input)
+            << "Resolving an absolute input a second time must preserve it.";
+    }
+
+    const auto expected = fixture_path(GetParam().recording);
+    const bool explicit_pv = input.has_extension("pv");
+    const auto name = explicit_pv ? input : settings::choose_output_name(map).path();
+    if(expected.empty()) {
+        EXPECT_TRUE(name.empty()) << "A source is required to select a recording.";
+        EXPECT_TRUE(settings::resolve_recording_path(map).empty());
+        return;
+    }
+    if(not explicit_pv)
+        ASSERT_EQ(name, file::Path(expected.filename())) << "PV filename chosen for the selected source.";
+    const auto location = explicit_pv ? "input" : "output";
+    file::Path recording;
+    ASSERT_NO_THROW(recording = settings::resolve_recording_path(map))
+        << "Expected tracking PV " << expected.str();
+    EXPECT_EQ(recording, expected) << "PV selected for frames and metadata.";
+    EXPECT_EQ(file::DataLocation::parse(location, recording, &map), expected)
+        << "Resolving the selected PV twice must preserve its path.";
+}
+
+TEST_P(RecordingPathRules, PlacesOutputs) {
+    SCOPED_TRACE(::testing::PrintToString(GetParam()));
+    const auto expected_csv = fixture_path(GetParam().outputs) / "data/fish.csv";
+    const auto csv = file::DataLocation::parse("output", "data/fish.csv", &map);
+    EXPECT_EQ(csv, expected_csv) << "Analysis exports belong under the selected output directory.";
+    EXPECT_EQ(file::DataLocation::parse("output", csv, &map), expected_csv)
+        << "Resolving the CSV a second time must preserve its data subdirectory.";
+    const auto absolute_csv = fixture_path("/archive/fish.csv");
+    EXPECT_EQ(file::DataLocation::parse("output", absolute_csv, &map), absolute_csv)
+        << "An explicitly chosen absolute export keeps its own directory.";
+
+    if(input.has_extension("mov") || settings::is_camera_source(GetParam().input)) {
+        const auto expected = fixture_path(GetParam().recording);
+        const auto planned = file::DataLocation::parse("output", expected.filename(), &map);
+        EXPECT_EQ(planned, expected) << "PV created by conversion.";
+        EXPECT_EQ(file::DataLocation::parse("output", planned, &map), expected)
+            << "Resolving the conversion target twice must preserve the PV path.";
+    }
+    if(input.has_extension("mov")) {
+        const file::Path movie(input.filename());
+        EXPECT_EQ(file::DataLocation::parse("output", movie, &map), fixture_path(GetParam().outputs) / movie)
+            << "The output location must preserve the supplied .mov filename.";
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(PathTable, RecordingPathRules, ::testing::ValuesIn(recording_paths),
+    [](const ::testing::TestParamInfo<RecordingPathCase>& info) { return info.param.name; });
+
+TEST_F(TrackingFilenameResolutionTest, RejectsAbsoluteOutputPrefix) {
+    Configuration config;
+    default_config::get(config);
+    auto& prefix = config.values["output_prefix"].get();
+    EXPECT_THROW(prefix.set_value_from_string(output_dir.str()), UtilsException)
+        << "An absolute directory belongs in -d. The -p option takes a relative subdirectory.";
+    EXPECT_TRUE(config.at("output_prefix").value<file::RelativePath>().empty());
+}
 
 TEST_F(TrackingFilenameResolutionTest, ReadsSettingsFileWithAUnicodeName) {
     const auto path = root / u8"caf\u00e9.settings";
@@ -263,12 +442,9 @@ TEST_F(TrackingFilenameResolutionTest, OutputResolvesModelAboveMissingPrefixDire
     fs::create_directory(work.str());
     ScopedCurrentPath cwd(work.str());
     const auto model = create_regular_file(output_dir / "project.pt");
-    SETTING(output_prefix) = std::string("Location/2026");
+    SETTING(output_prefix) = file::RelativePath("Location/2026");
     SETTING(detect_model) = file::Path("../../project.pt");
 
-    const auto path = file::DataLocation::parse("output", "../../project.pt");
-    EXPECT_EQ(path, model);
-    EXPECT_TRUE(path.is_regular());
     EXPECT_EQ(track::detect::yolo::current_detect_model_path(), model);
 }
 
@@ -277,87 +453,192 @@ TEST_F(TrackingFilenameResolutionTest, InputAndAppResolveTraversalFromTheirOwnDi
     char executable[] = "test_tracking_filename_resolution";
     char* argv[]{executable, nullptr};
     CommandLine::init(1, argv, true);
+    const ScopedCurrentPath current_path(root);
     auto map = settings_map({}, output_dir);
     map["wd"] = output_dir;
     const auto pv = create_regular_file(input_dir / "run.pv");
-    EXPECT_EQ(file::DataLocation::parse("input", pv, &map), pv);
-    EXPECT_EQ(file::DataLocation::parse("app", pv, &map), pv);
-    EXPECT_EQ(file::DataLocation::parse("app", input_dir / "missing" / ".." / "run.pv", &map), pv);
-    EXPECT_EQ(file::DataLocation::parse("input", "missing/../run.pv", &map), pv);
-    EXPECT_EQ(file::DataLocation::parse("input", input_dir / "missing" / "..", &map), input_dir);
-
     const auto app = file::DataLocation::parse("app", {}, &map).absolute().canonical();
     ASSERT_TRUE(app.has_value());
-    EXPECT_EQ(file::DataLocation::parse("app", "missing/../default.settings", &map),
-              *app / "default.settings");
+    ASSERT_NE(*app, input_dir);
+
+    const file::Path relative("missing/../run.pv");
+    EXPECT_EQ(file::DataLocation::parse("input", relative, &map), pv);
+    EXPECT_EQ(file::DataLocation::parse("app", relative, &map), *app / "run.pv");
+    EXPECT_EQ(file::DataLocation::parse("input", pv, &map), pv);
+    EXPECT_EQ(file::DataLocation::parse("app", pv, &map), pv);
+}
+
+TEST_F(PathResolutionTest, ResolveRelativePathNormalizesOnlyWholeDotComponents) {
+    using default_config::resolve_relative_path;
+    const ScopedCurrentPath cwd(input_dir.str());
+    const auto recording = create_regular_file(input_dir / "clip.pv");
+    const auto takes = input_dir / "takes";
+    fs::create_directory(takes.str());
+
+    const file::Path relative("takes/clip.pv");
+    const file::Path dotted_name("..survey/clip..pv");
+    EXPECT_EQ(resolve_relative_path({}), file::Path{});
+    EXPECT_EQ(resolve_relative_path(relative), relative);
+    EXPECT_EQ(resolve_relative_path(dotted_name), dotted_name);
+    EXPECT_EQ(resolve_relative_path(recording), recording);
+
+    EXPECT_EQ(resolve_relative_path("."), input_dir);
+    EXPECT_EQ(resolve_relative_path(".."), file::Path(root.string()));
+    EXPECT_EQ(resolve_relative_path("./clip.pv"), recording);
+    EXPECT_EQ(resolve_relative_path("../output/fish.csv"), output_dir / "fish.csv");
+    EXPECT_EQ(resolve_relative_path(takes / "."), takes);
+    EXPECT_EQ(resolve_relative_path(takes / ".."), input_dir);
+    EXPECT_EQ(resolve_relative_path(takes / "./fish.csv"), takes / "fish.csv");
+    EXPECT_EQ(resolve_relative_path(takes / "../clip.pv"), recording);
+
+    const auto new_output = resolve_relative_path(input_dir / "missing/./session/../../fish.csv");
+    EXPECT_EQ(new_output, input_dir / "fish.csv") << "Both missing directory components are followed by parent traversal.";
+    EXPECT_EQ(resolve_relative_path(new_output), new_output);
+
+    const auto recording_link = input_dir / "selected.pv";
+    const auto survey_link = output_dir / "survey..east";
+    std::error_code link_error;
+    fs::create_directory_symlink(input_dir.str(), survey_link.str(), link_error);
+    if(not link_error)
+        fs::create_symlink(recording.str(), recording_link.str(), link_error);
+    if(link_error == std::errc::permission_denied || link_error == std::errc::operation_not_permitted
+       || link_error == std::errc::operation_not_supported || link_error == std::errc::function_not_supported)
+    {
+        RecordProperty("symlinks_unavailable", link_error.message());
+    } else {
+        ASSERT_FALSE(link_error) << link_error.message();
+        const auto selected = survey_link / "selected.pv";
+        EXPECT_EQ(resolve_relative_path(selected), selected);
+        EXPECT_EQ(resolve_relative_path(survey_link / "takes/.."), input_dir);
+        EXPECT_EQ(resolve_relative_path(survey_link / "takes/../selected.pv"), recording_link)
+            << "Resolve the parent directory while preserving the selected recording's link name.";
+    }
+
+    const file::Path oversized_component(std::string(256, 'x'));
+    const auto parent = input_dir / oversized_component / "takes" / "..";
+    std::error_code canonical_error;
+    const auto canonical = fs::weakly_canonical(fs::absolute(parent.str()), canonical_error);
+    if(canonical_error) {
+        EXPECT_EQ(resolve_relative_path(parent), parent);
+        const auto child = parent / "clip.pv";
+        EXPECT_EQ(resolve_relative_path(child), child)
+            << "A failed parent lookup must preserve the complete original filename.";
+    } else {
+        RecordProperty("oversized_path_resolved", canonical.string());
+    }
 }
 
 TEST_F(TrackingFilenameResolutionTest, MissingConversionSourceStillAllowsAdjacentPvTracking) {
     const auto pv = create_regular_file(input_dir / "source.pv");
-    for(const auto& source : {pv, input_dir / "source.mp4"}) {
-        auto map = settings_map(file::PathArray(source), output_dir);
-        map["meta_source_path"] = (input_dir / "source.mp4").str();
-        EXPECT_FALSE(settings::conversion_source_exists(map));
-        EXPECT_EQ(settings::find_existing_output_name(map, {}, false), pv.remove_extension());
-    }
+    const auto missing_movie = input_dir / "source.mp4";
+    ASSERT_FALSE(missing_movie.is_regular());
+    auto movie_map = settings_map(file::PathArray(missing_movie));
+    EXPECT_EQ(file::DataLocation::parse("output", settings::choose_output_name(movie_map).path(), &movie_map), pv);
     auto map = settings_map(file::PathArray(input_dir / "absent.mp4"), output_dir);
-    EXPECT_FALSE(settings::conversion_source_exists(map));
-    EXPECT_TRUE(settings::find_existing_output_name(map, {}, false).empty());
+    EXPECT_EQ(file::DataLocation::parse("output", settings::choose_output_name(map).path(), &map),
+              output_dir / "absent.pv");
 }
 
-TEST_F(TrackingFilenameResolutionTest, ConversionSourceChecksOriginalVideoAndMetadataLocations) {
+TEST_F(TrackingFilenameResolutionTest, MovedPvBesideRawVideoDoesNotOverrideConfiguredOutputDirectory) {
+    const ScopedCurrentPath launch(root);
+    char executable[] = "test_tracking_filename_resolution";
+    char* argv[]{executable, nullptr};
+    CommandLine::init(1, argv, true);
+    create_regular_file(input_dir / "camera.mp4");
+    const auto recording = create_regular_file(output_dir / "session" / "shoal.pv");
+    const auto moved = input_dir / recording.filename();
+    auto map = settings_map(file::PathArray("input/camera.mp4"), file::Path("output"), "shoal", "session");
+    create_regular_file(input_dir / "camera.pv");
+
+    const auto name = settings::choose_output_name(map);
+    ASSERT_EQ(name.str(), "shoal.pv");
+    EXPECT_EQ(file::DataLocation::parse("output", name.path(), &map), recording);
+    fs::rename(recording.str(), moved.str());
+    const auto missing = file::DataLocation::parse("output", name.path(), &map);
+    EXPECT_EQ(missing, recording) << "Moving a file must not change the selected output path.";
+    EXPECT_FALSE(missing.is_regular());
+}
+
+TEST_F(TrackingFilenameResolutionTest, RecentVideoKeepsItsInputDirectoryAcrossLaunches) {
+    char executable[] = "test_tracking_filename_resolution";
+    char* argv[]{executable, nullptr};
+    const auto video = create_regular_file(input_dir / "recording.mp4");
+    const file::PathArray relative_video{"recording.mp4"};
+    {
+        const ScopedCurrentPath launch(input_dir.str());
+        CommandLine::init(1, argv, true);
+        SETTING(wd) = file::Path(root.string());
+        if(RecentItems::filename() != file::Path(root.string()) / ".trex_recent_files")
+            GTEST_SKIP() << "This build stores recent items in its installation directory.";
+        SETTING(source) = relative_video;
+        RecentItems::open(relative_video, settings_map(relative_video, output_dir));
+    }
+
+    const ScopedCurrentPath next_launch(output_dir.str());
+    CommandLine::init(1, argv, true);
+    SETTING(wd) = file::Path(root.string());
+    create_regular_file(output_dir / "recording.mp4");
+    const auto recent = RecentItems::read();
+    ASSERT_EQ(recent.file().entries.size(), 1u);
+    const auto& entry = recent.file().entries.front();
+    EXPECT_EQ(entry.name, (output_dir / "recording").str());
+    EXPECT_EQ(entry._options.at("source").value<file::PathArray>(), file::PathArray(video));
+}
+
+TEST_F(TrackingFilenameResolutionTest, ResolvesSingleFilesAndPreservesCameraNamesAndPatterns) {
     const ScopedCurrentPath launch(input_dir.str());
     char executable[] = "test_tracking_filename_resolution";
     char* argv[]{executable, nullptr};
     CommandLine::init(1, argv, true);
+    const auto recording = create_regular_file(input_dir / "clips/basler");
+    const auto webcam_video = create_regular_file(input_dir / "webcam.mp4");
+    const auto first_frame = create_regular_file(input_dir / "frames/frame000.mov");
+    const auto second_frame = create_regular_file(input_dir / "frames/frame001.mov");
+    create_regular_file(file::Path(root.string()) / "frames/frame999.mov");
+    const file::PathArray pattern("frames/frame*.mov");
+
     const ScopedCurrentPath current_path(root);
-    const auto pv = create_regular_file(input_dir / "source.pv");
-    auto map = settings_map(file::PathArray(pv), output_dir);
-    EXPECT_FALSE(settings::conversion_source_exists(map));
-    map["meta_source_path"] = pv.str();
-    EXPECT_FALSE(settings::conversion_source_exists(map));
-
-    const auto original = create_regular_file(input_dir / "original.mp4");
-    map["meta_source_path"] = original.str();
-    EXPECT_TRUE(settings::conversion_source_exists(map));
-    fs::remove(original.str());
-    EXPECT_FALSE(settings::conversion_source_exists(map));
-
-    create_regular_file(input_dir / "input-only.mp4");
-    map["meta_source_path"] = std::string("input-only.mp4");
-    EXPECT_TRUE(settings::conversion_source_exists(map));
-
-    map["output_prefix"] = std::string("session");
-    create_regular_file(output_dir / "session" / "output-only.mp4");
-    map["meta_source_path"] = std::string("output-only.mp4");
-    EXPECT_TRUE(settings::conversion_source_exists(map));
-    map["meta_source_path"] = std::string("missing.mp4");
-    EXPECT_FALSE(settings::conversion_source_exists(map));
-}
-
-TEST_F(TrackingFilenameResolutionTest, ConversionSourceRequiresFilesButAllowsCameras) {
-    auto map = settings_map(file::PathArray{}, output_dir);
-    EXPECT_FALSE(settings::conversion_source_exists(map));
-    const auto source = create_regular_file(input_dir / "source.mp4");
-    map["source"] = file::PathArray(source);
-    EXPECT_TRUE(settings::conversion_source_exists(map));
-    fs::remove(source.str());
-    EXPECT_FALSE(settings::conversion_source_exists(map));
-    for(const auto* camera : {"webcam", "basler"}) {
-        map["source"] = file::PathArray(camera);
-        EXPECT_TRUE(settings::conversion_source_exists(map));
+    const auto map = settings_map({}, output_dir);
+    for(const auto* device : {"webcam", "basler"}) {
+        settings::LoadContext context{.source = file::PathArray(device), .quiet = true};
+        default_config::get(context.combined);
+        context.init_filename();
+        EXPECT_EQ(context.combined.at("source").value<file::PathArray>().source(), device);
     }
+    const auto camera_named_file = file::DataLocation::parse("input", file::PathArray("clips/basler"), &map);
+    EXPECT_EQ(camera_named_file.get_paths(), std::vector<file::Path>{recording});
+    const auto movie = file::DataLocation::parse("input", file::PathArray("webcam.mp4"), &map);
+    EXPECT_EQ(movie.get_paths(), std::vector<file::Path>{webcam_video});
+    const auto frames = file::DataLocation::parse("input", pattern, &map);
+    const std::vector<file::Path> expected_frames{first_frame, second_frame};
+    EXPECT_EQ(frames.get_paths(), expected_frames) << "Expand the pattern in the launch directory.";
+    const auto reopened = file::DataLocation::parse("input", frames, &map);
+    EXPECT_EQ(reopened.get_paths(), expected_frames) << "Reparsing preserves every matched input.";
 }
 
-TEST_F(TrackingFilenameResolutionTest, MixedSourceCannotConvertUsingAnOriginalVideoFromMetadata) {
-    const auto original = create_regular_file(input_dir / "original.mp4");
-    file::PathArray selection{"recording.*"};
-    selection.ensure_loaded(trex_test::TestFilesystem{"recording.pv", "recording.mp4"});
-    ASSERT_EQ(selection.size(), 2u);
-    auto map = settings_map(selection, output_dir);
-    map["meta_source_path"] = original.str();
+TEST_F(TrackingFilenameResolutionTest, PathArrayUsesTheScalarResolverForEveryFileInOrder) {
+    const ScopedCurrentPath launch(input_dir.str());
+    char executable[] = "test_tracking_filename_resolution";
+    char* argv[]{executable, nullptr};
+    CommandLine::init(1, argv, true);
+    const ScopedCurrentPath elsewhere(root);
 
-    EXPECT_TRUE(settings::find_conversion_source(map).empty());
+    file::DataLocation::replace_path("test-array-export", [](const sprite::Map& map, file::Path path) {
+        EXPECT_TRUE(path.is_absolute()) << "The scalar resolver must receive each absolute source path.";
+        return path.add_extension(map.at("suffix").value<std::string>());
+    });
+    sprite::Map options;
+    options["suffix"] = std::string("%03d");
+    const file::PathArray sources(std::vector<std::string>{
+        "second.mov", (output_dir / "absolute.mov").str(), "first.mov"
+    });
+
+    const auto exports = file::DataLocation::parse("test-array-export", sources, &options);
+    const std::vector<file::Path> expected{
+        input_dir / "second.mov.%03d", output_dir / "absolute.mov.%03d", input_dir / "first.mov.%03d"
+    };
+    EXPECT_EQ(exports.get_paths(), expected)
+        << "Each input yields its literal export path at the same index, including the %03d suffix.";
 }
 
 TEST_F(TrackingFilenameResolutionTest, TestFilesystemMatchesDiskForEmptyPathAndCurrentDirectory) {
@@ -388,12 +669,23 @@ TEST(TrackingFilenameResolution, RawVideosWithDifferentExtensionsCanBeSelectedTo
     EXPECT_FALSE(settings::video_source_error(source).has_value());
 }
 
-TEST_F(TrackingFilenameResolutionTest, MixedSourceCannotTrackAnExistingOutput) {
-    create_regular_file(output_dir / "existing.pv");
-    auto map = settings_map(file::PathArray{R"(["video.mp4","recording.PV"])"}, output_dir, file::Path("existing"));
+TEST_F(TrackingFilenameResolutionTest, MovieSequenceUsesOneRecordingForTheWholeSource) {
+    const auto first = create_regular_file(input_dir / "survey/first.mov");
+    const auto second = create_regular_file(input_dir / "survey/second.mov");
+    const file::PathArray sequence(std::vector<std::string>{first.str(), second.str()});
+    const ScopedCurrentPath launch(first.remove_filename().str());
+    char executable[] = "test_tracking_filename_resolution";
+    char* argv[]{executable, nullptr};
+    CommandLine::init(1, argv, true);
+    const ScopedCurrentPath current_path(output_dir.str());
+    const auto map = settings_map(file::PathArray("*.mov"), output_dir, std::nullopt, "run");
+    const auto expected_pv = output_dir / "run/survey.pv";
 
-    EXPECT_TRUE(settings::find_existing_output_name(map, {}, false).empty());
-    EXPECT_THROW(settings::find_existing_output_name(map), std::invalid_argument);
+    const auto name = settings::choose_output_name(sequence);
+    ASSERT_EQ(name.str(), "survey.pv") << "Both clips share the survey directory.";
+    EXPECT_EQ(settings::choose_output_name(map).str(), "survey.pv")
+        << "The relative pattern selects the same two movies in the launch directory.";
+    EXPECT_EQ(file::DataLocation::parse("output", name.path(), &map), expected_pv);
 }
 
 class SettingsPrecedenceTest : public TrackingFilenameResolutionTest {
@@ -402,6 +694,7 @@ protected:
 
     void SetUp() override {
         TrackingFilenameResolutionTest::SetUp();
+        register_data_locations_once();
         default_settings = file::Path((root / "default.settings").string());
         // Each case loads its own defaults, including in installed builds.
         file::DataLocation::replace_path("default.settings",
@@ -454,25 +747,77 @@ protected:
     }
 };
 
+TEST_F(SettingsPrecedenceTest, RecentWebcamFindsItsPvAndSettingsAfterLaunchingElsewhere) {
+    const auto recording = input_dir / "webcam";
+    const auto movie = copy_guppies_video_fixture(input_dir / "webcam.mp4");
+    write_pv(recording, movie, {});
+    write_settings(recording.add_extension("settings"), "track_threshold = 37\n");
+    const auto pv = recording.add_extension("pv");
+    const auto source = file::PathArray(pv);
+    auto options = settings_map(source, pv.remove_filename());
+    options["meta_source_path"] = movie.str();
+    write_settings(output_dir / "webcam.settings", "track_threshold = 91\n");
+
+    const ScopedCurrentPath next_launch(output_dir.str());
+    char executable[] = "test_tracking_filename_resolution";
+    char* argv[]{executable, nullptr};
+    CommandLine::init(1, argv, true);
+    RecentItemJSON recent{.name = recording.str(), ._options = std::move(options)};
+    recent.load();
+
+    const auto values = GlobalSettings::read([](const Configuration& config) { return config.values; });
+    EXPECT_EQ(values.at("source").value<file::PathArray>(), source);
+    EXPECT_EQ(file::DataLocation::parse("input", values.at("source").value<file::PathArray>()[0], &values), pv);
+    EXPECT_EQ(file::DataLocation::parse("settings", {}, &values), recording.add_extension("settings"));
+    EXPECT_EQ(values.at("track_threshold").value<int>(), 37);
+}
+
+TEST_F(SettingsPrecedenceTest, RecentRecordingRecoversRawVideoMovedBesideItsPv) {
+    const auto movie = copy_guppies_video_fixture(input_dir / "camera.mp4");
+    const auto recording = output_dir / "group" / "session" / "shoal";
+    write_pv(recording, movie, {});
+    auto options = settings_map(file::PathArray(movie));
+    options["meta_source_path"] = movie.str();
+    RecentItemJSON recent{.name = recording.str(), .output_prefix = "group/session",
+                          .output_dir = "output", .filename = "shoal", ._options = std::move(options)};
+
+    const auto moved_movie = recording.remove_filename() / movie.filename();
+    fs::rename(movie.str(), moved_movie.str());
+    recent.load();
+
+    EXPECT_EQ(READ_SETTING(meta_source_path, std::string), moved_movie.str());
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath), file::RelativePath("group/session"));
+    EXPECT_EQ(resolve_tracking_filename(), recording.add_extension("pv"));
+}
+
+TEST_F(SettingsPrecedenceTest, RecentCameraKeepsItsSourceAfterConversion) {
+    const auto recording = output_dir / "shoal";
+    write_pv(recording, "webcam", {});
+    auto options = settings_map(file::PathArray("webcam"));
+    options["meta_source_path"] = std::string("webcam");
+    RecentItemJSON recent{.name = recording.str(), .filename = "shoal", ._options = std::move(options)};
+
+    recent.load();
+
+    EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray("webcam"));
+    EXPECT_EQ(READ_SETTING(filename, file::Filename), file::Filename("shoal"));
+    EXPECT_EQ(resolve_tracking_filename(), recording.add_extension("pv"));
+}
+
 // Policy: A relative filename chosen by the user uses output_dir/output_prefix;
 // entering the name with or without .pv selects the same recording.
 TEST_F(TrackingFilenameResolutionTest, ExplicitRelativeFilenameUsesOutputDirectoryAndPrefix) {
     const auto expected = file::Path((root / "output/session/chosen").string());
+    SETTING(source) = file::PathArray(input_dir / "camera.mp4");
     create_regular_file(expected.add_extension("pv"));
-    SETTING(output_prefix) = std::string("session");
+    SETTING(output_prefix) = file::RelativePath("session");
 
     SETTING(filename) = file::Filename("chosen");
-    EXPECT_EQ(resolve_tracking_filename(), expected);
+    EXPECT_EQ(resolve_tracking_filename(), expected.add_extension("pv"));
 
     SETTING(filename) = file::Filename("chosen.pv");
-    EXPECT_EQ(resolve_tracking_filename(), expected);
-}
-
-TEST_F(TrackingFilenameResolutionTest, AbsolutePvInOutputDirectoryUsesPrefix) {
-    SETTING(output_prefix) = std::string("session");
-
-    EXPECT_EQ(file::DataLocation::parse("output", output_dir / "run.pv"),
-              output_dir / "session" / "run.pv");
+    EXPECT_EQ(resolve_tracking_filename(), expected.add_extension("pv"));
 }
 
 // filename = nested/chosen.pv -> rejected, keeping the previous filename.
@@ -487,24 +832,6 @@ TEST_F(TrackingFilenameResolutionTest, ExplicitRelativeFilenameSubpathIsRejected
     }
 }
 
-// Policy: A relative tracking filename selects the PV under output_dir/output_prefix,
-// with or without .pv, even when the input directory contains a PV with the same name.
-TEST_F(TrackingFilenameResolutionTest, TrackingFilenameUsesOutputLocationWithSeparateInputPv) {
-    const auto expected = file::Path((root / "output/session/chosen_absolute").string());
-    create_regular_file(file::Path((root / "input/chosen_absolute.pv").string()));
-    create_regular_file(output_dir / "session" / "chosen_absolute.pv");
-    
-    SETTING(output_prefix) = std::string("session");
-
-    SETTING(filename) = file::Filename("chosen_absolute");
-    EXPECT_EQ(resolve_tracking_filename(), expected);
-
-    SETTING(filename) = file::Filename("chosen_absolute.pv");
-    EXPECT_EQ(resolve_tracking_filename(), expected);
-    EXPECT_EQ(file::DataLocation::parse("output", file::Path("data")),
-              file::Path((root / "output/session/data").string()));
-}
-
 // Policy: A matching directory name in the source does not consume output_prefix.
 // Explicit output options determine export paths independently of settings files.
 TEST_F(TrackingFilenameResolutionTest, ExportsUseExplicitBaseForPrefixedPvSource) {
@@ -512,7 +839,7 @@ TEST_F(TrackingFilenameResolutionTest, ExportsUseExplicitBaseForPrefixedPvSource
     ASSERT_TRUE(source.is_absolute());
     SETTING(source) = file::PathArray(source);
     SETTING(output_dir) = file::Path{};
-    SETTING(output_prefix) = std::string("session");
+    SETTING(output_prefix) = file::RelativePath("session");
 
     EXPECT_EQ(file::DataLocation::parse("output", "data"),
               output_dir / "session" / "session" / "data");
@@ -526,19 +853,24 @@ TEST_F(TrackingFilenameResolutionTest, ExportsUseExplicitBaseForPrefixedPvSource
 // Policy: Settings default to the PV's directory. Explicit output options select
 // the settings location for both reading and writing.
 TEST_F(TrackingFilenameResolutionTest, PvSettingsPathsFollowExplicitOutputOptions) {
-    const auto source = create_regular_file(input_dir / "session" / "recording.pv");
+    const auto recording_dir = input_dir / "session";
+    const auto source = create_regular_file(recording_dir / "recording.pv");
     SETTING(source) = file::PathArray{source};
-    for(const auto& [use_output_dir, use_output_prefix] : {
-        std::pair{false, false}, std::pair{true, false}, std::pair{false, true}, std::pair{true, true}
+    struct Case {
+        file::Path directory;
+        std::string prefix;
+        file::Path selected_dir;
+    };
+    for(const auto& [directory, prefix, selected_dir] : {
+        Case{{}, "", recording_dir},
+        Case{output_dir, "", output_dir},
+        Case{{}, "chosen", recording_dir / "chosen"},
+        Case{output_dir, "chosen", output_dir / "chosen"}
     }) {
-        SCOPED_TRACE(::testing::Message()
-            << "Explicit output_dir=" << use_output_dir << ", output_prefix=" << use_output_prefix);
+        SCOPED_TRACE(selected_dir.str());
         SETTING(filename) = file::Filename{};
-        SETTING(output_dir) = use_output_dir ? output_dir : file::Path{};
-        SETTING(output_prefix) = std::string(use_output_prefix ? "chosen" : "");
-        auto selected_dir = use_output_dir ? output_dir : source.remove_filename();
-        if(use_output_prefix)
-            selected_dir = selected_dir / "chosen";
+        SETTING(output_dir) = directory;
+        SETTING(output_prefix) = file::RelativePath(prefix);
         const auto settings_file = selected_dir / "recording.settings";
 
         EXPECT_EQ(file::DataLocation::parse("settings"), settings_file)
@@ -551,111 +883,6 @@ TEST_F(TrackingFilenameResolutionTest, PvSettingsPathsFollowExplicitOutputOption
         EXPECT_EQ(file::DataLocation::parse("output", "data"), selected_dir / "data");
     }
 }
-
-struct OutputSettingsInitializationCase {
-    const char* name;
-    std::optional<std::string> source = std::nullopt;
-    std::optional<std::string> prefix = std::nullopt;
-    std::optional<std::string> output_dir = std::nullopt;
-    std::optional<std::string> expected_output_dir = std::nullopt;
-    std::string expected_prefix = "";
-};
-
-// Directory values are relative to the fixture root. "" selects that root,
-// and std::nullopt leaves the output directory setting empty.
-const OutputSettingsInitializationCase output_settings_initialization_cases[] {
-    {.name = "SourceOnly", .source = "input/run/f.mov",
-     .expected_output_dir = std::nullopt},
-    {.name = "SourceAndOutputDir", .source = "input/run/f.mov", .output_dir = "output",
-     .expected_output_dir = "output"},
-    {.name = "SourceAndPrefix", .source = "input/run/f.mov", .prefix = "run",
-     .expected_output_dir = "input/run", .expected_prefix = "run"},
-    {.name = "SourcePrefixAndOutputDir", .source = "input/run/f.mov", .prefix = "run", .output_dir = "output",
-     .expected_output_dir = "output", .expected_prefix = "run"},
-    {.name = "RedundantOutputDir", .source = "input/run/f.mov", .output_dir = "input/run",
-     .expected_output_dir = std::nullopt},
-    {.name = "RedundantOutputDirWithPrefix", .source = "input/run/f.mov", .prefix = "run", .output_dir = "input/run",
-     .expected_output_dir = "input/run", .expected_prefix = "run"},
-    {.name = "PvOnly", .source = "input/run/f.pv",
-     .expected_output_dir = "input/run"},
-    {.name = "PvAndOutputDir", .source = "input/run/f.pv", .output_dir = "output",
-     .expected_output_dir = "output"},
-    {.name = "PvAndRedundantOutputDir", .source = "input/run/f.pv", .output_dir = "input/run",
-     .expected_output_dir = "input/run"},
-    {.name = "PvWithinPrefix", .source = "input/run/f.pv", .prefix = "run",
-     .expected_output_dir = "input/run", .expected_prefix = "run"},
-    {.name = "PvOutsidePrefix", .source = "input/f.pv", .prefix = "run",
-     .expected_output_dir = "input", .expected_prefix = "run"},
-    {.name = "NoSourcePrefixOrOutputDir", .expected_output_dir = std::nullopt},
-    {.name = "OutputDirOnly", .output_dir = "output",
-     .expected_output_dir = "output"},
-    {.name = "PrefixOnly", .prefix = "run",
-     .expected_output_dir = "", .expected_prefix = "run"},
-    {.name = "PrefixAndOutputDir", .prefix = "run", .output_dir = "output",
-     .expected_output_dir = "output", .expected_prefix = "run"}
-};
-
-void PrintTo(const OutputSettingsInitializationCase& p, std::ostream* os) {
-    *os << p.name
-        << " source=" << Meta::toStr(p.source)
-        << " output_dir=" << Meta::toStr(p.output_dir)
-        << " output_prefix=" << Meta::toStr(p.prefix)
-        << " expected_output_dir=" << Meta::toStr(p.expected_output_dir)
-        << " expected_output_prefix=" << Meta::toStr(p.expected_prefix);
-}
-
-class OutputSettingsInitializationTest
-    : public SettingsPrecedenceTest,
-      public ::testing::WithParamInterface<OutputSettingsInitializationCase> {};
-
-// Policy: With an explicitly supplied prefix, an unset output directory uses the source
-// parent without stripping matching directory names. Without a prefix, redundant
-// source-parent directories are cleared except for a single absolute PV source.
-// Explicit non-default directories are retained.
-TEST_P(OutputSettingsInitializationTest, CheckOutputDirectory) {
-    const auto& test = GetParam();
-    const ScopedCurrentPath current_path(root);
-    char executable[] = "test_tracking_filename_resolution";
-    char* argv[] {executable, nullptr};
-    CommandLine::init(1, argv, true);
-    const auto base = file::Path(root.string());
-    ASSERT_EQ(CommandLine::instance().launch_dir(), base);
-
-    settings::LoadContext context{.quiet = true};
-    default_config::get(context.combined);
-    const auto source = test.source
-        ? file::PathArray(create_regular_file(base / *test.source))
-        : file::PathArray{};
-    context.source = source;
-    if(test.source)
-        context.combined.values["source"] = source;
-    if(test.prefix)
-        context.combined.values["output_prefix"] = *test.prefix;
-    if(test.output_dir)
-        context.combined.values["output_dir"] = base / *test.output_dir;
-
-    SCOPED_TRACE(::testing::Message()
-        << "LoadContext::check_output_dir() only; no settings files or PV metadata loaded."
-        << "\nsource=" << source.toStr()
-        << "\ninput output_dir=" << context.combined.at("output_dir").get().valueString()
-        << "\ninput output_prefix=" << context.combined.at("output_prefix").get().valueString());
-    context.check_output_dir();
-
-    const auto expected_dir = test.expected_output_dir
-        ? base / *test.expected_output_dir
-        : file::Path{};
-    EXPECT_EQ(context.combined.at("output_dir").value<file::Path>(), expected_dir);
-    EXPECT_EQ(context.combined.at("output_prefix").value<std::string>(), test.expected_prefix);
-    EXPECT_EQ(context.combined.at("source").value<file::PathArray>(), source);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    OutputSettingsInitialization,
-    OutputSettingsInitializationTest,
-    ::testing::ValuesIn(output_settings_initialization_cases),
-    [](const ::testing::TestParamInfo<OutputSettingsInitializationCase>& info) {
-        return info.param.name;
-    });
 
 struct OutputSettingsDeltaCase {
     const char* name;
@@ -697,11 +924,11 @@ TEST_P(OutputSettingsDeltaTest, WritesOutputValuesToSettingsFile) {
     if(test.inherited_defaults) {
         // Persist these configured values even when they match the current defaults.
         defaults.values["output_dir"] = directory;
-        defaults.values["output_prefix"] = test.prefix;
+        defaults.values["output_prefix"] = file::RelativePath(test.prefix);
     }
     GlobalSettings::set_current_defaults(defaults.values);
     SETTING(output_dir) = directory;
-    SETTING(output_prefix) = test.prefix;
+    SETTING(output_prefix) = file::RelativePath(test.prefix);
     SETTING(detect_type) = track::detect::ObjectDetectionType_t{
         track::detect::ObjectDetectionType::yolo
     };
@@ -717,7 +944,7 @@ TEST_P(OutputSettingsDeltaTest, WritesOutputValuesToSettingsFile) {
         if(generated.has("output_dir"))
             EXPECT_EQ(generated.at("output_dir").value<file::Path>(), directory);
         if(generated.has("output_prefix"))
-            EXPECT_EQ(generated.at("output_prefix").value<std::string>(), test.prefix);
+            EXPECT_EQ(generated.at("output_prefix").value<file::RelativePath>(), file::RelativePath(test.prefix));
     }
     const auto settings_file = file::Path(root.string()) / "delta.settings";
     write_settings(settings_file, delta.to_settings());
@@ -737,7 +964,7 @@ TEST_P(OutputSettingsDeltaTest, WritesOutputValuesToSettingsFile) {
     if(saved.has("output_dir"))
         EXPECT_EQ(saved.at("output_dir").value<file::Path>(), directory);
     if(saved.has("output_prefix"))
-        EXPECT_EQ(saved.at("output_prefix").value<std::string>(), test.prefix);
+        EXPECT_EQ(saved.at("output_prefix").value<file::RelativePath>(), file::RelativePath(test.prefix));
     for(const auto* key : {"detect_iou_threshold", "detect_skeleton", "detect_conf_threshold",
                           "detect_keypoint_threshold", "detect_model", "detect_format",
                           "detect_classes", "detect_keypoint_format", "detect_keypoint_names"})
@@ -791,7 +1018,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     sprite::Map overrides = detector_values;
     overrides.erase("detect_conf_threshold");
     CommandLine::instance().add_setting("detect_conf_threshold", "0.25");
-    overrides["output_prefix"] = std::string("run");
+    overrides["output_prefix"] = file::RelativePath("run");
     overrides["output_csv_decimals"] = uint8_t(3);
     settings::load(settings::LoadContext{
         .source = file::PathArray{source},
@@ -800,20 +1027,20 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         .source_map = std::move(overrides),
         .quiet = true
     });
-    ASSERT_EQ(READ_SETTING(output_dir, file::Path), input_dir)
-        << "Initial settings::load(convert): infer the source parent when a prefix is supplied.";
-    ASSERT_EQ(READ_SETTING(output_prefix, std::string), "run")
+    ASSERT_TRUE(READ_SETTING(output_dir, file::Path).empty());
+    ASSERT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "run")
         << "Initial settings::load(convert): retain the supplied prefix.";
     GlobalSettings::read([&](const Configuration& config) {
         expect_detector_values(config.values);
     });
 
     const auto video_base = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_output_name(config.values);
+        const auto name = settings::choose_output_name(config.values);
+        return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
     });
     SETTING(filename) = file::Filename(video_base.filename());
     ASSERT_EQ(video_base, input_dir / "run" / "f")
-        << "find_output_name() after initialization: apply the prefix once.";
+        << "The first conversion must place f.pv under the supplied prefix.";
     {
         SCOPED_TRACE("generate_delta_config(LOAD), before PV metadata serialization");
         sprite::Map generated;
@@ -832,7 +1059,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     {
         SCOPED_TRACE("generate_delta_config(INIT), before settings::write_config()");
         auto delta = default_config::generate_delta_config(AccessLevelType::INIT);
-        ASSERT_TRUE(delta.map.contains("output_dir"));
+        EXPECT_FALSE(delta.map.contains("output_dir"));
         ASSERT_TRUE(delta.map.contains("output_prefix"));
         sprite::Map generated;
         delta.write_to(generated);
@@ -855,10 +1082,9 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
             .target = &saved,
             .additional = &schema.values
         });
-        ASSERT_TRUE(saved.has("output_dir"));
-        ASSERT_EQ(saved.at("output_dir").value<file::Path>(), input_dir);
+        EXPECT_FALSE(saved.has("output_dir"));
         ASSERT_TRUE(saved.has("output_prefix"));
-        ASSERT_EQ(saved.at("output_prefix").value<std::string>(), "run");
+        ASSERT_EQ(saved.at("output_prefix").value<file::RelativePath>().str(), "run");
         ASSERT_TRUE(saved.has("output_csv_decimals"));
         ASSERT_EQ(saved.at("output_csv_decimals").value<uint8_t>(), uint8_t(3));
         expect_detector_values(saved);
@@ -868,14 +1094,14 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     CommandLine::instance() = CommandLine{};
     ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{})
         << "Reset before reopening: output_dir must not leak from conversion.";
-    ASSERT_EQ(READ_SETTING(output_prefix, std::string), "")
+    ASSERT_TRUE(READ_SETTING(output_prefix, file::RelativePath).empty())
         << "Reset before reopening: output_prefix must not leak from conversion.";
     ASSERT_NE(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
         << "Reset before reopening: the marker must come from the saved settings.";
     SCOPED_TRACE(::testing::Message()
         << "settings::load(track) reopening " << video_base.add_extension("pv").str()
         << "\nVerified adjacent config: " << settings_file.str()
-        << "\nSaved output_dir=" << input_dir.str() << "; output_prefix=\"run\"");
+        << "\nSaved output_prefix=run");
     settings::load(settings::LoadContext{
         .source = file::PathArray{video_base.add_extension("pv")},
         .task = default_config::TRexTask_t::track,
@@ -885,8 +1111,6 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_base.add_extension("pv")})
         << "Reload must retain the requested PV source.";
 
-    // The loader's baseline records accepted settings independently of the
-    // final output-directory normalization and copying to GlobalSettings.
     const auto loaded = GlobalSettings::read(
         [](const sprite::Map&, const sprite::Map& with_config) {
             return with_config;
@@ -904,9 +1128,8 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
                "excluded from current_defaults_with_config.";
     }
 
-    EXPECT_EQ(READ_SETTING(output_dir, file::Path), video_base.remove_filename())
-        << "Opening only the PV must retain its directory for reconversion.";
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "")
+    EXPECT_TRUE(READ_SETTING(output_dir, file::Path).empty());
+    EXPECT_TRUE(READ_SETTING(output_prefix, file::RelativePath).empty())
         << "The saved prefix and the PV's folder name must not supply an output_prefix.";
     EXPECT_EQ(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
         << "The marker reached the loaded baseline but was lost before final settings were applied.";
@@ -919,7 +1142,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
         << "Default exports stay beside the PV.";
 
     // The GUI resolves the selected PV before delegating saving to write_config().
-    ASSERT_EQ(resolve_tracking_filename(), video_base);
+    ASSERT_EQ(resolve_tracking_filename(), video_base.add_extension("pv"));
     ASSERT_EQ(file::DataLocation::parse("output_settings"), settings_file)
         << "Saving must target the adjacent config without adding the saved prefix.";
     SETTING(output_csv_decimals) = uint8_t(4);
@@ -936,8 +1159,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation
     ASSERT_TRUE(resaved.has("output_csv_decimals"));
     EXPECT_EQ(resaved.at("output_csv_decimals").value<uint8_t>(), uint8_t(4))
         << "Saving must update the same adjacent config.";
-    ASSERT_TRUE(resaved.has("output_dir"));
-    EXPECT_EQ(resaved.at("output_dir").value<file::Path>(), video_base.remove_filename());
+    EXPECT_FALSE(resaved.has("output_dir"));
     EXPECT_FALSE(resaved.has("output_prefix"));
     expect_detector_values(resaved);
     EXPECT_FALSE(fs::exists((video_base.remove_filename() / "run" / "f.settings").str()));
@@ -963,7 +1185,7 @@ TEST_F(OutputSettingsRoundTripTest, CreatesPrefixedSettingsForExistingPv) {
     ASSERT_FALSE(fs::exists(selected_settings.str()));
 
     sprite::Map overrides;
-    overrides["output_prefix"] = std::string("trial");
+    overrides["output_prefix"] = file::RelativePath("trial");
     settings::load(settings::LoadContext{
         .source = file::PathArray{source},
         .task = default_config::TRexTask_t::track,
@@ -973,13 +1195,13 @@ TEST_F(OutputSettingsRoundTripTest, CreatesPrefixedSettingsForExistingPv) {
     });
 
     EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{source});
-    EXPECT_EQ(READ_SETTING(output_dir, file::Path), input_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "trial");
+    EXPECT_TRUE(READ_SETTING(output_dir, file::Path).empty());
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "trial");
     EXPECT_EQ(file::DataLocation::parse("settings"), selected_settings);
     EXPECT_NE(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
         << "A missing explicitly selected config must not load the adjacent config's marker.";
 
-    ASSERT_EQ(resolve_tracking_filename(), video_base);
+    ASSERT_EQ(resolve_tracking_filename(), video_base.add_extension("pv"));
     ASSERT_EQ(file::DataLocation::parse("output_settings"), selected_settings);
     SETTING(output_csv_decimals) = uint8_t(5);
     auto video = pv::File::Read(source);
@@ -1029,10 +1251,10 @@ TEST_F(OutputSettingsRoundTripTest, ReopensSettingsAndResultsAfterChangingPrefix
             .task = default_config::TRexTask_t::track,
             .quiet = true
         });
-        ASSERT_EQ(READ_SETTING(output_dir, file::Path), pv_dir);
-        ASSERT_EQ(READ_SETTING(output_prefix, std::string), "");
+        ASSERT_TRUE(READ_SETTING(output_dir, file::Path).empty());
+        ASSERT_TRUE(READ_SETTING(output_prefix, file::RelativePath).empty());
         ASSERT_EQ(READ_SETTING(track_threshold, int), 37);
-        ASSERT_EQ(resolve_tracking_filename(), video_base);
+        ASSERT_EQ(resolve_tracking_filename(), video_base.add_extension("pv"));
         ASSERT_EQ(file::DataLocation::parse("output_settings"), adjacent_settings);
         ASSERT_EQ(Output::TrackingResults::expected_filename(), video_base.add_extension("results"));
     }
@@ -1046,10 +1268,9 @@ TEST_F(OutputSettingsRoundTripTest, ReopensSettingsAndResultsAfterChangingPrefix
         background->set_to(0u);
         auto tracker = track::Tracker::Make(std::move(background), video.header().encoding, Float2_t(16));
 
-        // GUI edits update settings without rerunning LoadContext::check_output_dir().
-        SETTING(output_prefix) = std::string("tmp");
+        SETTING(output_prefix) = file::RelativePath("tmp");
         SETTING(track_threshold) = 61;
-        ASSERT_EQ(READ_SETTING(output_dir, file::Path), pv_dir);
+        ASSERT_TRUE(READ_SETTING(output_dir, file::Path).empty());
         ASSERT_EQ(READ_SETTING(filename, file::Filename).path(), file::Path(video_base.filename()));
         ASSERT_EQ(file::DataLocation::parse("output_settings"), selected_settings);
         ASSERT_EQ(Output::TrackingResults::expected_filename(), selected_results);
@@ -1082,7 +1303,7 @@ TEST_F(OutputSettingsRoundTripTest, ReopensSettingsAndResultsAfterChangingPrefix
     CommandLine::instance() = CommandLine{};
     ASSERT_NE(READ_SETTING(track_threshold, int), 61);
     ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{});
-    ASSERT_EQ(READ_SETTING(output_prefix, std::string), "");
+    ASSERT_TRUE(READ_SETTING(output_prefix, file::RelativePath).empty());
 
     SCOPED_TRACE("Reopen with only the original -i and -p tmp");
     CommandLine::instance().add_setting("source", source.str());
@@ -1097,12 +1318,12 @@ TEST_F(OutputSettingsRoundTripTest, ReopensSettingsAndResultsAfterChangingPrefix
     });
 
     EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{source});
-    EXPECT_EQ(READ_SETTING(output_dir, file::Path), pv_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "tmp");
+    EXPECT_TRUE(READ_SETTING(output_dir, file::Path).empty());
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "tmp");
     EXPECT_EQ(file::DataLocation::parse("settings"), selected_settings);
     EXPECT_EQ(READ_SETTING(track_threshold, int), 61)
         << "Reopening must load the saved experiment instead of the adjacent config.";
-    ASSERT_EQ(resolve_tracking_filename(), video_base);
+    ASSERT_EQ(resolve_tracking_filename(), video_base.add_extension("pv"));
     EXPECT_EQ(file::DataLocation::parse("output_settings"), selected_settings);
     ASSERT_EQ(Output::TrackingResults::expected_filename(), selected_results);
     const auto header = Output::TrackingResults::load_header(Output::TrackingResults::expected_filename());
@@ -1133,7 +1354,7 @@ TEST_F(SettingsPrecedenceTest, ReloadingPrefixedPvPreservesExplicitOutputOptions
         reset_global_settings();
         CommandLine::instance() = CommandLine{};
         sprite::Map overrides;
-        overrides["output_prefix"] = std::string("session");
+        overrides["output_prefix"] = file::RelativePath("session");
         if(not directory.empty())
             overrides["output_dir"] = directory;
         const auto expected_dir = directory.empty() ? video_base.remove_filename() : directory;
@@ -1148,8 +1369,8 @@ TEST_F(SettingsPrecedenceTest, ReloadingPrefixedPvPreservesExplicitOutputOptions
                 .quiet = true
             });
 
-            EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir);
-            EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+            EXPECT_EQ(READ_SETTING(output_dir, file::Path), directory);
+            EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "session");
             EXPECT_EQ(file::DataLocation::parse("output", "data"),
                       expected_dir / "session" / "data");
         }
@@ -1170,7 +1391,7 @@ TEST_F(SettingsPrecedenceTest, PvSettingsIgnoreSavedOutputLocation) {
     write_pv(video_base, source, metadata);
     sprite::Map saved_settings;
     saved_settings["output_dir"] = input_dir;
-    saved_settings["output_prefix"] = std::string("session");
+    saved_settings["output_prefix"] = file::RelativePath("session");
     saved_settings["output_csv_decimals"] = uint8_t(3);
     write_settings(video_base.add_extension("settings"), saved_settings);
     for(const auto& [use_output_dir, use_output_prefix] : {
@@ -1185,10 +1406,8 @@ TEST_F(SettingsPrecedenceTest, PvSettingsIgnoreSavedOutputLocation) {
         if(use_output_dir)
             overrides["output_dir"] = output_dir;
         if(use_output_prefix)
-            overrides["output_prefix"] = std::string("chosen");
-        const auto expected_dir = use_output_dir
-            ? output_dir
-            : video_base.remove_filename();
+            overrides["output_prefix"] = file::RelativePath("chosen");
+        const auto expected_dir = use_output_dir ? output_dir : file::Path{};
         auto export_dir = use_output_dir ? output_dir : video_base.remove_filename();
         if(use_output_prefix)
             export_dir = export_dir / "chosen";
@@ -1199,7 +1418,7 @@ TEST_F(SettingsPrecedenceTest, PvSettingsIgnoreSavedOutputLocation) {
             fs::create_directories(export_dir.str());
             sprite::Map selected_settings;
             selected_settings["output_dir"] = input_dir;
-            selected_settings["output_prefix"] = std::string("session");
+            selected_settings["output_prefix"] = file::RelativePath("session");
             selected_settings["output_csv_decimals"] = expected_marker;
             write_settings(settings_file, selected_settings);
             ASSERT_FALSE(fs::exists((export_dir / "recording.pv").str()))
@@ -1217,17 +1436,15 @@ TEST_F(SettingsPrecedenceTest, PvSettingsIgnoreSavedOutputLocation) {
         EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_base.add_extension("pv")});
         EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir)
             << "The saved directory must not fill an omitted option or replace an explicit one.";
-        EXPECT_EQ(READ_SETTING(output_prefix, std::string), use_output_prefix ? "chosen" : "")
+        EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), use_output_prefix ? "chosen" : "")
             << "The saved prefix must not fill an omitted option or replace an explicit one.";
         EXPECT_EQ(file::DataLocation::parse("settings"), settings_file)
             << "Explicit output options select the settings file; without them, use the adjacent config.";
         EXPECT_EQ(READ_SETTING(output_csv_decimals, uint8_t), expected_marker)
             << "3 identifies the adjacent config; 9 identifies the explicitly selected config.";
         EXPECT_EQ(file::DataLocation::parse("output", "data"), export_dir / "data");
-        EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                      return settings::find_existing_output_name(config.values);
-                  }),
-                  video_base)
+        EXPECT_EQ(file::DataLocation::parse("input", READ_SETTING(source, file::PathArray)[0]),
+                  video_base.add_extension("pv"))
             << "All settings variants must track the same input PV.";
     }
 }
@@ -1247,7 +1464,7 @@ TEST_F(SettingsPrecedenceTest, OrdinaryVideoDefaultOutputDirectoryIsRetainedWith
         sprite::Map overrides;
         overrides["source"] = file::PathArray{source};
         overrides["output_dir"] = input_dir;
-        overrides["output_prefix"] = std::string("session");
+        overrides["output_prefix"] = file::RelativePath("session");
         overrides["detect_type"] = track::detect::ObjectDetectionType_t{
             track::detect::ObjectDetectionType::background_subtraction
         };
@@ -1265,7 +1482,7 @@ TEST_F(SettingsPrecedenceTest, OrdinaryVideoDefaultOutputDirectoryIsRetainedWith
         }
 
         EXPECT_EQ(READ_SETTING(output_dir, file::Path), input_dir);
-        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+        EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "session");
         EXPECT_EQ(file::DataLocation::parse("output", "data"),
                   input_dir / "session" / "data");
     }
@@ -1284,7 +1501,7 @@ TEST_F(SettingsPrecedenceTest, PrefixedPvSupportsNestedOutputPrefix) {
     };
     write_pv(video_base, source, metadata);
     sprite::Map overrides;
-    overrides["output_prefix"] = std::string("group/session");
+    overrides["output_prefix"] = file::RelativePath("group/session");
 
     settings::load(settings::LoadContext{
         .source = file::PathArray{video_base.add_extension("pv")},
@@ -1294,29 +1511,17 @@ TEST_F(SettingsPrecedenceTest, PrefixedPvSupportsNestedOutputPrefix) {
         .quiet = true
     });
 
-    EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "group/session");
+    EXPECT_TRUE(READ_SETTING(output_dir, file::Path).empty());
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath), file::RelativePath("group/session"));
     EXPECT_EQ(file::DataLocation::parse("output", "data"),
               expected_dir / "group/session" / "data");
-}
-
-// Policy: Without a filename chosen by the user, the source video's basename selects
-// the PV in the configured output location.
-TEST_F(TrackingFilenameResolutionTest, EmptyFilenameIsInferredFromOrdinaryVideoSource) {
-    const auto source = input_dir / "recording.mp4";
-    const auto expected = file::Path((root / "output/session/recording").string());
-    create_regular_file(expected.add_extension("pv"));
-    SETTING(source) = file::PathArray(source);
-    SETTING(output_prefix) = std::string("session");
-
-    EXPECT_EQ(resolve_tracking_filename(), expected);
 }
 
 TEST_F(SettingsPrecedenceTest, MigratesDeprecatedPVMetadataSetting) {
     const auto video_base = input_dir / "recording";
     sprite::Map metadata;
     metadata["fish_max_speed"] = Float2_t(12);
-    metadata["output_prefix"] = std::string{};
+    metadata["output_prefix"] = file::RelativePath{};
     write_pv(video_base, input_dir / "recording.mp4", metadata);
 
     auto video = pv::File::Read(video_base.add_extension("pv"));
@@ -1336,7 +1541,7 @@ TEST_F(SettingsPrecedenceTest, InvalidPVFilenamePreservesOtherMetadata) {
     sprite::Map metadata;
     metadata["filename"] = input_dir / ".";
     metadata["output_dir"] = output_dir;
-    metadata["output_prefix"] = std::string("session");
+    metadata["output_prefix"] = file::RelativePath("session");
     metadata["track_max_speed"] = Float2_t(800);
     write_pv(video_base, input_dir / "recording.mp4", metadata);
 
@@ -1399,37 +1604,76 @@ TEST_F(TrackingFilenameResolutionTest, MigratesLegacyResultsSettingsToJson) {
     EXPECT_EQ(results_path.read_file(), original);
 }
 
-// Policy: An existing recording chosen through filename takes priority over a PV source.
-TEST_F(TrackingFilenameResolutionTest, ExistingExplicitOutputTakesPrecedenceOverPvSource) {
-    const auto source = create_regular_file((input_dir / "source").add_extension("pv"));
-    const auto expected = file::Path((root / "output/preferred").string());
-    create_regular_file(expected.add_extension("pv"));
-    SETTING(source) = file::PathArray(source);
-    SETTING(filename) = file::Filename("preferred");
+TEST_F(SettingsPrecedenceTest, PvSourcePatternSelectsItsMatchWhenAnotherOutputExists) {
+    const auto input = input_dir / "fish000";
+    const auto output = input_dir / "chosen";
+    sprite::Map metadata;
+    metadata["frame_rate"] = uint32_t(17);
+    write_pv(input, "fish.mp4", metadata);
+    metadata["frame_rate"] = uint32_t(47);
+    write_pv(output, "other.mp4", metadata);
+    const file::PathArray source{input_dir / "fish%03d.pv"};
+    ASSERT_TRUE(source.has_single_match("pv"));
 
-    EXPECT_EQ(resolve_tracking_filename(), expected);
+    settings::load(settings::LoadContext{
+        .source = source,
+        .task = default_config::TRexTask_t::track,
+        .quiet = true
+    });
+
+    const auto values = GlobalSettings::read([](const Configuration& config) { return config.values; });
+    const auto loaded_source = values.at("source").value<file::PathArray>();
+    EXPECT_EQ(loaded_source.get_paths(), std::vector<file::Path>{input.add_extension("pv")});
+    EXPECT_EQ(values.at("frame_rate").value<uint32_t>(), 17u);
+    EXPECT_EQ(resolve_tracking_filename(), input.add_extension("pv"));
 }
 
-TEST_F(TrackingFilenameResolutionTest, RelativePvFallbackUsesInputDirectory) {
-    const ScopedCurrentPath launch(input_dir.str());
+TEST_F(SettingsPrecedenceTest, OutputFilenameAloneDoesNotSelectAnInput) {
+    const auto output = output_dir / "chosen";
+    const auto movie = guppies_video_fixture();
+    write_pv(output, movie, {});
+    write_settings(output.add_extension("settings"), "meta_source_path = " + movie.toStr() + "\n");
+
+    settings::load(settings::LoadContext{
+        .filename = output.filename(),
+        .task = default_config::TRexTask_t::convert,
+        .source_map = settings_map({}, output_dir),
+        .quiet = true
+    });
+
+    const auto values = GlobalSettings::read([](const Configuration& config) { return config.values; });
+    EXPECT_FALSE(values.at("source").value<file::PathArray>().has_source());
+    EXPECT_TRUE(file::DataLocation::parse("input", values.at("source").value<file::PathArray>(), &values).empty());
+    EXPECT_EQ(file::DataLocation::parse("output", "chosen.pv", &values), output.add_extension("pv"));
+}
+
+TEST_F(SettingsPrecedenceTest, LoadingARelativePvKeepsThePrefixAppliedOnce) {
+    const ScopedCurrentPath launch(root);
     char executable[] = "test_tracking_filename_resolution";
     char* argv[]{executable, nullptr};
     CommandLine::init(1, argv, true);
-    const ScopedCurrentPath current_path(root);
-    create_regular_file(file::Path(root.string()) / "recording.pv");
+    const auto recording = file::Path(root.string()) / "clip";
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    metadata["frame_rate"] = uint32_t(37);
+    write_pv(recording, "clip.mov", metadata);
+    metadata["frame_rate"] = uint32_t(47);
+    write_pv(file::Path(root.string()) / "run" / "clip", "other.mov", metadata);
 
-    auto map = settings_map(file::PathArray("recording.pv"), output_dir);
-    map["wd"] = file::Path(root.string());
-    EXPECT_TRUE(settings::find_existing_output_name(map, {}, false).empty());
-    EXPECT_EQ(file::DataLocation::parse("input", ".", &map).canonical(), std::optional{input_dir});
+    sprite::Map overrides;
+    overrides["output_prefix"] = file::RelativePath("run");
+    settings::load(settings::LoadContext{
+        .source = file::PathArray("clip.pv"),
+        .task = default_config::TRexTask_t::track,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
 
-    const auto input = create_regular_file(input_dir / "recording.pv");
-    for(const auto* source : {"recording.pv", "./recording.pv"}) {
-        map["source"] = file::PathArray(source);
-        EXPECT_EQ(file::DataLocation::parse("input", source, &map).canonical(), std::optional{input});
-        EXPECT_EQ(settings::find_existing_output_name(map, {}, false).canonical(),
-                  std::optional{input.remove_extension()});
-    }
+    EXPECT_EQ(READ_SETTING(frame_rate, uint32_t), 37u) << "Metadata must come from the named clip.pv.";
+    EXPECT_EQ(resolve_tracking_filename(), recording.add_extension("pv")) << "Tracking must open the same PV as metadata loading.";
+    EXPECT_EQ(file::DataLocation::parse("output", "clip.results"), file::Path(root.string()) / "run/clip.results");
 }
 
 // trex -i subdir/clip.mp4 -> reads launch_dir/subdir/clip.mp4 and writes launch_dir/subdir/clip.pv.
@@ -1439,277 +1683,53 @@ TEST_F(TrackingFilenameResolutionTest, RelativeVideoUsesLaunchDirectoryForInputA
     char* argv[]{executable, nullptr};
     CommandLine::init(1, argv, true);
     const ScopedCurrentPath current_path(root);
-    const auto input = create_regular_file(input_dir / "recording.mp4");
-    for(const auto* source : {"recording.mp4", "./recording.mp4"}) {
-        auto map = settings_map(file::PathArray(source));
-        map["wd"] = file::Path(root.string());
-        const auto conversion_source = settings::find_conversion_source(map);
-        ASSERT_EQ(conversion_source.size(), 1u);
-        EXPECT_EQ(conversion_source.get_paths().front().canonical(), std::optional{input});
-        EXPECT_EQ(settings::find_output_name(map).canonical(), std::optional{input.remove_extension()});
-        settings::LoadContext context{.source = file::PathArray(source), .quiet = true};
-        default_config::get(context.combined);
-        context.init_filename();
-        context.check_output_dir();
-        const auto loaded_source = context.combined.at("source").value<file::PathArray>();
-        ASSERT_EQ(loaded_source.size(), 1u);
-        EXPECT_EQ(loaded_source.get_paths().front().canonical(), std::optional{input});
-        EXPECT_TRUE(context.combined.at("output_dir").value<file::Path>().empty());
+    const std::vector<file::Path> expected_input{create_regular_file(input_dir / "recording.mp4")};
+    const file::PathArray source("recording.mp4");
+    auto map = settings_map(source);
+    map["wd"] = file::Path(root.string());
+    EXPECT_EQ(file::DataLocation::parse("input", source, &map).get_paths(), expected_input);
+    EXPECT_EQ(file::DataLocation::parse("input", file::PathArray("./recording.mp4"), &map).get_paths(), expected_input)
+        << "Both spellings must select the video from the launch directory.";
+    EXPECT_EQ(file::DataLocation::parse("output", "recording.pv", &map), input_dir / "recording.pv");
 
-        map["output_dir"] = output_dir;
-        EXPECT_EQ(settings::find_conversion_source(map), conversion_source);
-        EXPECT_EQ(settings::find_output_name(map), output_dir / "recording");
-    }
+    settings::LoadContext context{.source = source, .quiet = true};
+    default_config::get(context.combined);
+    context.init_filename();
+    EXPECT_EQ(context.combined.at("source").value<file::PathArray>().get_paths(), expected_input);
+    EXPECT_TRUE(context.combined.at("output_dir").value<file::Path>().empty());
 
-    create_regular_file(input_dir / "subdir/clip.mp4");
-    const auto nested = settings_map(file::PathArray("subdir/clip.mp4"));
-    EXPECT_EQ(settings::find_conversion_source(nested), file::PathArray(input_dir / "subdir/clip.mp4"));
-    EXPECT_EQ(settings::find_output_name(nested), input_dir / "subdir/clip");
-}
+    map["output_dir"] = output_dir;
+    EXPECT_EQ(file::DataLocation::parse("input", source, &map).get_paths(), expected_input);
+    EXPECT_EQ(file::DataLocation::parse("output", "recording.pv", &map), output_dir / "recording.pv");
 
-// Policy: If the selected output PV is missing, use the existing PV named by the
-// single source, with or without .pv and with absolute or relative paths.
-TEST_F(TrackingFilenameResolutionTest, MissingOutputFallsBackToSingleSourcePv) {
-    const ScopedCurrentPath current_path(root);
-    const auto pv_source = create_regular_file((input_dir / "source").add_extension("pv"));
-    const auto uppercase_pv_source = create_regular_file(input_dir / "uppercase.PV");
-    create_regular_file(input_dir / "source.custom.pv");
-    const auto extensionless_source = input_dir / "source_without_extension";
-    create_regular_file(extensionless_source.add_extension("pv"));
-    create_regular_file(file::Path((root / "webcam.pv").string()));
-
-    struct Case {
-        file::Path source;
-        file::Path requested_filename;
-        file::Path expected;
-    };
-    for(const auto& [source, requested_filename, expected] : {
-        Case{pv_source, file::Path("missing_output"), input_dir / "source"},
-        Case{input_dir / "missing/../source.pv", file::Path("missing_output"), input_dir / "source"},
-        Case{uppercase_pv_source, file::Path{}, input_dir / "uppercase"},
-        Case{input_dir / "source.mp4", file::Path{}, input_dir / "source"},
-        Case{input_dir / "source.custom", file::Path{}, input_dir / "source.custom"},
-        Case{extensionless_source, file::Path{}, input_dir / "source_without_extension"},
-        Case{file::Path("webcam"), file::Path{}, file::Path("webcam")}
-    }) {
-        SCOPED_TRACE(source.str());
-        SETTING(source) = file::PathArray(source);
-        SETTING(filename) = file::Filename(requested_filename);
-
-        EXPECT_EQ(resolve_tracking_filename(), expected);
-    }
-}
-
-// Policy: A webcam recording in the output location takes priority over webcam.pv
-// in the working directory.
-TEST_F(TrackingFilenameResolutionTest, WebcamUsesExistingOutputBeforeWorkingDirectoryFallback) {
-    const ScopedCurrentPath current_path(root);
-    const auto expected = file::Path((root / "output/webcam").string());
-    create_regular_file(expected.add_extension("pv"));
-    create_regular_file(file::Path((root / "webcam.pv").string()));
-    SETTING(source) = file::PathArray("webcam");
-
-    EXPECT_EQ(resolve_tracking_filename(), expected);
-}
-
-// Policy: Missing tracking input must fail with the attempted output and source
-// identified in the error.
-TEST_F(TrackingFilenameResolutionTest, MissingOutputAndSourcePvReportsAttemptedPaths) {
-    const auto source = input_dir / "source.mp4";
-    const auto sources = file::PathArray(source);
-    const auto missing_output = output_dir / "missing_output.pv";
-    for(const bool appended_pv_exists : {false, true}) {
-        SCOPED_TRACE(appended_pv_exists);
-        if(appended_pv_exists)
-            create_regular_file(input_dir / "source.mp4.pv");
-        SETTING(source) = sources;
-        SETTING(filename) = file::Filename("missing_output");
-
-        try {
-            resolve_tracking_filename();
-            FAIL() << "Expected missing tracking input to throw.";
-        } catch(const std::exception& error) {
-            const std::string message = error.what();
-            EXPECT_NE(message.find(missing_output.toStr()), std::string::npos);
-            EXPECT_NE(message.find(source.toStr()), std::string::npos);
-        }
-    }
-}
-
-// Policy: Multiple PV source paths do not select an implicit single tracking input;
-// a missing inferred output must report the attempted output and sources.
-TEST_F(TrackingFilenameResolutionTest, MultiplePvSourcesRequireAnUnambiguousTrackingInput) {
-    const auto first = create_regular_file((input_dir / "first").add_extension("pv"));
-    const auto second = create_regular_file((input_dir / "second").add_extension("pv"));
-    const auto sources = file::PathArray(
-        std::vector<std::string>{first.str(), second.str()});
-    SETTING(source) = sources;
-
-    const auto expected_missing = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_output_name(config.values).add_extension("pv");
-    });
-
-    try {
-        resolve_tracking_filename();
-        FAIL() << "Expected multiple tracking inputs without a matching output to throw.";
-    } catch(const std::exception& error) {
-        const std::string message = error.what();
-        EXPECT_NE(message.find(expected_missing.toStr()), std::string::npos);
-        EXPECT_NE(message.find(first.toStr()), std::string::npos);
-        EXPECT_NE(message.find(second.toStr()), std::string::npos);
-    }
-}
-
-// Policy: The output filename chosen by the user takes priority over the source's
-// default name. That default remains available separately to identify automatic names.
-TEST_F(TrackingFilenameResolutionTest, FindOutputNameRespectsUserFilenameAndComputesSourceDefault) {
-    const auto source = input_dir / "recording.mp4";
-    const auto user_settings = settings_map(file::PathArray(source), output_dir, file::Path("manual.pv"), "session");
-
-    EXPECT_EQ(settings::find_output_name(user_settings), output_dir / "session" / "manual");
-    EXPECT_EQ(settings::find_output_name(user_settings, {}, false),
-              output_dir / "session" / "recording");
-}
-
-// A relative directory belongs in output_dir or output_prefix.
-TEST_F(TrackingFilenameResolutionTest, FindOutputNameRejectsRelativeMapSubpath) {
-    const auto source = input_dir / "recording.mp4";
-    EXPECT_THROW(settings_map(file::PathArray(source), output_dir, file::Path("nested/manual.pv"), "session"),
-                 std::invalid_argument);
-}
-
-// Explicit output_dir/output_prefix determine where a conversion writes its PV.
-TEST_F(TrackingFilenameResolutionTest, FindOutputNameAppliesOutputLocationToFilename) {
-    const auto source = input_dir / "recording.mp4";
-    
-    /// by default we just save to where the input folder is
-    EXPECT_EQ(settings::find_output_name(
-              settings_map(file::PathArray(source), std::nullopt, std::nullopt, std::nullopt)),
-              input_dir / "recording");
-    
-    /// we accept `output_prefix` here of course
-    EXPECT_EQ(settings::find_output_name(
-              settings_map(file::PathArray(source), std::nullopt, std::nullopt, "session")),
-              input_dir / "session" / "recording");
-    
-    /// or `filename`
-    EXPECT_EQ(settings::find_output_name(
-              settings_map(file::PathArray(source), std::nullopt, "test", std::nullopt)),
-              input_dir / "test");
-    
-    /// but if we specify an `output_dir` that is authoritative
-    EXPECT_EQ(settings::find_output_name(
-              settings_map(file::PathArray(source), output_dir, std::nullopt, "session")),
-              output_dir / "session" / "recording");
-    
-    /// can specify all the things at the same time
-    EXPECT_EQ(settings::find_output_name(
-              settings_map(file::PathArray(source), output_dir, "file", "session")),
-              output_dir / "session" / "file");
-    
-    /// adding .pv doesnt change anything
-    EXPECT_EQ(settings::find_output_name(
-              settings_map(file::PathArray(source), output_dir, "file.pv", "session")),
-              output_dir / "session" / "file");
-}
-
-// Policy: The selected source determines its default name. A PV input keeps its
-// read location even when output_dir/output_prefix select another export directory.
-TEST_F(TrackingFilenameResolutionTest, FindOutputNameUsesSelectedSourceAndSinglePvSource) {
-    const auto previous_source = input_dir / "map_source.mp4";
-    const auto selected_source = input_dir / "explicit_source.mp4";
-    const auto pv_source = (input_dir / "tracking_source").add_extension("pv");
-    const auto map = settings_map(file::PathArray(previous_source), output_dir);
-
-    EXPECT_EQ(settings::find_output_name(map, file::PathArray(selected_source), false),
-              output_dir / "explicit_source");
-    EXPECT_EQ(settings::find_output_name(map, file::PathArray(pv_source), false),
-              pv_source.remove_extension());
-    EXPECT_EQ(file::DataLocation::parse("output", file::Path("data"), &map),
-              output_dir / "data");
+    const std::vector<file::Path> expected_nested{create_regular_file(input_dir / "subdir/clip.mp4")};
+    const file::PathArray nested_source("subdir/clip.mp4");
+    const auto nested = settings_map(nested_source);
+    EXPECT_EQ(file::DataLocation::parse("input", nested_source, &nested).get_paths(), expected_nested);
+    EXPECT_EQ(file::DataLocation::parse("output", "clip.pv", &nested),
+              input_dir / "subdir/clip.pv");
 }
 
 TEST(TrackingFilenameResolution, UnmatchedSourcePatternDoesNotInheritThePreviousOutputName) {
-    register_data_locations_once();
-    const auto output_dir = file::Path("output").absolute();
-    sprite::Map map;
-    map["source"] = file::PathArray{"previous.mp4"};
-    map["output_dir"] = output_dir;
-
     file::PathArray requested_source{"new-*.mp4"};
     requested_source.ensure_loaded(trex_test::TestFilesystem{"previous.mp4"});
     ASSERT_TRUE(requested_source.matched_patterns());
     ASSERT_TRUE(requested_source.empty());
 
-    EXPECT_EQ(settings::find_output_name(map), output_dir / "previous");
-    EXPECT_EQ(settings::find_output_name(map, requested_source), file::Path{});
+    EXPECT_EQ(settings::choose_output_name(file::PathArray{"previous.mp4"}).str(), "previous.pv");
+    EXPECT_EQ(settings::choose_output_name(requested_source).str(), "");
 }
 
 TEST_F(TrackingFilenameResolutionTest, UnmatchedSourcePatternDoesNotSelectThePreviousPv) {
     const auto previous_pv = create_regular_file(output_dir / "previous.pv");
-    const auto map = settings_map(file::PathArray{input_dir / "previous.mp4"}, output_dir);
-    file::PathArray requested_source{"new-*.mp4"};
-    requested_source.ensure_loaded(trex_test::TestFilesystem{"previous.mp4"});
+    auto map = settings_map(file::PathArray{input_dir / "previous.mp4"}, output_dir);
+    const file::PathArray requested_source{input_dir / "new-*.mp4"};
     ASSERT_TRUE(requested_source.empty());
 
-    ASSERT_EQ(settings::find_existing_output_name(map), previous_pv.remove_extension());
-    EXPECT_EQ(settings::find_existing_output_name(map, requested_source, false), file::Path{});
-}
-
-TEST_F(TrackingFilenameResolutionTest, PvPatternWithOneMatchFindsThatRecording) {
-    const auto recording = create_regular_file(input_dir / "shoal.pv");
-    const file::PathArray requested_source{input_dir / "*.pv"};
-    const auto map = settings_map({}, output_dir);
-
-    EXPECT_FALSE(requested_source.is_single_file("pv"));
-    EXPECT_TRUE(requested_source.has_single_match("pv"));
-    EXPECT_EQ(settings::find_existing_output_name(map, requested_source), recording.remove_extension());
-}
-
-// Policy: Default output names remove recognized source extensions such as .mp4
-// and preserve unrecognized ones such as .custom, even before the files exist.
-TEST_F(TrackingFilenameResolutionTest, FindOutputNameStripsRecognizedExtensionsAndPreservesUnrecognizedOnes) {
-    const auto common_source = input_dir / "recording.mp4";
-    const auto uncommon_source = input_dir / "recording.custom";
-
-    EXPECT_EQ(settings::find_output_name(settings_map(file::PathArray(common_source), output_dir), {}, false),
-              output_dir / "recording");
-    EXPECT_EQ(settings::find_output_name(settings_map(file::PathArray(uncommon_source), output_dir), {}, false),
-              output_dir / "recording.custom");
-}
-
-// Policy: Camera source names supply the output basename in the configured directory.
-TEST_F(TrackingFilenameResolutionTest, FindOutputNameUsesCameraSourceNames) {
-    EXPECT_EQ(settings::find_output_name(
-                  settings_map(file::PathArray("webcam"), output_dir), {}, false),
-              output_dir / "webcam");
-    EXPECT_EQ(settings::find_output_name(
-                  settings_map(file::PathArray("basler"), output_dir), {}, false),
-              output_dir / "basler");
-}
-
-// Policy: An existing PV does not change the conversion target derived from its source.
-TEST_F(TrackingFilenameResolutionTest, ExistingPvDoesNotChangeOrdinaryConversionTarget) {
-    const auto source = input_dir / "recording.mp4";
-    const auto map = settings_map(file::PathArray(source), output_dir);
-    const auto expected = output_dir / "recording";
-
-    EXPECT_EQ(settings::find_output_name(map, {}, false), expected);
-    create_regular_file(expected.add_extension("pv"));
-    EXPECT_EQ(settings::find_output_name(map, {}, false), expected);
-}
-
-// Policy: An unrecognized source extension remains part of the output basename,
-// even when a file with the same name exists in the working directory.
-TEST_F(TrackingFilenameResolutionTest, UnrecognizedExtensionIsPreservedWithMatchingWorkingDirectoryFile) {
-    const ScopedCurrentPath current_path(root);
-    const auto source = input_dir / "recording.custom";
-    const auto map = settings_map(file::PathArray(source), output_dir);
-    const auto expected = output_dir / "recording.custom";
-
-    EXPECT_EQ(settings::find_output_name(map, {}, false), expected);
-    create_regular_file(file::Path((root / "recording.custom").string()));
-    EXPECT_EQ(settings::find_output_name(map, {}, false), expected);
+    ASSERT_EQ(file::DataLocation::parse("output", settings::choose_output_name(map).path(), &map), previous_pv);
+    map["source"] = requested_source;
+    EXPECT_TRUE(file::DataLocation::parse("input", requested_source, &map).empty());
+    EXPECT_EQ(settings::choose_output_name(map).str(), "");
 }
 
 // Policy: A filename selected for a recent item remains a user choice, along with
@@ -1717,7 +1737,7 @@ TEST_F(TrackingFilenameResolutionTest, UnrecognizedExtensionIsPreservedWithMatch
 TEST_F(TrackingFilenameResolutionTest, LoadContextPreservesExplicitRecentFilename) {
     sprite::Map overrides;
     overrides["output_dir"] = output_dir;
-    overrides["output_prefix"] = std::string("session");
+    overrides["output_prefix"] = file::RelativePath("session");
 
     settings::load(settings::LoadContext{
         .source = file::PathArray("webcam"),
@@ -1731,7 +1751,7 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextPreservesExplicitRecentFilenam
     EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray("webcam"));
     EXPECT_EQ(READ_SETTING(filename, file::Filename).path(), file::Path("saved-camera"));
     EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "session");
 
     const auto changed_defaults = GlobalSettings::read(
         [](const sprite::Map&, const sprite::Map& with_config) {
@@ -1741,20 +1761,12 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextPreservesExplicitRecentFilenam
     EXPECT_EQ(changed_defaults.at("filename").value<file::Filename>().path(), file::Path("saved-camera"));
 }
 
-TEST_F(TrackingFilenameResolutionTest, LoadContextPreservesLiteralPercentInExplicitFilename) {
-    const ScopedCurrentPath current_path(root);
-    settings::load(settings::LoadContext{
-        .source = file::PathArray("webcam"),
-        .filename = file::Filename("shoal%03d.pv").path(),
-        .task = default_config::TRexTask_t::convert,
-        .source_map = {"output_dir", output_dir},
-        .quiet = true
-    });
-
-    EXPECT_EQ(READ_SETTING(filename, file::Filename), file::Filename("shoal%03d"));
-    EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-        return settings::find_output_name(config.values).add_extension("pv");
-    }), output_dir / "shoal%03d.pv");
+TEST(TrackingFilenameResolution, FilenameRejectsSourcePatterns) {
+    EXPECT_THROW(file::Filename{"shoal%03d.pv"}, std::invalid_argument);
+    EXPECT_THROW(file::Filename{file::Path("shoal%2.3d.pv")}, std::invalid_argument);
+    EXPECT_THROW(file::Filename::fromStr("shoal%0.2.3d.pv"), std::invalid_argument);
+    EXPECT_THROW(file::Filename{"shoal*.pv"}, std::invalid_argument);
+    EXPECT_EQ(file::Filename("coverage-50%.pv").str(), "coverage-50%.pv");
 }
 
 // Policy: Opening a recent conversion recovers a missing source from saved metadata
@@ -1764,7 +1776,7 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextRecentNestedOutputRestoresOrig
         file::Path((root / "sequence.mp4").string()));
     const auto nested_output_dir = file::Path(
         (root / "fish-schools-debug").string());
-    const auto output_prefix = std::string("sem");
+    const auto output_prefix = file::RelativePath("sem");
     const auto video_base = nested_output_dir / output_prefix / "sequence";
     const auto video_path = video_base.add_extension("pv");
     const auto settings_path = video_base.add_extension("settings");
@@ -1829,7 +1841,8 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextRecentNestedOutputRestoresOrig
         VideoSource source(READ_SETTING(source, file::PathArray));
     });
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                  return settings::find_output_name(config.values);
+                  const auto name = settings::choose_output_name(config.values);
+                  return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
               }),
               video_base);
 }
@@ -1860,7 +1873,7 @@ TEST_F(SettingsPrecedenceTest, LoadContextUsesOutputOrLaunchDirectoryForWebcamPv
         if(test.directory)
             overrides["output_dir"] = *test.directory;
         if(test.prefix)
-            overrides["output_prefix"] = *test.prefix;
+            overrides["output_prefix"] = file::RelativePath(*test.prefix);
 
         settings::load(settings::LoadContext{
             .source = file::PathArray("webcam"),
@@ -1872,10 +1885,48 @@ TEST_F(SettingsPrecedenceTest, LoadContextUsesOutputOrLaunchDirectoryForWebcamPv
 
         EXPECT_TRUE(READ_SETTING(filename, file::Filename).path().empty());
         EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                      return settings::find_existing_output_name(config.values).absolute();
+                      const auto name = settings::choose_output_name(config.values);
+                      return file::DataLocation::parse("output", name.path(), &config.values);
                   }),
-                  test.expected);
+                  test.expected.add_extension("pv"));
     }
+}
+
+TEST_F(TrackingFilenameResolutionTest, DataLocationResolvesWebcamPvWithoutRecordedLaunchDirectory) {
+    const ScopedCurrentPath cwd(root);
+    CommandLine::instance() = CommandLine{};
+    const file::Path work(root.string());
+    const file::PathArray webcam("webcam");
+
+    const auto no_directory = settings_map(webcam);
+    EXPECT_EQ(file::DataLocation::parse("output", "webcam.pv", &no_directory), work / "webcam.pv")
+        << "Webcam with output_dir omitted";
+
+    const auto empty_directory = settings_map(webcam, file::Path{});
+    EXPECT_EQ(file::DataLocation::parse("output", "webcam.pv", &empty_directory), work / "webcam.pv")
+        << "Webcam with output_dir explicitly empty";
+
+    auto prefix_only = settings_map(webcam);
+    prefix_only["output_prefix"] = file::RelativePath("session");
+    EXPECT_EQ(file::DataLocation::parse("output", "webcam.pv", &prefix_only), work / "session" / "webcam.pv")
+        << "Webcam with output_dir omitted and output_prefix set to session";
+}
+
+TEST_F(TrackingFilenameResolutionTest, DataLocationResolvesRelativePathsWithoutRecordedLaunchDirectory) {
+    const ScopedCurrentPath cwd(root);
+    ASSERT_TRUE(CommandLine::instance().launch_dir().empty());
+    const auto movie = create_regular_file(input_dir / "clip.mov");
+    const file::Path relative_movie("input/clip.mov");
+    const file::PathArray source(relative_movie);
+    const auto map = settings_map(source, file::Path("output"));
+
+    EXPECT_EQ(file::DataLocation::parse("input", relative_movie, &map), movie)
+        << "A relative input starts at cwd even when output_dir is set.";
+    const auto files = file::DataLocation::parse("input", source, &map);
+    EXPECT_EQ(files.get_paths(), std::vector<file::Path>{movie})
+        << "The same relative input in a PathArray starts at cwd.";
+    EXPECT_EQ(file::DataLocation::parse("output", "clip.pv", &map), output_dir / "clip.pv")
+        << "A relative output_dir starts at cwd.";
 }
 
 // Policy: A source chosen on the command line uses the output location selected
@@ -1888,7 +1939,7 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmd) {
     sprite::Map overrides;
     CommandLine::instance().load_settings(overrides);
     overrides["output_dir"] = output_dir;
-    overrides["output_prefix"] = std::string{"tmp"};
+    overrides["output_prefix"] = file::RelativePath{"tmp"};
 
     settings::load(settings::LoadContext{
         .source = file::PathArray{input_file},
@@ -1903,7 +1954,8 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmd) {
             return with_config;
         });
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                  return settings::find_output_name(config.values);
+                  const auto name = settings::choose_output_name(config.values);
+                  return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
               }),
               output_dir / "tmp" / input_basename);
 
@@ -1934,7 +1986,8 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmdNoOverrides)
             return with_config;
         });
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                  return settings::find_output_name(config.values);
+                  const auto name = settings::choose_output_name(config.values);
+                  return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
               }),
               output_dir / "tmp" / input_basename);
 
@@ -2006,7 +2059,7 @@ TEST_F(TrackingFilenameResolutionTest, VideoSettingsHonorSourceAndAccessLevelExc
 
     sprite::Map overrides;
     overrides["output_dir"] = output_dir;
-    overrides["output_prefix"] = std::string("session");
+    overrides["output_prefix"] = file::RelativePath("session");
 
     settings::load(settings::LoadContext{
         .source = file::PathArray{input_file},
@@ -2028,7 +2081,7 @@ TEST_F(TrackingFilenameResolutionTest, VideoSettingsHonorSourceAndAccessLevelExc
     EXPECT_NE(READ_SETTING(filename, file::Filename).path(), input_basename);
     EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{input_file});
     EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "session");
     EXPECT_EQ(READ_SETTING(app_name, std::string), initial_app_name);
     EXPECT_EQ(READ_SETTING(python_path, file::Path), initial_python_path);
 }
@@ -2212,7 +2265,7 @@ TEST_F(TrackingFilenameResolutionTest, LaterLoadMayReplaceConsumedCommandLineVal
     });
 
     EXPECT_EQ(READ_SETTING(output_dir, file::Path), command_line_output_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "from-command-line");
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "from-command-line");
     EXPECT_EQ(READ_SETTING(track_threshold, int), 21);
     EXPECT_EQ(READ_SETTING(individual_prefix, std::string), "from-command-line");
     EXPECT_FALSE(CommandLine::instance().settings_keys().contains("output_dir"));
@@ -2222,7 +2275,7 @@ TEST_F(TrackingFilenameResolutionTest, LaterLoadMayReplaceConsumedCommandLineVal
 
     sprite::Map later;
     later["output_dir"] = output_dir;
-    later["output_prefix"] = std::string("from-source-map");
+    later["output_prefix"] = file::RelativePath("from-source-map");
     later["track_threshold"] = 44;
     later["individual_prefix"] = std::string("from-source-map");
     settings::load(settings::LoadContext{
@@ -2234,7 +2287,7 @@ TEST_F(TrackingFilenameResolutionTest, LaterLoadMayReplaceConsumedCommandLineVal
     });
 
     EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "from-source-map");
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "from-source-map");
     EXPECT_EQ(READ_SETTING(track_threshold, int), 44);
     EXPECT_EQ(READ_SETTING(individual_prefix, std::string), "from-source-map");
 }
@@ -2859,7 +2912,7 @@ TEST_F(SettingsPrecedenceTest, DeferredTrackingLoadPublishesBothDefaultsOnlyWhen
 TEST_F(SettingsPrecedenceTest, DeferredConversionUsesTheFilenameCapturedWithTheCommandLine) {
     const ScopedCurrentPath current_path(root);
     auto& command = CommandLine::instance();
-    command.add_setting("filename", "shoal%03d.pv");
+    command.add_setting("filename", "shoal.pv");
     sprite::Map launch_settings;
     command.load_settings(launch_settings);
     auto output_map = GlobalSettings::mutable_snapshot();
@@ -2872,7 +2925,7 @@ TEST_F(SettingsPrecedenceTest, DeferredConversionUsesTheFilenameCapturedWithTheC
         .output_map = output_map
     });
 
-    EXPECT_EQ(output_map->config.at("filename").value<file::Filename>(), file::Filename("shoal%03d"));
+    EXPECT_EQ(output_map->config.at("filename").value<file::Filename>(), file::Filename("shoal"));
     EXPECT_TRUE(READ_SETTING(filename, file::Filename).path().empty());
 }
 
@@ -2940,16 +2993,6 @@ TEST_F(SettingsPrecedenceTest, FailedDeferredLoadLeavesLiveDefaultsAndCommandLin
     });
 }
 
-TEST_F(SettingsPrecedenceTest, ReconversionDoesNotIgnoreSettingApplicationErrors) {
-    const auto filename = READ_SETTING(filename, file::Filename);
-    auto output_map = GlobalSettings::mutable_snapshot();
-    settings::LoadContext context{.output_map = output_map};
-    context.combined.values["filename"] = std::string("invalid property type");
-
-    EXPECT_ANY_THROW(context.finalize());
-    EXPECT_EQ(output_map->config.at("filename").value<file::Filename>(), filename);
-}
-
 TEST_F(SettingsPrecedenceTest, ReconversionKeepsPastedPvOutputLocation) {
     const ScopedCurrentPath current_path(root);
     const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
@@ -2980,23 +3023,22 @@ TEST_F(SettingsPrecedenceTest, ReconversionKeepsPastedPvOutputLocation) {
 
     ASSERT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_path});
     ASSERT_EQ(READ_SETTING(meta_source_path, std::string), source.str());
-    ASSERT_EQ(READ_SETTING(output_dir, file::Path), video_path.remove_filename());
+    ASSERT_TRUE(READ_SETTING(output_dir, file::Path).empty());
     ASSERT_EQ(GlobalSettings::read([](const Configuration& config) {
-                  return settings::find_output_name(config.values);
+                  const auto name = settings::choose_output_name(config.values);
+                  return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
               }), video_base);
 
-    // With no output edits, the GUI captures only non-default output options
-    // before preparing the original video as the conversion input.
+    // Replacing the selected PV explicitly chooses its parent as the conversion destination.
     sprite::Map gui_values;
-    if(const auto directory = READ_SETTING(output_dir, file::Path); not directory.empty())
-        gui_values["output_dir"] = directory;
-    if(const auto prefix = READ_SETTING(output_prefix, std::string); not prefix.empty())
+    gui_values["output_dir"] = video_path.remove_filename();
+    if(const auto prefix = READ_SETTING(output_prefix, file::RelativePath); not prefix.empty())
         gui_values["output_prefix"] = prefix;
 
     auto conversion_source = file::PathArray{READ_SETTING(meta_source_path, std::string)};
     auto filename = READ_SETTING(filename, file::Filename);
     if(filename.path().empty())
-        filename = file::Filename(file::find_basename(file::PathArray{video_path}));
+        filename = file::Filename(settings::choose_output_name(file::PathArray{video_path}).path().remove_extension());
     auto output_map = GlobalSettings::mutable_snapshot();
     settings::load(settings::LoadContext{
         .source = conversion_source,
@@ -3011,7 +3053,8 @@ TEST_F(SettingsPrecedenceTest, ReconversionKeepsPastedPvOutputLocation) {
     // Settings are loaded for validation while the selected PV remains the active source.
     EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_path});
     EXPECT_EQ(output_map->config.at("source").value<file::PathArray>(), file::PathArray{source});
-    const auto overwrite_target = settings::find_output_name(output_map->config.values).add_extension("pv");
+    const auto output_name = settings::choose_output_name(output_map->config.values);
+    const auto overwrite_target = file::DataLocation::parse("output", output_name.path(), &output_map->config.values);
     EXPECT_EQ(overwrite_target, video_path);
     EXPECT_NE(overwrite_target, source.remove_extension().add_extension("pv"));
 
@@ -3019,7 +3062,8 @@ TEST_F(SettingsPrecedenceTest, ReconversionKeepsPastedPvOutputLocation) {
     output_map->apply();
     EXPECT_EQ(READ_SETTING(source, file::PathArray), conversion_source);
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                  return settings::find_output_name(config.values).add_extension("pv");
+                  const auto name = settings::choose_output_name(config.values);
+                  return file::DataLocation::parse("output", name.path(), &config.values);
               }), overwrite_target);
 }
 
@@ -3037,7 +3081,7 @@ TEST_F(SettingsPrecedenceTest, ReconversionPreservesExplicitOutputPrefix) {
     for(const auto& directory : {file::Path{}, output_dir}) {
         SCOPED_TRACE(directory.str());
         sprite::Map gui_values;
-        gui_values["output_prefix"] = std::string("sem");
+        gui_values["output_prefix"] = file::RelativePath("sem");
         if(not directory.empty())
             gui_values["output_dir"] = directory;
         settings::load(settings::LoadContext{
@@ -3047,9 +3091,9 @@ TEST_F(SettingsPrecedenceTest, ReconversionPreservesExplicitOutputPrefix) {
             .quiet = true
         });
 
-        const auto expected_dir = directory.empty() ? video_base.remove_filename() : directory;
-        EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir);
-        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "sem");
+        const auto expected_dir = directory.empty() ? source.remove_filename() : directory;
+        EXPECT_EQ(READ_SETTING(output_dir, file::Path), directory);
+        EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "sem");
         gui_values["output_dir"] = READ_SETTING(output_dir, file::Path);
         auto conversion_source = file::PathArray{READ_SETTING(meta_source_path, std::string)};
         auto output_map = GlobalSettings::mutable_snapshot();
@@ -3064,28 +3108,17 @@ TEST_F(SettingsPrecedenceTest, ReconversionPreservesExplicitOutputPrefix) {
         });
         EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_base.add_extension("pv")});
 
-        EXPECT_EQ(output_map->config.at("output_dir").value<file::Path>(), expected_dir);
-        EXPECT_EQ(output_map->config.at("output_prefix").value<std::string>(), "sem");
-        EXPECT_EQ(settings::find_output_name(output_map->config.values), expected_dir / "sem" / "recording");
+        EXPECT_EQ(output_map->config.at("output_dir").value<file::Path>(), directory);
+        EXPECT_EQ(output_map->config.at("output_prefix").value<file::RelativePath>().str(), "sem");
+        const auto output_name = settings::choose_output_name(output_map->config.values);
+        EXPECT_EQ(file::DataLocation::parse("output", output_name.path(), &output_map->config.values),
+                  expected_dir / "sem" / "recording.pv");
         output_map->apply();
         EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                      return settings::find_output_name(config.values);
+                      const auto name = settings::choose_output_name(config.values);
+                      return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
                   }), expected_dir / "sem" / "recording");
     }
-}
-
-TEST_F(SettingsPrecedenceTest, RelativePvKeepsInputLookupUnchanged) {
-    const ScopedCurrentPath current_path(root);
-    const auto source = create_regular_file(file::Path("input/recording.pv"));
-    settings::LoadContext context{.quiet = true};
-    default_config::get(context.combined);
-    context.combined.values["source"] = file::PathArray{source};
-    context.combined.values["wd"] = file::Path{};
-
-    context.check_output_dir();
-
-    EXPECT_TRUE(context.combined.at("output_dir").value<file::Path>().empty());
-    EXPECT_EQ(file::DataLocation::parse("input", source, &context.combined.values), source);
 }
 
 // Policy: Reconversion uses the new model setup supplied by the GUI, including
@@ -3177,78 +3210,32 @@ TEST_F(SettingsPrecedenceTest, ReconversionUsesNewModelSetupFromGuiValues) {
     }
 }
 
-// Policy: For a video source, tracking searches output_dir/output_prefix first,
-// then beside the source if the output PV is missing. Exports use the chosen output
-// location, and an automatically found PV does not become a user-selected filename.
-TEST_F(SettingsPrecedenceTest, TrackingSearchesOutputLocationBeforeSourceDirectory) {
-    const ScopedCurrentPath current_path(root);
-    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
-    const auto input_base = input_dir / "recording";
-
-    struct Case {
-        const char* name;
-        std::string prefix;
-        bool output_exists;
-        bool output_dir_specified{true};
-        bool input_exists{true};
+TEST_F(SettingsPrecedenceTest, TrackingReadsMetadataFromTheConfiguredOutput) {
+    const auto movie = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    const auto selected = output_dir / "session" / "recording";
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
     };
-    for(const auto& test : {
-        Case{"output directory", "", true},
-        Case{"output directory and prefix", "session", true},
-        Case{"only output PV exists", "session", true, true, false},
-        Case{"source fallback", "", false, false},
-        Case{"source fallback", "", false, true},
-        Case{"source fallback with prefix", "session", false, true}
-    }) {
-        SCOPED_TRACE(test.name);
-        reset_global_settings();
-        CommandLine::instance() = CommandLine{};
-        const auto output_root = test.output_dir_specified ?
-            (test.prefix.empty()
-                ? output_dir : output_dir / test.prefix)
-            : (test.prefix.empty() ? input_base.remove_filename() : input_base.remove_filename() / test.prefix);
-        const auto output_base = output_root / "recording";
-        fs::remove(input_base.add_extension("pv").str());
-        fs::remove(output_base.add_extension("pv").str());
+    metadata["frame_rate"] = uint32_t(23);
+    write_pv(input_dir / "recording", movie, metadata);
+    metadata["frame_rate"] = uint32_t(47);
+    write_pv(selected, movie, metadata);
 
-        sprite::Map metadata;
-        metadata["detect_type"] = track::detect::ObjectDetectionType_t{
-            track::detect::ObjectDetectionType::background_subtraction
-        };
-        if(test.input_exists) {
-            metadata["frame_rate"] = uint32_t(23);
-            write_pv(input_base, source, metadata);
-        }
-        if(test.output_exists) {
-            metadata["frame_rate"] = uint32_t(47);
-            write_pv(output_base, source, metadata);
-        }
+    sprite::Map overrides;
+    overrides["output_dir"] = output_dir;
+    overrides["output_prefix"] = file::RelativePath("session");
+    settings::load(settings::LoadContext{
+        .source = file::PathArray(movie),
+        .task = default_config::TRexTask_t::track,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
 
-        CommandLine::instance().add_setting("source", source.str());
-        if(test.output_dir_specified)
-            CommandLine::instance().add_setting("output_dir", output_dir.str());
-        CommandLine::instance().add_setting("output_prefix", test.prefix);
-        sprite::Map command_line;
-        CommandLine::instance().load_settings(command_line);
-
-        settings::load(settings::LoadContext{
-            .source = file::PathArray{source},
-            .task = default_config::TRexTask_t::track,
-            .source_map = std::move(command_line),
-            .quiet = true
-        });
-        
-        const auto expected_pv = test.output_exists ? output_base : input_base;
-        file::Path resolved_name;
-        GlobalSettings::read([&](const Configuration& config) {
-            EXPECT_NO_THROW((resolved_name = settings::find_existing_output_name(config.values)));
-        });
-        EXPECT_EQ(resolved_name, expected_pv);
-
-        EXPECT_EQ(READ_SETTING(frame_rate, uint32_t), test.output_exists ? 47u : 23u);
-        EXPECT_TRUE(READ_SETTING(filename, file::Filename).path().empty());
-        EXPECT_EQ(file::DataLocation::parse("output", "data"), output_root / "data");
-    }
+    EXPECT_EQ(READ_SETTING(frame_rate, uint32_t), 47u);
+    EXPECT_TRUE(READ_SETTING(filename, file::Filename).path().empty());
+    EXPECT_EQ(resolve_tracking_filename(), selected.add_extension("pv"));
+    EXPECT_EQ(file::DataLocation::parse("output", "data"), output_dir / "session" / "data");
 }
 
 // Policy: An empty output_dir uses the source directory for PV lookup and exports,
@@ -3285,18 +3272,14 @@ TEST_F(SettingsPrecedenceTest, TrackingDefaultsToSourceDirectoryWhenOutputDirect
             .quiet = true
         });
 
-        EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                      return settings::find_existing_output_name(config.values);
-                  }),
-                  input_base);
-        
         EXPECT_EQ(READ_SETTING(frame_rate, uint32_t), 23u);
         EXPECT_TRUE(READ_SETTING(filename, file::Filename).path().empty());
         EXPECT_EQ(file::DataLocation::parse("output", "data"), input_dir / "data");
         EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                      return settings::find_existing_output_name(config.values);
+                      const auto name = settings::choose_output_name(config.values);
+                      return file::DataLocation::parse("output", name.path(), &config.values);
                   }),
-                  input_base);
+                  input_base.add_extension("pv"));
     }
 }
 
@@ -3328,9 +3311,10 @@ TEST_F(SettingsPrecedenceTest, RelativeFilenameUsesSameOutputLocationWithOrWitho
         EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray("webcam"));
         EXPECT_EQ(READ_SETTING(filename, file::Filename).path(), file::Path("chosen"));
         EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
-        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+        EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "session");
         EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                      return settings::find_output_name(config.values);
+                      const auto name = settings::choose_output_name(config.values);
+                      return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
                   }),
                   output_dir / "session" / "chosen");
 
@@ -3352,132 +3336,6 @@ TEST_F(SettingsPrecedenceTest, AbsoluteCommandLineFilenameIsRejected) {
     EXPECT_EQ(READ_SETTING(filename, file::Filename).path(), file::Path("previous.pv"));
 }
 
-// Explicit output_dir (-d) and output_prefix (-p) determine conversion and export
-// destinations. Reading an existing PV keeps its input path separate from its outputs.
-// trex -i /data/clip.mp4 -d /exports -> writes /exports/clip.pv.
-// trex -i /data/clip.mp4 -p session -> writes /data/session/clip.pv.
-// trex -i /data/clip.mp4 -d /exports -p session -> writes /exports/session/clip.pv.
-// trex -i /data/session/clip.mp4 -p session -> writes /data/session/session/clip.pv.
-// trex -i /data/clip.pv -d /exports -> tracks /data/clip.pv if /exports/clip.pv is absent and exports under /exports.
-// trex -i webcam -o chosen.pv -> writes launch_dir/chosen.pv when converting.
-TEST_F(SettingsPrecedenceTest, CommandLineOutputLocationAppliesToAbsoluteSources) {
-    namespace TRexTask_t = default_config::TRexTask_t;
-
-    const ScopedCurrentPath current_path(root);
-    char executable[] = "test_tracking_filename_resolution";
-    char* argv[]{executable, nullptr};
-    const auto base = file::Path(root.string());
-    copy_guppies_video_fixture(base / "input/recording.mp4");
-    copy_guppies_video_fixture(base / "input/session/recording.mp4");
-    copy_processed_video_fixture(base / "input/tracking.pv");
-
-    struct InputCase {
-        file::Path source;
-        default_config::TRexTask task;
-        file::Path selected_filename{};
-        file::Path directory{};
-        std::string output_prefix{};
-        file::Path expected_filename;
-        file::Path expected_data;
-    };
-    for(const auto& input : {
-        InputCase{.source = base / "input/recording.mp4", .task = TRexTask_t::convert,
-                  .expected_filename = base / "input/recording", .expected_data = base / "input/data"},
-        InputCase{.source = base / "input/recording.mp4", .task = TRexTask_t::convert,
-                  .directory = "relative",
-                  .expected_filename = base / "relative/recording", .expected_data = base / "relative/data"},
-        InputCase{.source = base / "input/recording.mp4", .task = TRexTask_t::convert,
-                  .directory = base / "output",
-                  .expected_filename = base / "output/recording", .expected_data = base / "output/data"},
-        InputCase{.source = base / "input/recording.mp4", .task = TRexTask_t::convert,
-                  .output_prefix = "session",
-                  .expected_filename = base / "input/session/recording", .expected_data = base / "input/session/data"},
-        InputCase{.source = base / "input/recording.mp4", .task = TRexTask_t::convert,
-                  .directory = base / "output", .output_prefix = "session",
-                  .expected_filename = base / "output/session/recording", .expected_data = base / "output/session/data"},
-        InputCase{.source = base / "input/session/recording.mp4", .task = TRexTask_t::convert,
-                  .output_prefix = "session", .expected_filename = base / "input/session/session/recording",
-                  .expected_data = base / "input/session/session/data"},
-
-        InputCase{.source = base / "input/tracking.pv", .task = TRexTask_t::track,
-                  .selected_filename = base / "input/tracking",
-                  .expected_filename = base / "input/tracking", .expected_data = base / "input/data"},
-        InputCase{.source = base / "input/tracking.pv", .task = TRexTask_t::track,
-                  .selected_filename = base / "input/tracking",
-                  .directory = "relative",
-                  .expected_filename = base / "input/tracking", .expected_data = base / "relative/data"},
-        InputCase{.source = base / "input/tracking.pv", .task = TRexTask_t::track,
-                  .selected_filename = base / "input/tracking",
-                  .directory = base / "output",
-                  .expected_filename = base / "input/tracking", .expected_data = base / "output/data"},
-        InputCase{.source = base / "input/tracking.pv", .task = TRexTask_t::track,
-                  .selected_filename = base / "input/tracking",
-                  .output_prefix = "session",
-                  .expected_filename = base / "input/tracking", .expected_data = base / "input/session/data"},
-        InputCase{.source = base / "input/tracking.pv", .task = TRexTask_t::track,
-                  .selected_filename = base / "input/tracking",
-                  .directory = base / "output", .output_prefix = "session",
-                  .expected_filename = base / "input/tracking", .expected_data = base / "output/session/data"},
-
-        InputCase{.source = "webcam", .task = TRexTask_t::convert, .selected_filename = "chosen.pv",
-                  .expected_filename = base / "chosen", .expected_data = base / "data"},
-        InputCase{.source = "webcam", .task = TRexTask_t::convert, .selected_filename = "chosen.pv",
-                  .directory = "relative",
-                  .expected_filename = base / "relative/chosen", .expected_data = base / "relative/data"},
-        InputCase{.source = "webcam", .task = TRexTask_t::convert, .selected_filename = "chosen.pv",
-                  .directory = base / "output",
-                  .expected_filename = base / "output/chosen", .expected_data = base / "output/data"},
-        InputCase{.source = "webcam", .task = TRexTask_t::convert, .selected_filename = "chosen.pv",
-                  .output_prefix = "session",
-                  .expected_filename = base / "session/chosen", .expected_data = base / "session/data"},
-        InputCase{.source = "webcam", .task = TRexTask_t::convert, .selected_filename = "chosen.pv",
-                  .directory = base / "output", .output_prefix = "session",
-                  .expected_filename = base / "output/session/chosen", .expected_data = base / "output/session/data"}
-    }) {
-        SCOPED_TRACE(::testing::Message()
-            << "source=" << input.source.str() << ", filename=" << input.selected_filename.str()
-            << ", output_dir=" << input.directory.str() << ", output_prefix=" << input.output_prefix);
-        reset_global_settings();
-        CommandLine::init(1, argv, true);
-        const ScopedCurrentPath working_directory(output_dir.str());
-        SETTING(nowindow) = true;
-        SETTING(quiet) = true;
-
-        CommandLine::instance().add_setting("source", input.source.str());
-        if(input.task == TRexTask_t::convert && not input.selected_filename.empty())
-            CommandLine::instance().add_setting("filename", input.selected_filename.str());
-        if(not input.directory.empty())
-            CommandLine::instance().add_setting("output_dir", input.directory.str());
-        if(not input.output_prefix.empty())
-            CommandLine::instance().add_setting("output_prefix", input.output_prefix);
-
-        sprite::Map command_line;
-        CommandLine::instance().load_settings(command_line);
-        // Automatic tracking selects the existing PV as filename after reading -i.
-        settings::load(settings::LoadContext{
-            .source = file::PathArray{input.source},
-            .filename = input.selected_filename,
-            .task = input.task,
-            .type = track::detect::ObjectDetectionType::background_subtraction,
-            .source_map = std::move(command_line),
-            .quiet = true
-        });
-
-        EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{input.source});
-        if(not input.directory.empty())
-            EXPECT_EQ(READ_SETTING(output_dir, file::Path), input.directory);
-        EXPECT_EQ(READ_SETTING(output_prefix, std::string), input.output_prefix);
-        EXPECT_EQ(file::DataLocation::parse("output", "data"), input.expected_data);
-
-        const auto filename = GlobalSettings::read([&](const Configuration& config) {
-            return input.task == TRexTask_t::track
-                ? settings::find_existing_output_name(config.values)
-                : settings::find_output_name(config.values);
-        });
-        EXPECT_EQ(filename, input.expected_filename);
-    }
-}
-
 TEST_F(SettingsPrecedenceTest, UnmatchedConversionSourceDoesNotUseTheCommandLineFilenameFallback) {
     file::PathArray requested_source{"new-*.mp4"};
     requested_source.ensure_loaded(trex_test::TestFilesystem{"previous.mp4"});
@@ -3495,26 +3353,8 @@ TEST_F(SettingsPrecedenceTest, UnmatchedConversionSourceDoesNotUseTheCommandLine
     context.init();
     context.init_filename();
 
-    EXPECT_EQ(context.combined.at("source").value<file::PathArray>(), requested_source);
+    EXPECT_TRUE(context.combined.at("source").value<file::PathArray>().empty());
     EXPECT_EQ(context.combined.at("filename").value<file::Filename>().path(), file::Path{});
-}
-
-TEST_F(SettingsPrecedenceTest, MixedVideoAndPvListPreservesTheOriginalVideoInMetadata) {
-    const file::PathArray mixed{R"(["morning.mp4","evening.pv"])"};
-    const auto original = guppies_video_fixture().str();
-    settings::LoadContext context{
-        .source = mixed,
-        .task = default_config::TRexTask_t::convert,
-        .quiet = true,
-        .output_map = GlobalSettings::mutable_snapshot()
-    };
-    context.init();
-    context.combined.values["meta_source_path"] = original;
-    context.init_filename();
-    context.estimate_meta_variables();
-
-    EXPECT_EQ(context.combined.at("meta_source_path").value<std::string>(), original);
-    EXPECT_EQ(context.combined.at("source").value<file::PathArray>(), mixed);
 }
 
 // Policy: A conversion with no explicit source or filename still uses the
@@ -3535,9 +3375,10 @@ TEST_F(TrackingFilenameResolutionTest, EmptyConversionContextUsesCommandLineFile
 
     EXPECT_EQ(READ_SETTING(filename, file::Filename).path(), file::Path("fallback"));
     EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "session");
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
-                  return settings::find_output_name(config.values);
+                  const auto name = settings::choose_output_name(config.values);
+                  return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
               }),
               output_dir / "session" / "fallback");
 }

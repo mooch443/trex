@@ -59,7 +59,8 @@ namespace cmn::gui {
     }
 
 struct ScreenRecorder::Data {
-    cv::VideoWriter* _recording_capture = nullptr;
+    IMGUIBase* _recording_base = nullptr;
+    std::unique_ptr<cv::VideoWriter> _recording_capture;
     cv::Size _recording_size;
     file::Path _recording_path;
     default_config::gui_recording_format_t::Class _recording_format;
@@ -166,16 +167,23 @@ struct ScreenRecorder::Data {
         }
     }
     
-    void stop_recording(Base* base, DrawStructure* graph) {
+    /// Detaches the frame receiver before the writer or recorder state is released.
+    void disconnect_frame_buffer() {
+        if(_recording_base) {
+            _recording_base->set_frame_recording(false);
+            // Metal holds the receiver lock until the current frame write finishes.
+            _recording_base->platform()->set_frame_buffer_receiver({});
+            _recording_base = nullptr;
+        }
+    }
+
+    void stop_recording(DrawStructure* graph) {
+        disconnect_frame_buffer();
         if(!_recording)
             return;
-            
-        if(base)
-            base->set_frame_recording(false);
         
         if(_recording_capture) {
-            delete _recording_capture;
-            _recording_capture = NULL;
+            _recording_capture.reset();
             
             file::Path ffmpeg = SETTING(ffmpeg_path).value<file::Path>();
             if(!ffmpeg.empty() && graph) {
@@ -222,16 +230,11 @@ struct ScreenRecorder::Data {
         return file::DataLocation::parse("output", file::Path("clips") / filename);
     }
     
-    void start_recording(Base* base, Frame_t frame) {
+    void start_recording(IMGUIBase* base, Frame_t frame) {
         _recording_start = frame;
         _recording_frame = {};
         _last_recording_frame = {};
         
-        if (!base)
-            return;
-
-        _recording = true;
-
         file::Path frames = frame_output_dir();
         if (!frames.exists()) {
             if (!frames.create_folder()) {
@@ -272,9 +275,7 @@ struct ScreenRecorder::Data {
         // base path without extension yet
         frames = frames / (clip_prefix + Meta::toStr(max_number));
 
-        cv::Size size(base && dynamic_cast<IMGUIBase*>(base)
-            ? static_cast<IMGUIBase*>(base)->real_dimensions()
-            : base->window_dimensions());
+        cv::Size size(base->real_dimensions());
 
         // ---------------------------------------------------------------------
         // enforce even dimensions (required by many codecs)
@@ -307,14 +308,13 @@ struct ScreenRecorder::Data {
 
                 Print("Trying codec ", c.tag, " -> ", out_path);
 
-                delete _recording_capture;                 // clear any prior attempt
-                _recording_capture = new cv::VideoWriter{
+                _recording_capture = std::make_unique<cv::VideoWriter>(
                     out_path,
                     c.fourcc,
                     static_cast<double>(fps),
                     size,
                     true
-                };
+                );
 
                 if (_recording_capture->isOpened()) {
                     _recording_capture->set(cv::VIDEOWRITER_PROP_QUALITY, 100);
@@ -328,8 +328,7 @@ struct ScreenRecorder::Data {
                 FormatExcept("Cannot open a VideoWriter for any tested codec in ", frames.str(),
                     ". Please check your codec install or choose another container/format.");
                 _recording = false;
-                delete _recording_capture;
-                _recording_capture = nullptr;
+                _recording_capture.reset();
                 return;
             }
 
@@ -356,13 +355,12 @@ struct ScreenRecorder::Data {
         // ---------------------------------------------------------------------
         // Success — flip flag & remember parameters
         // ---------------------------------------------------------------------
-        base->set_frame_recording(true);
         Print("Recording to ", frames, "... (", format.name(), ")");
 
         _recording_size = size;
         _recording_path = frames;
         _recording_format = format;
-        SETTING(gui_is_recording) = true;
+        _recording = true;
     }
 };
 
@@ -377,6 +375,7 @@ ScreenRecorder::ScreenRecorder()
 }
 
 ScreenRecorder::~ScreenRecorder() {
+    _data->disconnect_frame_buffer();
     delete _data;
 }
 
@@ -385,7 +384,13 @@ void ScreenRecorder::update_recording(Image::Ptr&& image, Base *base, Frame_t fr
 }
 
 void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
-    _data->start_recording(base, frame);
+    auto recording_base = dynamic_cast<IMGUIBase*>(base);
+    if(not recording_base || recording())
+        return;
+    _data->disconnect_frame_buffer();
+    _data->start_recording(recording_base, frame);
+    if(not recording())
+        return;
     
     Frame_t video_length;
     if(GlobalSettings::is_type<uint64_t>("video_length"))
@@ -406,13 +411,16 @@ void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
         };
     }
     
-    ((IMGUIBase*)base)->platform()->set_frame_buffer_receiver([this, base, video_length, current_frame](Image::Ptr&& image){
-        update_recording(std::move(image), base, current_frame(), video_length);
+    _data->_recording_base = recording_base;
+    recording_base->platform()->set_frame_buffer_receiver([data = _data, base, video_length, current_frame](Image::Ptr&& image){
+        data->do_record(std::move(image), base, current_frame(), video_length);
     });
+    SETTING(gui_is_recording) = true;
+    recording_base->set_frame_recording(true);
 }
 
-void ScreenRecorder::stop_recording(Base *base, DrawStructure *graph) {
-    _data->stop_recording(base, graph);
+void ScreenRecorder::stop_recording(DrawStructure *graph) {
+    _data->stop_recording(graph);
 }
 
 void ScreenRecorder::set_frame(cmn::Frame_t frame) {

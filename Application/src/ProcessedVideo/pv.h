@@ -555,7 +555,7 @@ namespace pv {
     
     //! Tries to find irregular frames (timestamp smaller than timestamp from previous frame)
     //  and removes them from the file.
-    void fix_file(File& file);
+    void fix_file(File& file, cmn::file::Path destination = {});
 
     enum class SettingsFormat { Json, LegacyResults };
     void load_metadata_settings(sprite::Map& map, const file::Path& source,

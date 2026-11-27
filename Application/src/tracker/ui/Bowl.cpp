@@ -126,8 +126,11 @@ bool Bowl::Data::update_shapes() {
         return false;
     }
     
+    bool redraw_needed = false;
+    
     if(!FAST_SETTING(track_include).empty())
     {
+        redraw_needed = true;
         auto keys = extract_keys(_include_shapes);
         
         for(auto &rect : FAST_SETTING(track_include)) {
@@ -159,11 +162,13 @@ bool Bowl::Data::update_shapes() {
     } else if(FAST_SETTING(track_include).empty()
               && !_include_shapes.empty())
     {
+        redraw_needed = true;
         _include_shapes.clear();
     }
     
     if(!FAST_SETTING(track_ignore).empty())
     {
+        redraw_needed = true;
         auto keys = extract_keys(_ignore_shapes);
         
         for(auto &rect : FAST_SETTING(track_ignore)) {
@@ -193,6 +198,7 @@ bool Bowl::Data::update_shapes() {
         }
         
     } else if(FAST_SETTING(track_ignore).empty() && !_ignore_shapes.empty()) {
+        redraw_needed = true;
         _ignore_shapes.clear();
     }
     
@@ -246,6 +252,7 @@ bool Bowl::Data::update_shapes() {
     auto visual_field_shapes = READ_SETTING(visual_field_shapes, ShapeList);
     if(!visual_field_shapes.empty())
     {
+        redraw_needed = true;
         auto keys = extract_keys(_vf_shapes);
         
         for(auto &rect : visual_field_shapes) {
@@ -280,11 +287,12 @@ bool Bowl::Data::update_shapes() {
     } else if(visual_field_shapes.empty()
               && !_vf_shapes.empty())
     {
+        redraw_needed = true;
         _vf_shapes.clear();
     }
     
     _shapes_updated = false;
-    return true;
+    return redraw_needed;
 }
 
 void Bowl::draw_shapes(DrawStructure &, const FindCoord &coord) {

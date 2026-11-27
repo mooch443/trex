@@ -48,6 +48,9 @@ struct TileImage {
 
     ~TileImage();
 
+    // An empty future means the pipeline closed before accepting this tile.
+    std::future<SegmentationData> enqueue(PipelineManager<TileImage>& manager) &&;
+
     operator bool() const {
         return not images.empty();
     }

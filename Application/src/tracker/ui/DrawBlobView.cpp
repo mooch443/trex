@@ -679,7 +679,7 @@ void BlobView::draw(const DisplayParameters& parm)
                         //std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
                         
                     } else {
-                        auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>("", blob->bounds(), blob->center()), nullptr });
+                        auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(FillClr{White.alpha(100)}), std::make_unique<Label>("", blob->bounds(), blob->center()), nullptr });
                         it = k;
                     }
                     
@@ -696,9 +696,9 @@ void BlobView::draw(const DisplayParameters& parm)
                     });
                     circ->on_hover([circ](Event e){
                         if(e.hover.hovered)
-                            circ->set_fill_clr(White.alpha(150));
+                            circ->set_fill_clr(White.alpha(200));
                         else
-                            circ->set_fill_clr(White.alpha(25));
+                            circ->set_fill_clr(White.alpha(100));
                     });
                 }
                 
@@ -936,13 +936,15 @@ void BlobView::draw(const DisplayParameters& parm)
                     
                 } else if(item_id == 2) /* CONVERT TO ANNOTATION */ {
                     auto frame = GUI_SETTINGS(gui_frame);
-                    Print("Converting to annotation ", blob_id);
+                    
                     auto it = cache.display_blobs.find(clicked_blob_id);
                     if(it != cache.display_blobs.end()) {
                         /// this will be where we store possible annotations
                         std::optional<track::detect::Annotation> annotation;
                         
                         auto &pred = it->second->blob->prediction();
+                        Print("Converting to annotation ", blob_id, " with ", pred);
+                        
                         if(pred.valid()) {
                             if(not pred.pose.empty()) {
                                 // we can use pose points here
@@ -951,6 +953,16 @@ void BlobView::draw(const DisplayParameters& parm)
                                     .type = track::detect::AnnotationType::POSE,
                                     .points = pred.pose.points
                                 };
+                                
+                                auto coords = FindCoord::get();
+                                for(auto &pt : annotation->points) {
+                                    if(pt.y() >= coords.video_size().height) {
+                                        pt.move_to(Vec2(pt.x(), coords.video_size().height-1));
+                                    }
+                                    if(pt.x() >= coords.video_size().width) {
+                                        pt.move_to(Vec2(coords.video_size().width-1, pt.y()));
+                                    }
+                                }
                                 
                             } else if(pred.outlines.has_original_outline()) {
                                 std::vector<Vec2> points{pred.outlines.original_outline.value()};

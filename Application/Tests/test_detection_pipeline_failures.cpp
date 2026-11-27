@@ -267,6 +267,102 @@ TEST(PipelineFaults, SucceedingPipelineReachesEof) {
     EXPECT_EQ(status, "eof") << status;
 }
 
+TEST(PipelineFaults, ClosedInputRejectsNewFramesWithoutThrowing) {
+    reset_global_settings();
+    PipelineManager<TileImage> pipeline(1, false, [](std::vector<TileImage>&&) {
+        ADD_FAILURE() << "A frame submitted after Stop reached the detector.";
+    });
+    pipeline.close_input();
+
+    TileImage tile;
+    tile.images.push_back(Image::Make(1, 1, 3));
+    auto result = std::move(tile).enqueue(pipeline);
+    EXPECT_FALSE(result.valid());
+    EXPECT_EQ(tile.promise, nullptr);
+    pipeline.clean_up();
+}
+
+TEST(PipelineFaults, StopDuringPredictionSavesTheActiveFrameWithoutStartingAnother) {
+    TestWatchdog watchdog(kWaitDeadline * 3);
+    register_data_locations_once();
+    reset_global_settings();
+    const auto ws = make_workspace();
+    configure_conversion_settings(ws, create_synthetic_sequence(ws.root / "source", 12));
+
+    std::promise<void> prediction_started, release_prediction;
+    auto started = prediction_started.get_future();
+    auto release = release_prediction.get_future();
+    std::atomic<size_t> predictions{0};
+    auto completion = make_completion_state();
+    auto finished = completion->result.get_future();
+    Path output;
+    {
+        Segmenter segmenter([&] { signal_completion(completion, "eof"); },
+                            [&](std::string error) { signal_completion(completion, error); });
+        segmenter.open_video();
+        output = segmenter.output_file_path();
+        detect::register_pipeline(ObjectDetectionType::none, 1, false, [&](std::vector<TileImage>&& tiles) {
+            for(auto& tile : tiles) {
+                if(predictions.fetch_add(1) == 0) {
+                    prediction_started.set_value();
+                    release.wait();
+                }
+                fulfill_like_no_detection(tile);
+            }
+        });
+        segmenter.start();
+        EXPECT_EQ(started.wait_for(kWaitDeadline), std::future_status::ready);
+        segmenter.force_stop();
+        EXPECT_EQ(finished.wait_for(std::chrono::seconds(0)), std::future_status::timeout);
+        release_prediction.set_value();
+        ASSERT_EQ(finished.wait_for(kWaitDeadline), std::future_status::ready);
+        EXPECT_EQ(finished.get(), "eof");
+    }
+    EXPECT_EQ(predictions.load(), 1u);
+    EXPECT_EQ(pv::File::Read(output).length(), 1_f);
+}
+
+TEST(PipelineFaults, StopDuringPredictionReportsTheDetectorFailure) {
+    TestWatchdog watchdog(kWaitDeadline * 3);
+    register_data_locations_once();
+    reset_global_settings();
+    const auto ws = make_workspace();
+    configure_conversion_settings(ws, create_synthetic_sequence(ws.root / "source", 12));
+
+    std::promise<void> prediction_started, release_prediction;
+    auto started = prediction_started.get_future();
+    auto release = release_prediction.get_future();
+    auto completion = make_completion_state();
+    auto finished = completion->result.get_future();
+    std::atomic<bool> reached_eof{false};
+    {
+        Segmenter segmenter([&] {
+            reached_eof = true;
+            signal_completion(completion, "eof");
+        }, [&](std::string error) {
+            signal_completion(completion, "error:" + error);
+        });
+        segmenter.open_video();
+        detect::register_pipeline(ObjectDetectionType::none, 1, false, [&](std::vector<TileImage>&& tiles) {
+            prediction_started.set_value();
+            release.wait();
+            fulfill_like_no_detection(tiles.front());
+            throw std::runtime_error("Detector failed while finishing the batch\n" + std::string(500, 'x') + "\nCUDA out of memory");
+        });
+        segmenter.start();
+        EXPECT_EQ(started.wait_for(kWaitDeadline), std::future_status::ready);
+        segmenter.force_stop();
+        release_prediction.set_value();
+        ASSERT_EQ(finished.wait_for(kWaitDeadline), std::future_status::ready);
+        const auto status = finished.get();
+        EXPECT_TRUE(status.starts_with("error:")) << status;
+        EXPECT_NE(status.find("Detector failed while finishing the batch"), std::string::npos) << status;
+        EXPECT_NE(status.find("[...]"), std::string::npos) << status;
+        EXPECT_TRUE(status.ends_with("CUDA out of memory")) << status;
+    }
+    EXPECT_FALSE(reached_eof);
+}
+
 TEST(PipelineFaults, PredictFailsMidConversionStopsWithError) {
     TestWatchdog watchdog(kWaitDeadline * 3);
     set_fault_mode(FaultMode::fail_with_exception, 4);

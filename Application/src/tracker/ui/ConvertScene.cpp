@@ -375,7 +375,7 @@ void ConvertScene::deactivate() {
             GlobalSettings::unregister_callbacks(std::move(_data->callback));
 
         if(_data && _data->_recorder.recording())
-            _data->_recorder.stop_recording(window(), nullptr);
+            _data->_recorder.stop_recording(nullptr);
 
         _data->bar.set_progress(100);
         _data->bar.mark_as_completed();
@@ -455,7 +455,7 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
-    if(not track::detect::yolo::valid_model(detect::yolo::current_detect_model_path()))
+    if(not detect::yolo::valid_model(detect::yolo::current_detect_model_path()))
     {
         SETTING(detect_model) = file::Path(track::detect::yolo::default_model());
     }
@@ -493,14 +493,14 @@ void ConvertScene::activate()  {
     if(_on_activate)
         _on_activate(*this);
 
-    file::Path default_filename = GlobalSettings::write([](Configuration& config){
+    GlobalSettings::write([](Configuration& config){
         config.values.set_print_by_default(true);
-        return file::Path(settings::find_output_name(config.values));
     });
     
     auto source = READ_SETTING(source, file::PathArray);
     if(READ_SETTING(filename, file::Filename).path().empty()) {
-        SETTING(filename) = file::Filename(default_filename.filename());
+        const auto name = settings::choose_output_name(source);
+        SETTING(filename) = file::Filename(name.path().remove_extension());
     }
     
     if(start_over
@@ -512,8 +512,7 @@ void ConvertScene::activate()  {
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
     SETTING(meta_source_path) = source.source();
     try {
-        if (source == file::PathArray("webcam")
-            || source == file::PathArray("basler"))
+        if (settings::is_camera_source(source.source()))
             open_camera();
         else
             open_video();
@@ -598,7 +597,7 @@ bool ConvertScene::on_global_event(Event e) {
                     _data->_recorder.start_recording(window(), {});
                 }
                 else {
-                    _data->_recorder.stop_recording(window(), nullptr);
+                    _data->_recorder.stop_recording(nullptr);
                 }
                 return true;
             default:
@@ -1007,7 +1006,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         }),
         VarFunc("output", [](const VarProps& props) -> file::Path {
             if(props.parameters.empty())
-                return file::DataLocation::parse("output");
+                return file::DataLocation::parse("output", ".");
             return file::DataLocation::parse("output", props.first());
         }),
         VarFunc("output_name", [this](const VarProps& ) -> file::Path {
@@ -1353,8 +1352,9 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
         assert(_current_data.keypoints.empty()
                || _current_data.keypoints.size() == _current_data.predictions.size());
         
+        const float keypoint_threshold = READ_SETTING_WITH_DEFAULT(detect_keypoint_threshold, Float2_t{0.f});
         for (auto& keypoint : _current_data.keypoints) {
-            auto  pose = keypoint.toPose();
+            auto  pose = keypoint.toPose(keypoint_threshold);
             auto &pred = _current_data.predictions.at(pose_index);
             auto skeleton = detect::yolo::names::get_skeleton(pred.clid, skelet);
             if(not skeleton)

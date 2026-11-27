@@ -24,7 +24,6 @@ struct LoadContext {
     bool quiet{false};
 
     Configuration combined{};
-    file::Path resolved_filename{};
     sprite::Map current_defaults{};
     std::shared_ptr<GlobalSettings::MutableSnapshot> output_map;
     bool did_set_calculate_posture_to_false{false};
@@ -74,7 +73,6 @@ struct LoadContext {
     void init();
     bool set_config_if_different(const std::string_view& key, const sprite::Map& from, bool do_print = false);
     void init_filename();
-    void reset_default_filenames();
     
     void load_settings_from_source();
     void load_task_defaults();
@@ -83,7 +81,6 @@ struct LoadContext {
     
     void estimate_meta_variables();
     
-    void check_output_dir();
     void finalize();
 };
 

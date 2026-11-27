@@ -4,7 +4,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/AbstractVideoSource.h",
-      "sha256": "f6106e23ffc0d37e41f4aaf2b38bcfbc8d8395501a947a358c65468f8b908457",
+      "sha256": "77d3400230cbde4d51afdb9f3af4c1b799d68d4c82fcfd57c1e2b568378fa192",
       "symbols": []
     },
     {
@@ -151,112 +151,112 @@
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "65",
+          "line": "59",
           "name": "default_config::heatmap_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "68",
+          "line": "62",
           "name": "default_config::individual_image_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "72",
+          "line": "66",
           "name": "default_config::gpu_verbosity_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "75",
+          "line": "69",
           "name": "default_config::gui_recording_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "78",
+          "line": "72",
           "name": "default_config::peak_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "81",
+          "line": "75",
           "name": "default_config::matching_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "84",
+          "line": "78",
           "name": "default_config::output_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "87",
+          "line": "81",
           "name": "default_config::output_invalid_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "90",
+          "line": "84",
           "name": "default_config::app_update_check_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "93",
+          "line": "87",
           "name": "default_config::blob_split_algorithm_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "96",
+          "line": "90",
           "name": "default_config::visual_identification_version_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "99",
+          "line": "93",
           "name": "default_config::TRexTask_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "102",
+          "line": "96",
           "name": "default_config::gpu_torch_device_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "105",
+          "line": "99",
           "name": "default_config::detect_pose_bbx_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "141",
+          "line": "136",
           "name": "cmn::gui::mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
       "path": "core/default_config.h",
-      "sha256": "e18ef8e97f6f2e455abd2951afd9bb1757e1848b97b2c2539993f9bde0322d07",
+      "sha256": "cef9e0329ffcb57c921383334875fe056f1dd451fde23f998dd051e7a9a18bef",
       "symbols": [
         {
           "kind": "enum_class",
@@ -306,7 +306,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/DetectionTypes.h",
-      "sha256": "0b197f7afa95afdb2e8fde5710f7f8e0df78c36d774535f097dcc34d55b78b3f",
+      "sha256": "72079aba0b074a83d139f909ed9b037220853402c06ed94a4cb70b1d0ce83cb9",
       "symbols": [
         {
           "kind": "alias",
@@ -733,7 +733,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/GPURecognitionTypes.h",
-      "sha256": "f93752a28f9a63553d61a67aa90d4e3f4baa85dcbaf3d7638a51f1552ce7898d",
+      "sha256": "c91323e19e266af5692c7cc7638046dec1e845cc8f18ba1e5004a39ed5fd111f",
       "symbols": [
         {
           "kind": "class",
@@ -769,7 +769,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/RepeatedDeferral.h",
-      "sha256": "711af9388332532266e234cb428cf8c758ff610ea8e8836b2bd882af3bb08bba",
+      "sha256": "6b0bb0d58eba384bcfb11b49eb51c4811ceba0a1d3e2ed3d79ae2927ceb261bc",
       "symbols": [
         {
           "kind": "function",
@@ -813,7 +813,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/TaskPipeline.h",
-      "sha256": "554ff94c1d008dc3a4e677d300d62967b4d16d1d132143be75279112f60cdc40",
+      "sha256": "b5bd87699c73817964b5a4e214632920f4fdec032b0a122a5ea6084de103954a",
       "symbols": [
         {
           "kind": "class_template",
@@ -856,8 +856,15 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsPaths.h",
-      "sha256": "07a06efdf792a0076602662018af4de8e42413c03c6aba2d2dc66998b0044829",
+      "sha256": "9778d8f45013fab56ad648e4ac4e9f8b39a1501cb32781775b7b5dbd4c077e76",
       "symbols": [
+        {
+          "kind": "function",
+          "name": "is_camera_source",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::is_camera_source",
+          "smoke": "using"
+        },
         {
           "kind": "function",
           "name": "video_source_error",
@@ -867,44 +874,16 @@
         },
         {
           "kind": "function",
-          "name": "resolve_file_path",
+          "name": "choose_output_name",
           "namespace": "cmn::settings",
-          "qualified": "cmn::settings::resolve_file_path",
+          "qualified": "cmn::settings::choose_output_name",
           "smoke": "using"
         },
         {
           "kind": "function",
-          "name": "resolve_output_path",
+          "name": "resolve_recording_path",
           "namespace": "cmn::settings",
-          "qualified": "cmn::settings::resolve_output_path",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "find_output_name",
-          "namespace": "cmn::settings",
-          "qualified": "cmn::settings::find_output_name",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "find_existing_output_name",
-          "namespace": "cmn::settings",
-          "qualified": "cmn::settings::find_existing_output_name",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "find_conversion_source",
-          "namespace": "cmn::settings",
-          "qualified": "cmn::settings::find_conversion_source",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "conversion_source_exists",
-          "namespace": "cmn::settings",
-          "qualified": "cmn::settings::conversion_source_exists",
+          "qualified": "cmn::settings::resolve_recording_path",
           "smoke": "using"
         },
         {
@@ -927,7 +906,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsInitializer.h",
-      "sha256": "5afa3cf7fca914217621cb66a964926bb42d83d925225119d1734294e0cfc229",
+      "sha256": "0cb7a5818c54867edae81f8ddf7edd91ff1014ef9de174dc67cd702d4d6cc713",
       "symbols": [
         {
           "kind": "class",
@@ -1034,7 +1013,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/TileImage.h",
-      "sha256": "f42d59274ca0b7cb4aff5741711fdcc60c1dace1b3074cfa33ab7a1b4a40d052",
+      "sha256": "f6c92658ae270ad75d6fb1fb3207e44198eb4cbeab40d4523d60b56fee75fe42",
       "symbols": []
     },
     {
@@ -1157,7 +1136,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/DetectAnnotation.h",
-      "sha256": "94ff092deca1e9a3f8c13ffd1d0018de19ca76535785f43874d124fe63cab247",
+      "sha256": "ff8bd219ece7d70c68926d5022566e06da628c73891bc47d402ef8262482c625",
       "symbols": [
         {
           "kind": "enum_class",
@@ -4247,7 +4226,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/RecentItems.h",
-      "sha256": "a35925937cabdc2faab60882dcd65385c9ec0bc5fff949d55297951a47e2f083",
+      "sha256": "a45ab9b81294f605fd8a131601021dfab1b6e98313fda801ae1ed3a0f07ed91a",
       "symbols": []
     },
     {
@@ -4311,7 +4290,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/ScreenRecorder.h",
-      "sha256": "47fb587f2164bf860b4a08ffab82a646c4028f3056b1e5932c71672b2b8f44b2",
+      "sha256": "041554b036a1e47c221a49da101162117c3794dbbfb3383b4e68907b829203f5",
       "symbols": [
         {
           "kind": "class",
@@ -4494,7 +4473,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/TrackingScene.h",
-      "sha256": "b77f57b4128a435b00e6fff0f0349661f3ced2a9a46bc3b74a6df75dc11aed4c",
+      "sha256": "daffa0696d56e52a45bba1dde15091efda9e0e9818c102a92984919ea3a18aab",
       "symbols": [
         {
           "kind": "struct",
@@ -5059,7 +5038,7 @@
   "summary": {
     "excluded": 59,
     "headers": 130,
-    "symbols": 518
+    "symbols": 515
   },
   "version": 1
 }

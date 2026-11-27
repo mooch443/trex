@@ -367,6 +367,8 @@ class StrippedRFDETRResults(StrippedResults):
                 if "keypoints" in result:
                     result = dict(result)
                     result["keypoints"] = result["keypoints"][valid_device]
+                    if "visible" in result:
+                        result["visible"] = result["visible"][valid_device]
 
             source_boxes = source_bounds.to(
                 device=source_boxes.device,
@@ -420,6 +422,8 @@ class StrippedRFDETRResults(StrippedResults):
 
         keypoints = result.get("keypoints")
         if keypoints is not None:
+            if keypoints.device.type == "mps":
+                keypoints = keypoints.cpu()
             keypoints = keypoints.to(dtype=torch.float32)
             if keypoints.ndim != 3 or keypoints.shape[-1] < 2:
                 raise ValueError(
@@ -427,27 +431,28 @@ class StrippedRFDETRResults(StrippedResults):
                     f"{tuple(keypoints.shape)}."
                 )
 
-            xy = keypoints[..., :2].clone()
+            xy = keypoints[..., :2]
+            points = keypoints.new_empty((*xy.shape[:-1], 3))
+            valid_points = torch.isfinite(xy).all(dim=-1) & torch.any(xy != 0, dim=-1)
             if keypoints.shape[-1] >= 3:
-                valid_points = keypoints[..., 2] > 0
+                confidence = keypoints[..., 2]
+            elif "visible" in result:
+                confidence = result["visible"].to(xy)
             else:
-                valid_points = torch.any(xy != 0, dim=-1)
-            valid_points &= torch.any(xy != 0, dim=-1)
+                confidence = 1.0
 
-            xy[..., 0] = torch.where(
+            points[..., 0] = torch.where(
                 valid_points,
                 (xy[..., 0] + float(self.offset[0])) * float(self.scale[0]),
                 torch.zeros_like(xy[..., 0]),
             )
-            xy[..., 1] = torch.where(
+            points[..., 1] = torch.where(
                 valid_points,
                 (xy[..., 1] + float(self.offset[1])) * float(self.scale[1]),
                 torch.zeros_like(xy[..., 1]),
             )
-            keypoint_array = np.ascontiguousarray(
-                xy.detach().cpu().numpy(),
-                dtype=np.float32,
-            )
+            points[..., 2] = torch.where(valid_points, confidence, 0.0)
+            keypoint_array = points.detach().cpu().numpy()
             self.keypoints = [keypoint_array] if keypoint_array.shape[0] > 0 else []
 
 
@@ -474,33 +479,6 @@ class RFDETRModel(DetectionModel):
             for class_id, name in self.config.classes.items()
             if str(name) != "__background__"
         ]
-
-    @staticmethod
-    def _zero_low_confidence_keypoints(
-        result: dict[str, torch.Tensor],
-        threshold: float,
-    ) -> dict[str, torch.Tensor]:
-        keypoints = result.get("keypoints")
-        if keypoints is None or keypoints.shape[-1] < 3:
-            return result
-
-        if keypoints.device.type == "mps":
-            keypoints = keypoints.detach().cpu()
-        visible = keypoints[..., 2] >= threshold
-        filtered = keypoints.clone()
-        filtered[..., :2] = torch.where(
-            visible.unsqueeze(-1),
-            filtered[..., :2],
-            torch.zeros_like(filtered[..., :2]),
-        )
-        filtered[..., 2] = torch.where(
-            visible,
-            filtered[..., 2],
-            torch.zeros_like(filtered[..., 2]),
-        )
-        updated = dict(result)
-        updated["keypoints"] = filtered
-        return updated
 
     def __str__(self) -> str:
         return f"RFDETRModel<{str(self.config)}>"
@@ -914,7 +892,6 @@ class RFDETRModel(DetectionModel):
         iou_threshold = kwargs.get("iou")
         if iou_threshold is not None:
             iou_threshold = float(iou_threshold)
-        keypoint_threshold = float(TRex.setting("detect_keypoint_threshold"))
         valid_class_ids = self._valid_class_ids()
 
         batch, sizes = self._prepare_batch(images)
@@ -942,16 +919,13 @@ class RFDETRModel(DetectionModel):
             target_sizes=target_sizes,
         )
         return [
-            self._zero_low_confidence_keypoints(
-                _filter_result(
-                    _with_bounded_keypoint_scores(result),
-                    threshold,
-                    max_det,
-                    classes,
-                    valid_class_ids,
-                    iou_threshold,
-                ),
-                keypoint_threshold,
+            _filter_result(
+                _with_bounded_keypoint_scores(result),
+                threshold,
+                max_det,
+                classes,
+                valid_class_ids,
+                iou_threshold,
             )
             for result in results
         ]

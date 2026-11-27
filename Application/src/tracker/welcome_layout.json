@@ -128,7 +128,7 @@
                 "template": {
                     "text":"{i.name}",
                     "detail":"{i.detail}",
-                    "action":"open_recent"
+                    "action":"open_recent:{i.index}"
                 }
             },
             {

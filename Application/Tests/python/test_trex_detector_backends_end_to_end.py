@@ -83,13 +83,14 @@ class _ArrayData:
 
 
 class _Result:
-    def __init__(self, index, boxes, masks, keypoints, obbs, points):
+    def __init__(self, index, boxes, masks, keypoints, obbs, points, semantic_mask=None):
         self.index = index
         self.boxes = boxes
         self.masks = masks
         self.keypoints = keypoints
         self.obbs = obbs
         self.points = points
+        self.semantic_mask = semantic_mask
 
 
 class _TRexModule(types.ModuleType):
@@ -247,10 +248,7 @@ class _Predictions:
         )
 
 
-def _prediction_arrays(
-    prediction,
-    keypoint_threshold: float,
-) -> _Predictions:
+def _prediction_arrays(prediction) -> _Predictions:
     if hasattr(prediction, "detection_confidence"):
         boxes = np.asarray(prediction.data["xyxy"], dtype=np.float32)
         scores = np.asarray(
@@ -263,12 +261,7 @@ def _prediction_arrays(
 
     classes = np.asarray(prediction.class_id, dtype=np.int64)
     if hasattr(prediction, "keypoint_confidence"):
-        keypoints = np.asarray(prediction.xy, dtype=np.float32).copy()
-        visible = (
-            np.asarray(prediction.keypoint_confidence, dtype=np.float32)
-            >= keypoint_threshold
-        )
-        keypoints[~visible] = 0.0
+        keypoints = np.asarray(prediction.xy, dtype=np.float32)
     else:
         keypoints = np.empty((boxes.shape[0], 0, 2), dtype=np.float32)
     return _Predictions(boxes, scores, classes, keypoints)
@@ -307,6 +300,8 @@ def _trex_result_arrays(result) -> _Predictions:
     keypoints = np.asarray(result.keypoints.values, dtype=np.float32)
     if keypoints.size == 0:
         keypoints = np.empty((packed.shape[0], 0, 2), dtype=np.float32)
+    else:
+        keypoints = keypoints[..., :2]
     return _Predictions(
         boxes=np.ascontiguousarray(packed[:, :4], dtype=np.float32),
         scores=np.ascontiguousarray(packed[:, 4], dtype=np.float32),
@@ -908,7 +903,6 @@ def _run_rfdetr(original_rgb: np.ndarray) -> None:
     native_notebook_threshold = 0.25
     operational_confidence = 0.1
     operational_iou = 0.5
-    keypoint_threshold = 0.1
     uses_fused_scores = bool(
         getattr(wrapper.model_config, "use_grouppose_keypoints", False)
     )
@@ -944,7 +938,7 @@ def _run_rfdetr(original_rgb: np.ndarray) -> None:
             "RF-DETR native prediction hooks did not capture the normalized "
             "input tensor and raw network output."
         )
-    native_raw = _prediction_arrays(reference, keypoint_threshold)
+    native_raw = _prediction_arrays(reference)
     native = (
         _with_bounded_fused_scores(native_raw)
         if uses_fused_scores
@@ -1052,10 +1046,6 @@ def _run_rfdetr(original_rgb: np.ndarray) -> None:
             adapter._valid_class_ids(),
             None,
         )
-        same_raw_result = adapter._zero_low_confidence_keypoints(
-            same_raw_result,
-            keypoint_threshold,
-        )
         same_raw = _tensor_result_arrays(same_raw_result)
         postprocess_error = _strict_prediction_error(
             native,
@@ -1070,10 +1060,6 @@ def _run_rfdetr(original_rgb: np.ndarray) -> None:
             None,
             adapter._valid_class_ids(),
             operational_iou,
-        )
-        operational_result = adapter._zero_low_confidence_keypoints(
-            operational_result,
-            keypoint_threshold,
         )
         operational_expected = _tensor_result_arrays(operational_result)
 
@@ -1244,7 +1230,7 @@ def _run_rfdetr_annotated_evaluator_parity(
                 include_source_image=False,
             )
 
-        native = _prediction_arrays(prediction, keypoint_threshold=0.0)
+        native = _prediction_arrays(prediction)
         if hasattr(prediction, "keypoint_confidence"):
             keypoint_confidences = np.asarray(
                 prediction.keypoint_confidence,

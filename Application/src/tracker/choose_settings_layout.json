@@ -8,6 +8,7 @@
     "window_color":[10,10,10],
     "vars":{
         "label_w":200,
+        "tab_scale":"{min:1:{max:0.8:{/:{window_size.x}:1000}}}",
         "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:115}}",
         "is_small_window":"{<:{element_w}:1020004}",
         "inside_label_w":"{+:{label_w}:10}",
@@ -70,6 +71,7 @@
             "children":[
                 {
                     "type":"hlayout",
+                    "scale":"[{tab_scale},{tab_scale}]",
                     "align":"center",
                     "corners" :["top"],
                     "origin":[0,0],
@@ -409,7 +411,7 @@
                                             "type":"settings",
                                             "corners":["none"],
                                             "var":"output_prefix",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,255]}",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                             "size":"[{-:{element_w}:100},40]",
                                             "desc":""
@@ -434,6 +436,7 @@
                                                 "size":"[{-:{element_w}:95},200]",
                                                 "font":{"size":0.6}
                                             },
+                                            "corners":["bottomright"],
                                             "size":"[{-:{element_w}:100},40]",
                                             "desc":""
                                         }
@@ -500,7 +503,7 @@
                                                     "fill":[0,0,0,0],
                                                     "pad":[10,20,10,20],
                                                     "max_size":"[{min:750:{*:0.45:{element_w}}},0]",
-                                                    "text":"<cyan><sym>\u2713</sym> an existing pv file is available.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> configuration file <c>{shorten:{resulting_path}:30}.settings</c> does not exist yet</orange>}\n\n{if:{equal:{global.detect_type}:yolo}:Using <c><cyan>YOLO</cyan></c> for <c>detection</c>':' <cyan><c>{shorten:{filename:{global.detect_model}}:20}</c></cyan><small><gray>{at:0:{model_detect_resolution}}<i>px</i></gray></small>:'Detection using <cyan><c>background subtraction</c></cyan>.'}{if:{&&:{equal:{global.detect_type}:yolo}:{global.region_model}}:<sym> 🞙</sym> <c>regions</c> using <cyan><c>{shorten:{filename:{global.region_model}}:20}</c></cyan><small><gray>{at:0:{model_region_resolution}}<i>px</i></gray></small>.:''}"
+                                                    "text":"<cyan><sym>\u2713</sym> an existing pv file is available.</cyan> <i>you probably have converted this video before. select <c>track</c> below to skip segmentation and proceed to the tracking view right away.</i>\n\n{if:{file_exists:{resulting_path}.settings}:<cyan><sym>\u2713</sym> settings file exists.</cyan>:<orange><sym>🗶</sym> configuration file <c>{shorten:{resulting_path}:30}.settings</c> does not exist yet</orange>}\n\n{if:{equal:{global.detect_type}:yolo}:Using <c><cyan>YOLO</cyan></c> for <c>detection</c>':' <cyan><c>{shorten:{filename:{global.detect_model}}:20}</c></cyan><small><gray>{at:0:{model_detect_resolution}}<i>px</i></gray></small>:{if:{equal:{global.detect_type}:null}:Automatic detection mode.:Detection mode <cyan><c>{global.detect_type}</c></cyan>.}}{if:{&&:{equal:{global.detect_type}:yolo}:{global.region_model}}:<sym> 🞙</sym> <c>regions</c> using <cyan><c>{shorten:{filename:{global.region_model}}:20}</c></cyan><small><gray>{at:0:{model_region_resolution}}<i>px</i></gray></small>.:''}"
                                                 },
                                                 "else":{
                                                     "type":"stext",

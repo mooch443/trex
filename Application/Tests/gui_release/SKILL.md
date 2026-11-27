@@ -1,6 +1,6 @@
 ---
 name: trex-gui-release-tests
-description: Run the TRex GUI release regression suite on request against a specific Conda-built executable prepared by the user. Use for requests to test the real TRex window before a release, exercising conversion, cancellation, settings, file paths, scene transitions, outlines, and error recovery with screenshots and a saved report.
+description: Run the TRex GUI release regression suite on request against a prepared TRex executable using the selected Conda environment. Use for requests to test the real TRex window before a release, exercising conversion, cancellation, settings, file paths, scene transitions, outlines, and error recovery with screenshots and a saved report.
 ---
 
 # TRex GUI release tests
@@ -11,8 +11,9 @@ clicks and keyboard input through Computer Use. It is not a CTest target.
 
 ## Select the prepared build
 
-1. Use the exact executable or app bundle supplied for this run. If it is
-   missing, ask for its absolute path and the Conda environment. Use only `trex`
+1. Use the exact executable or app bundle supplied for this run. For a repository
+   Debug build, launch that binary by path in the requested Conda environment.
+   If the executable is missing, ask for its absolute path. Use only `trex`
    or `trex-modules` unless the user explicitly authorizes another environment.
    Do not build, install, update, or select a different executable from `PATH`.
 2. Resolve a bundle to its actual executable for launch and hashing. Record its
@@ -72,7 +73,8 @@ root. For example, use `conda run --no-capture-output -n trex` followed by the
 quoted absolute executable path and the recorded startup arguments. Capture
 stdout/stderr in the run directory and retain the process/session identity and
 eventual exit status. Do not supply a source initially: GUI-01 starts at the menu.
-Do not use `-nowindow` or run commands from a build directory.
+Keep the native window enabled for these cases and run commands from the
+repository root.
 
 Use `cua_repl` for native UI interactions, following its current documentation:
 
@@ -88,9 +90,11 @@ Use `cua_repl` for native UI interactions, following its current documentation:
   starting the dependent operation. Do not assume modifier shortcuts or End
   worked. Preserve and correct malformed agent input without counting it as an
   application failure.
-- A native file picker may be a separate window outside the TRex capture. Inspect
-  the available surfaces before diagnosing a missing dialog. If it cannot be
-  controlled, mark that route blocked and continue independent direct-path checks.
+- Type or paste file and folder paths into the corresponding fields in the TRex
+  window. If paste leaves the field empty or at its old value, type the path,
+  press Enter and verify the committed path. For video inputs, also check the
+  resolved PV path in Locations. The native chooser opens in a separate
+  window unavailable to the agent. Exercise it separately during manual testing.
 - Wait for observable readiness, conversion progress, and analysis completion.
   Record elapsed times. Use a 120-second no-progress deadline and a 10-minute
   per-case deadline unless the fixture needs a documented longer bound. A slow
@@ -110,6 +114,15 @@ to make the suite pass. A repaired/rebuilt binary needs a separate run.
 
 ## Finish and report
 
+When the release run also covers compiled executables, run the matching
+`test_headless_convert_exit` with the quoted filter
+`--gtest_filter=OutputLayouts/HeadlessAutomaticLaunch.ConvertsMissingPvThenTracksExistingPvAndExportsCsv/*`.
+Record the companion result and the SHA-256 of its test executable. The app
+and test targets can be rebuilt independently. The round trip checks ordinary
+CSV exports and a fresh conversion with `-auto_no_outputs true` across four
+output layouts. Older binaries have the same test name. Credit suppression
+coverage when the test build or its subprocess log confirms that phase ran.
+
 Close only the suite-owned process through the GUI, observe its exit, and finish
 the Computer Use completion summary. Preserve run artifacts. Inspect outputs
 and logs, and finish the report with one status per case and subcase:
@@ -119,7 +132,10 @@ and logs, and finish the report with one status per case and subcase:
 - `BLOCKED`: a prerequisite or environment prevented observation.
 - `NOT_RUN`: deliberately omitted or not reached; include the reason.
 
-Call the complete suite passed only when every case and subcase passed. Link the
-report, summarize behavior/UX failures and coverage gaps, and identify the exact
-binary tested. Include complete reproduction steps for each failure. Opening
+Call the complete suite passed only when every case and subcase passed. Lead the
+release summary with confirmed product failures, their impact and what would
+verify a fix. Keep setup corrections and remaining coverage gaps in the action
+trace. When revising combined results, update the existing report in place.
+Link the report and identify the exact binary tested. Include complete
+reproduction steps for each failure. Opening
 issues or changing application code is separate work, not part of this suite.

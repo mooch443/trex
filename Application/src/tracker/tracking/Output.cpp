@@ -10,9 +10,9 @@
 #include <core/IdentifiedTag.h>
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
+#include <core/SettingsPaths.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/DatasetQuality.h>
-#include <core/SettingsPaths.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
 #include <core/TerminalProgress.h>
@@ -1534,11 +1534,10 @@ namespace Output {
     }
 
     Path TrackingResults::expected_filename(const sprite::Map& map) {
-        file::Path filename = settings::find_output_name(map);
-        filename = filename.has_extension("pv")
-                    ? filename.replace_extension("results")
-                    : filename.add_extension("results");
-        return file::DataLocation::parse("output", filename, &map);
+        const auto name = settings::choose_output_name(map);
+        if(name.path().empty())
+            return {};
+        return file::DataLocation::parse("output", name.path().replace_extension("results"), &map);
     }
     
     void TrackingResults::save(std::function<void (const std::string &, float, const std::string &)> update_progress, Path filename, const std::vector<std::string>& exclude_settings) const {

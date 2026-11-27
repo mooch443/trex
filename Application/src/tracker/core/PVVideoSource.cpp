@@ -1,7 +1,7 @@
 #include "PVVideoSource.h"
 
 PVVideoSource::PVVideoSource(pv::File&& source)
-    : AbstractBaseVideoSource({ .base = file::PathArray(source.filename()),
+    : AbstractBaseVideoSource({ .base = file::PathArray::from_file(source.filename()),
                                 .resolution = source.size(),
                                 .framerate = source.framerate(),
                                 .finite = true,
@@ -23,7 +23,7 @@ AbstractBaseVideoSource::VideoFrame_t PVVideoSource::fetch_next() {
             if(_loop.load() && i > 0_f)
                 i = 0_f;
             else
-                return std::unexpected("EOF");
+                return ReachedEOF_t{};
         }
 
         auto index = i++;

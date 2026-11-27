@@ -18,7 +18,6 @@
 #include <ui/Export.h>
 #include <ui/CategorizeInterface.h>
 #include <ui/TrackingState.h>
-#include <core/SettingsPaths.h>
 #include <ui/WorkProgress.h>
 
 #include <algorithm>
@@ -351,7 +350,7 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
     SETTING(source) = file::PathArray(video_path);
     SETTING(filename) = file::Filename{};
     SETTING(output_dir) = output_dir;
-    SETTING(output_prefix) = std::string(kOutputPrefix);
+    SETTING(output_prefix) = file::RelativePath(kOutputPrefix);
     SETTING(output_format) = default_config::output_format_t::csv;
     SETTING(analysis_range) = analysis_range;
     SETTING(auto_quit) = false;
@@ -363,10 +362,9 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
     SETTING(output_recognition_data) = false;
     SETTING(output_statistics) = false;
 
-    const auto filename = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_existing_output_name(config.values);
-    });
-    SETTING(filename) = file::Filename(filename.filename());
+    const auto filename = file::DataLocation::parse("input", READ_SETTING(source, file::PathArray)[0]);
+    ASSERT_EQ(filename, video_path) << "Tracking must read the specified PV while exporting to the workspace.";
+    SETTING(filename) = file::Filename(filename.remove_extension().filename());
 
     auto tracking_done = std::make_shared<std::promise<void>>();
     auto tracking_done_future = tracking_done->get_future();
@@ -413,7 +411,10 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
     const file::Path video_base((workspace.root / "pose_export").string());
     constexpr size_t frame_count = 3;
     const blob::MaybeObjectClass_t classes{blob::ObjectClass_t{{0, "fish"}}};
-    const track::detect::KeypointFormat keypoint_format{.n_points = 3, .n_dims = 3};
+    const track::detect::KeypointFormat keypoint_format{.n_points = 5, .n_dims = 3};
+    const track::detect::Keypoint subpixel_joint{.bones = {{0.5f, 0.5f, 1.f}}};
+    const auto stored_origin = subpixel_joint.toPose(0.5f).point(0);
+    EXPECT_EQ(stored_origin, (blob::Pose::Point{0, 0, false}));
     std::vector<blob::Pose> expected_poses;
 
     SETTING(detect_type) = track::detect::ObjectDetectionType::yolo;
@@ -454,7 +455,9 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
             prediction.pose.points = {
                 {uint16_t(22 + i), 19, true},
                 {uint16_t(26 + i), 21, false},
-                {uint16_t(30 + i), 24, i != 1}
+                {uint16_t(30 + i), 24, i != 1},
+                stored_origin,
+                {0, 0, true} // A saved PV can mark a missing joint as visible.
             };
             expected_poses.push_back(prediction.pose);
             PixelArray_t pixels(96);
@@ -516,11 +519,9 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
         if(load_mode != "metadata")
             ASSERT_EQ(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3));
 
-        SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
-            return file::Filename(settings::find_existing_output_name(config.values).filename());
-        });
+        SETTING(filename) = file::Filename(video_base.filename());
         SETTING(output_dir) = file::Path((workspace.root / "output" / std::string(load_mode)).string());
-        SETTING(output_prefix) = std::string(kOutputPrefix);
+        SETTING(output_prefix) = file::RelativePath(kOutputPrefix);
         SETTING(track_max_individuals) = uint32_t(1);
         SETTING(track_max_speed) = Float2_t(100);
         SETTING(track_do_history_split) = false;
@@ -584,7 +585,13 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
                         const auto values = array.as_vec<float>();
                         for(size_t i = 0; i < frame_count; ++i) {
                             const auto& point = expected_poses[i].points[joint];
-                            EXPECT_FLOAT_EQ(values[i], component == 'X' ? point.x() : (component == 'Y' ? point.y() : point.visible()));
+                            if(component == 'V') {
+                                EXPECT_FLOAT_EQ(values[i], point.valid() && point.visible() ? 1.f : 0.f);
+                            } else if(point.valid()) {
+                                EXPECT_FLOAT_EQ(values[i], component == 'X' ? point.x() : point.y());
+                            } else {
+                                EXPECT_TRUE(GlobalSettings::is_invalid(values[i]));
+                            }
                         }
                     }
                 }
@@ -610,9 +617,11 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
                     EXPECT_EQ(parse_number(row.front()), std::optional<double>(i));
                     for(size_t joint = 0; joint < keypoint_format.n_points; ++joint) {
                         const auto& point = expected_poses[i].points[joint];
-                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3]]), std::optional<double>(point.x()));
-                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3 + 1]]), std::optional<double>(point.y()));
-                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3 + 2]]), std::optional<double>(point.visible() ? 1 : 0));
+                        const auto x = point.valid() ? point.x() : GlobalSettings::invalid();
+                        const auto y = point.valid() ? point.y() : GlobalSettings::invalid();
+                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3]]), std::optional<double>(x));
+                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3 + 1]]), std::optional<double>(y));
+                        EXPECT_EQ(parse_number(row[pose_columns[joint * 3 + 2]]), std::optional<double>(point.valid() && point.visible() ? 1 : 0));
                     }
                 }
                 while(std::getline(input, line))
@@ -687,7 +696,7 @@ TEST_P(TrackletImageExportTest, ExportsEveryValidBlobForMetaEncoding) {
 
     SETTING(filename) = file::Filename(video_base.filename());
     SETTING(output_dir) = file::Path((workspace.root / "output").string());
-    SETTING(output_prefix) = std::string(kOutputPrefix);
+    SETTING(output_prefix) = file::RelativePath(kOutputPrefix);
     SETTING(data_prefix) = file::Path("data");
     SETTING(meta_encoding) = output_encoding;
     SETTING(meta_real_width) = Float2_t(64);

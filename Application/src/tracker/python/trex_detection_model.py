@@ -33,7 +33,7 @@ class StrippedResults:
         Attributes:
             boxes: Array of clid, conf, and bounding boxes in format [clid, conf, x, y, w, h] in source-image coordinates.
 
-            keypoints: List of arrays (same length as the boxes array), each of shape [num_keypoints, 2], containing (x, y) coordinates of keypoints in source-image space.
+            keypoints: List of float32 arrays of shape [num_objects, num_keypoints, 3], with source-image (x, y) coordinates and confidence. Models without scores use 0/1 visibility, defaulting to 1 for located points.
 
             masks: List of 2D numpy arrays (uint8) representing segmentation masks aligned to source-image boxes. Same length as boxes.
 
@@ -238,6 +238,15 @@ class TRexDetection:
     @staticmethod
     def empty_boxes() -> np.ndarray:
         return np.empty((0, 6), dtype=np.float32)
+
+    @staticmethod
+    def pack_keypoints(keypoints: Optional[List[np.ndarray]]) -> np.ndarray:
+        """Pack poses into a contiguous float32 array of (x, y, confidence) triplets."""
+        if not keypoints:
+            return np.empty((0, 0, 3), dtype=np.float32)
+        if len(keypoints) == 1:
+            return np.ascontiguousarray(keypoints[0], dtype=np.float32)
+        return np.ascontiguousarray(np.concatenate(keypoints, axis=0, dtype=np.float32))
 
     @staticmethod
     def normalize_boxes(boxes: Optional[np.ndarray], context: str) -> np.ndarray:
@@ -557,14 +566,7 @@ class TRexDetection:
             masks = list(tile.masks) if tile.masks is not None else []
             semantic_mask = getattr(tile, "semantic_mask", None)
 
-            keypoints = (
-                np.ascontiguousarray(
-                    np.concatenate(tile.keypoints, axis=0, dtype=np.float32),
-                    dtype=np.float32,
-                )
-                if tile.keypoints is not None and len(tile.keypoints) > 0
-                else np.empty((0, 1, 2), dtype=np.float32)
-            )
+            keypoints = TRexDetection.pack_keypoints(tile.keypoints)
             obbs = (
                 np.ascontiguousarray(tile.obb, dtype=np.float32)
                 if tile.obb is not None and len(tile.obb) > 0
@@ -686,8 +688,7 @@ class TRexDetection:
             else:
                 collected_boxes = TRexDetection.empty_boxes()
 
-            if len(collected_keypoints) > 0:
-                collected_keypoints = np.concatenate(collected_keypoints, axis=0)
+            collected_keypoints = TRexDetection.pack_keypoints(collected_keypoints)
 
             # Check if the number of boxes is equal to the number of masks
             assert len(collected_masks) == 0 or len(collected_boxes) == len(collected_masks)
@@ -705,7 +706,7 @@ class TRexDetection:
                     if len(collected_masks) > 0:
                         collected_masks = [collected_masks[i] for i in indexes]
                     if len(collected_keypoints) > 0:
-                        collected_keypoints = [collected_keypoints[i] for i in indexes]
+                        collected_keypoints = collected_keypoints[indexes.numpy()]
 
             # Append the result to the list of results
             rexsults.append(TRex.Result(i, TRex.Boxes(collected_boxes), collected_masks, TRex.KeypointData(collected_keypoints)))

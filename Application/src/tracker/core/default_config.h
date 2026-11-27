@@ -130,6 +130,7 @@ std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<s
 std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_fields();
 
 
+file::Path resolve_relative_path(const file::Path& path);
 }
 
 ENUM_CLASS(cmn::gui::, mode_t, raw, tracking, annotate)

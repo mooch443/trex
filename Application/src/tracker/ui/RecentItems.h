@@ -16,6 +16,8 @@ struct RecentItemJSON {
     cmn::sprite::Map _options;
     
     glz::generic to_json() const;
+    /// Restores the saved source and settings, using the recording path to anchor a relative output directory.
+    void load() const;
     std::string toStr() const;
     static consteval std::string_view class_name() { return "RecentItem"; }
     

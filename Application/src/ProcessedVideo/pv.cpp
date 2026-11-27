@@ -874,7 +874,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         /// first do a placeholder file::Path before we change it to file::Filename later.
         map["filename"] = file::Path{};
         map["output_dir"] = file::Path{};
-        map["output_prefix"] = std::string{};
+        map["output_prefix"] = file::RelativePath{};
 
         auto [loaded, configured_deprecations] = GlobalSettings::read([&](const Configuration& config) {
             static const Deprecations empty;
@@ -933,7 +933,7 @@ void migrate_filename(sprite::Map& map) {
     bool is_absolute = path.is_absolute();
     
     auto output_dir = map.value_with_default("output_dir", file::Path{});
-    auto output_prefix = map.value_with_default("output_prefix", std::string{});
+    auto output_prefix = map.value_with_default("output_prefix", file::RelativePath{});
     auto canonical_path = path.canonical() ? path.canonical().value() : path;
     
     Print("Found ", path, " (",canonical_path,") with output_dir=",output_dir, " and prefix=",output_prefix);
@@ -954,13 +954,13 @@ void migrate_filename(sprite::Map& map) {
             } else {
                 /// here we do have prefix and/or output dir set, but it doesnt match
                 /// so instead we will make it match then. .pv file is imperative
-                map["output_prefix"] = std::string();
+                map["output_prefix"] = file::RelativePath();
                 map["output_dir"] = file::Path(parent);
             }
             
         } else {
             /// `output_dir` is empty, lets just set it then
-            map["output_prefix"] = std::string();
+            map["output_prefix"] = file::RelativePath();
             map["output_dir"] = file::Path(parent);
         }
         
@@ -973,8 +973,8 @@ void migrate_filename(sprite::Map& map) {
         /// d = "/abs", p = "batch", filename = "nested/run"
         Print("We have directory components. This is just getting weird isnt it.");
         if(output_dir.empty()) {
-            if(output_prefix != path.remove_filename().filename()) {
-                map["output_prefix"] = std::string();
+            if(output_prefix.str() != path.remove_filename().filename()) {
+                map["output_prefix"] = file::RelativePath();
                 map["output_dir"] = file::Path(path.remove_filename());
             } else {
                 map["output_dir"] = file::Path(path.remove_filename().remove_filename());
@@ -1830,11 +1830,15 @@ void File::stop_modifying() {
         return _real_color_average;
     }
 
-    void fix_file(File& file) {
+    void fix_file(File& file, cmn::file::Path destination) {
         prefixed_print("pv", "Starting file copy and fix (",file.filename(),")...");
+        if(destination.empty()) {
+            const auto& name = file.filename();
+            destination = (name.has_extension("pv") ? name.remove_extension() : name).str() + "_fix.pv";
+        }
         
         auto copy = File::Write<FileMode::WRITE | FileMode::OVERWRITE>(
-            (std::string)file.filename()+"_fix",
+            destination,
             file.header().encoding
         );
         copy.set_resolution(file.header().resolution);

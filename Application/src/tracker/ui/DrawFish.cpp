@@ -1022,7 +1022,7 @@ std::vector<Vec2> find_rbb(const FindCoord& coords, Vec2 offset, Float2_t angle,
     
     for(auto &_pt : points) {
         if constexpr(std::same_as<Point_t, blob::Pose::Point>) {
-            if(not _pt.valid())
+            if(not _pt.valid() || not _pt.visible())
                 continue;
         }
         
@@ -1089,32 +1089,30 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
     bool corners_changed{false};
     //return true;
     
+    Vec2 pose_center;
+    size_t count{0};
+    
     if(_basic_stuff
-       && _basic_stuff->blob.pred.valid()
-       && not _basic_stuff->blob.pred.pose.empty())
+       && _basic_stuff->blob.pred.valid())
     {
-        auto &pose = _basic_stuff->blob.pred.pose;
-        Vec2 pose_center;
-        size_t count{0};
-        
-        for(auto &_pt : pose.points) {
-            if(_pt.valid()) {
+        for(auto &_pt : _basic_stuff->blob.pred.pose.points) {
+            if(_pt.valid() && _pt.visible()) {
                 pose_center += (Vec2)_pt;
                 ++count;
             }
         }
-        
-        if(count > 0)
-            pose_center /= count;
-        
-        auto corners = find_rbb(coords, offset, angle, pose_center, pose.points);
+    }
+
+    if(count > 0) {
+        pose_center /= count;
+        auto corners = find_rbb(coords, offset, angle, pose_center, _basic_stuff->blob.pred.pose.points);
         if(_current_corners != corners)
         {
             _current_corners = std::move(corners);
             corners_changed = true;
         }
         
-    } else if(_posture_stuff) {
+    } else if(_posture_stuff && _posture_stuff->outline) {
         auto example_points = _posture_stuff->outline.uncompress();
         
         Vec2 c;

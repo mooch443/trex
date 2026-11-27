@@ -1,6 +1,6 @@
 #include "SAM3.h"
 
-#include <core/SettingsPaths.h>
+#include <core/DetectionTypes.h>
 #include <python/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <misc/Timer.h>
@@ -41,15 +41,11 @@ void SAM3::set_background(cmn::Image::Ptr&&) {
 std::future<SegmentationData> SAM3::apply(TileImage&& tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Tiled.promise was already set.");
-    tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-
-    auto f = tiled.promise->get_future();
-    detect::pipeline_manager(detect::ObjectDetectionType::sam3).enqueue(std::move(tiled));
-    return f;
+    return std::move(tiled).enqueue(detect::pipeline_manager(detect::ObjectDetectionType::sam3));
 }
 
 void SAM3::reinit(track::ModuleProxy& proxy) {
-    auto weights = settings::resolve_output_path(READ_SETTING(detect_model, file::Path));
+    auto weights = detect::yolo::current_detect_model_path();
     if(weights.empty()) {
         throw U_EXCEPTION("SAM3 requires `detect_model` to point to the SAM3 weights path.");
     }

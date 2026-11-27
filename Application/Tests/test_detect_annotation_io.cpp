@@ -917,7 +917,15 @@ TEST(DetectAnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
     out_of_bounds.detect_format = ObjectDetectionFormat::boxes;
     out_of_bounds.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10, true}, {200, 200, true}}));
     out_of_bounds.output_directory = file::Path("annotations");
-    EXPECT_FALSE(summarize(out_of_bounds, 10_f, Size2(100, 100)).can_export());
+
+    testing::internal::CaptureStdout();
+    const auto summary = summarize(out_of_bounds, 10_f, Size2(100, 100));
+    const auto output = testing::internal::GetCapturedStdout();
+
+    EXPECT_FALSE(summary.can_export());
+    ASSERT_EQ(1u, summary.errors.size());
+    EXPECT_NE(std::string::npos, summary.errors.front().find("is out of image bounds"));
+    EXPECT_TRUE(output.empty()) << output;
 }
 
 TEST(DetectAnnotationExporter, FailsPredictablyForMissingSource) {
@@ -1321,10 +1329,18 @@ TEST(DetectAnnotationImporter, BlocksImportAndRequestsCsvWhenNoImagesMap) {
 }
 
 TEST(DetectAnnotationImporter, ReportsMissingDataYamlAndMalformedLabels) {
-    auto missing = preview_yolo_import(default_import_options(file::Path("/tmp/trex_missing_data_yaml.yaml")), import_scope_t::all_videos);
-    EXPECT_FALSE(missing.errors.empty());
-
     auto root = make_temp_dataset("malformed");
+    const auto missing_options = default_import_options(root / "data.yaml");
+
+    testing::internal::CaptureStdout();
+    const auto missing = preview_yolo_import(missing_options, import_scope_t::all_videos);
+    const auto output = testing::internal::GetCapturedStdout();
+
+    EXPECT_FALSE(missing.can_import());
+    ASSERT_EQ(1u, missing.errors.size());
+    EXPECT_NE(std::string::npos, missing.errors.front().find("Cannot find data.yaml"));
+    EXPECT_TRUE(output.empty()) << output;
+
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "frame_000100.jpg");
     write_file(root / "labels" / "frame_000100.txt", "0 0.5 nope 0.5 0.5\n");

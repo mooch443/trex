@@ -105,7 +105,7 @@ int handle_opencv_opencl_support() {
     return 1;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 #endif
@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
 
                 case Arguments::p:
                     if(option.value) {
-                        SETTING(output_prefix) = std::string(*option.value);
+                        SETTING(output_prefix) = file::RelativePath(*option.value);
                         CommandLine::instance().add_setting("output_prefix", *option.value);
                     }
                     break;
@@ -293,7 +293,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    file::PathArray source = READ_SETTING(source, file::PathArray);
+    file::PathArray source = READ_SETTING(source, file::PathArray).resolved_at(cmd.launch_dir());
     if(source.empty())
         throw InvalidArgumentException("No input file provided.");
     if(auto error = settings::video_source_error(source)) {
@@ -304,19 +304,11 @@ int main(int argc, char** argv) {
     const bool results_input = source.all_files_are("results");
     file::Path input;
 
-    if(source.has_single_match()) {
-        auto path = source.get_paths().front();
-        if(results_input) {
-            auto results = file::DataLocation::parse("input", path);
-            if(results.is_regular())
-                input = results.remove_extension();
-        }
-        if(path.has_extension("results")
-           || path.has_extension("pv")
-           || path.has_extension("mp4"))
-        {
-            source = file::PathArray{path.remove_extension()};
-        }
+    if(results_input && source.has_single_match()) {
+        auto results = file::DataLocation::parse("input", source[0], &cmd_options);
+        if(results.is_regular())
+            input = results.remove_extension();
+        source = file::PathArray::from_file(results.remove_extension());
     }
 
     settings::load(settings::LoadContext{
@@ -333,9 +325,15 @@ int main(int argc, char** argv) {
     
     if(not results_input) {
         input = GlobalSettings::read([](const Configuration& config) {
-            return settings::find_existing_output_name(config.values);
+            const auto source = config.at("source").value<file::PathArray>();
+            return settings::resolve_recording_path(config.values, source);
         });
-        SETTING(filename) = file::Filename(input.filename());
+        if(not input.is_regular()) {
+            FormatError("Cannot open PV recording ", input, " for source ", source, ".");
+            return 1;
+        }
+        if(READ_SETTING(filename, file::Filename).path().empty())
+            SETTING(filename) = file::Filename(input.remove_extension().filename());
         
         auto video = pv::File::Read(input);
         set_runtime_quiet(true);
@@ -380,9 +378,16 @@ int main(int argc, char** argv) {
             svenja.save(_tracker->frames());
         }
 
+        const auto output_file = [](const char* purpose, const file::Path& name) {
+            auto path = file::DataLocation::parse(purpose, name);
+            if(not path.remove_filename().create_folder())
+                throw U_EXCEPTION("Cannot create output directory for ", path, ".");
+            return path;
+        };
+
         if(BOOL_SETTING(write_settings)) {
             auto text = default_config::generate_delta_config(AccessLevelType::PUBLIC).to_settings();
-            auto filename = file::Path(file::DataLocation::parse("output_settings").str() + ".auto");
+            auto filename = output_file("output_settings", {}).add_extension("auto");
 
             if(filename.exists() && !be_quiet)
                 Print("Overwriting file ", filename.str(), ".");
@@ -405,13 +410,19 @@ int main(int argc, char** argv) {
         }
 
         if(save_background) {
-            file::Path file = input.remove_filename() / "background.png";
-            cv::imwrite(file.str(), video.average());
+            const auto file = output_file("output", "background.png");
+            if(not cv::imwrite(file.str(), video.average())) {
+                FormatError("Cannot write background image ", file, ".");
+                return 1;
+            }
             Print("Saved average image to ", file);
         }
 
-        if(!READ_SETTING(replace_background, file::Path).empty()) {
-            auto mat = cv::imread(READ_SETTING(replace_background, file::Path).str());
+        if(const auto requested = READ_SETTING(replace_background, file::Path);
+           not requested.empty())
+        {
+            auto background = file::DataLocation::parse("input", requested);
+            auto mat = cv::imread(background.str());
             if(mat.channels() > 1) {
                 std::vector<cv::Mat> split;
                 cv::split(mat, split);
@@ -422,7 +433,7 @@ int main(int argc, char** argv) {
             if(mat.cols != video.header().resolution.width
                || mat.rows != video.header().resolution.height)
             {
-                throw U_EXCEPTION("Image at ", READ_SETTING(replace_background, file::Path), " is not of compatible resolution (", mat.cols, "x", mat.rows, " / ", video.header().resolution.width, "x", video.header().resolution.height, ")");
+                throw U_EXCEPTION("Image at ", requested, " is not of compatible resolution (", mat.cols, "x", mat.rows, " / ", video.header().resolution.width, "x", video.header().resolution.height, ")");
             } else {
                 using namespace pv;
                 auto encoding = video.header().encoding;
@@ -437,6 +448,7 @@ int main(int argc, char** argv) {
             }
         }
 
+        const auto fixed_filename = video.filename().remove_extension().filename() + "_fix.pv";
         if(repair_index) {
             using namespace pv;
 
@@ -445,7 +457,8 @@ int main(int argc, char** argv) {
             } else {
                 Print("Starting file copy and fix (", video.filename(), ")...");
 
-                auto copy = File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE>(video.filename().remove_extension().str() + "_fix.pv", video.header().encoding);
+                const auto fixed = output_file("output", fixed_filename);
+                auto copy = File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE>(fixed, video.header().encoding);
                 copy.set_resolution(video.header().resolution);
                 copy.set_offsets(video.crop_offsets());
                 copy.set_average(video.average());
@@ -477,7 +490,7 @@ int main(int argc, char** argv) {
         }
 
         if(fix)
-            pv::fix_file(video);
+            pv::fix_file(video, output_file("output", fixed_filename));
 
         if(!updated_settings.empty() || !remove_settings.empty())
         {
@@ -530,9 +543,10 @@ int main(int argc, char** argv) {
 
         if(GlobalSettings::has_value("output_fps")) {
             pv::Frame frame;
-            FILE* f = fopen("fps.csv", "wb");
+            const auto filename = output_file("output", "fps.csv");
+            FILE* f = fopen(filename.c_str(), "wb");
             if(not f) {
-                FormatError("Cannot write fps.csv in ", file::cwd(), ".");
+                FormatError("Cannot write ", filename, ".");
                 return 1;
             }
             std::string str = "time,tdelta\n";
@@ -634,9 +648,8 @@ int main(int argc, char** argv) {
     } else {
         gpuMat average;
         if(input.empty()) {
-            input = GlobalSettings::read([](const Configuration& config) {
-                return settings::find_output_name(config.values, {}, false);
-            }).remove_extension("results");
+            const auto name = file::Path(file::find_basename(source)).add_extension("results");
+            input = file::DataLocation::parse("output", name).remove_extension();
         }
 
         auto header = Output::TrackingResults::load_header(input.add_extension("results"));
@@ -776,4 +789,7 @@ int main(int argc, char** argv) {
     }
 
     return 0;
+} catch(const std::exception& error) {
+    FormatError(error.what());
+    return 1;
 }

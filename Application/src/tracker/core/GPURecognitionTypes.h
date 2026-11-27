@@ -205,12 +205,12 @@ class Keypoint;
 
 class TREX_EXPORT KeypointData {
     GETTER(uint64_t, num_bones);
-    GETTER(std::vector<float>, xy_conf);
+    GETTER(std::vector<Bone>, bones);
 
 public:
-    KeypointData(std::vector<float>&& data, size_t bones);
+    KeypointData(std::vector<Bone>&& data, size_t bones);
 
-    KeypointData() = default;
+    KeypointData() : _num_bones(0u) {}
     KeypointData(const KeypointData&) = default;
     KeypointData& operator=(const KeypointData&) = default;
     KeypointData(KeypointData&&) = default;
@@ -218,11 +218,11 @@ public:
 
     Keypoint operator[](size_t index) const;
 
-    [[nodiscard]] bool empty() const { return _xy_conf.empty(); }
-    [[nodiscard]] size_t size() const { return _xy_conf.size() / _num_bones / 2u; }
+    [[nodiscard]] bool empty() const { return _bones.empty(); }
+    [[nodiscard]] size_t size() const { return empty() ? 0u : _bones.size() / _num_bones; }
 
     std::string toStr() const {
-        return "KeypointData<" + std::to_string(_num_bones) + " " + (!_xy_conf.empty() ? Meta::toStr(_xy_conf.size() / 2u) : "null") + " triplets>";
+        return "KeypointData<" + std::to_string(_num_bones) + " " + (!empty() ? Meta::toStr(_bones.size()) : "null") + " triplets>";
     }
 
     static consteval std::string_view class_name() {

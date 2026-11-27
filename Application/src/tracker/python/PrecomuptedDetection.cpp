@@ -85,7 +85,9 @@ struct PrecomputedDetection::Data {
 
 
 PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
-  : _cache_path(file::DataLocation::parse("output", csv_path.replace_extension("pdcache"))), _df(_cache_path)
+  : _cache_path(file::DataLocation::parse("output",
+        (csv_path.is_absolute() ? file::Path(csv_path.filename()) : csv_path).replace_extension("pdcache"))),
+    _df(_cache_path)
 {
     uint64_t csv_hash = computeFileHash(csv_path);
 
@@ -550,11 +552,7 @@ PrecomputedDetection::Data& PrecomputedDetection::data() {
 std::future<SegmentationData> PrecomputedDetection::apply(TileImage &&tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Tiled.promise was already set.");
-    tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-    
-    auto f = tiled.promise->get_future();
-    manager().enqueue(std::move(tiled));
-    return f;
+    return std::move(tiled).enqueue(manager());
 }
 
 void PrecomputedDetection::deinit() {

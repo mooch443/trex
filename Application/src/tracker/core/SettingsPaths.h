@@ -1,7 +1,6 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/Path.h>
 #include <file/PathArray.h>
 
 namespace pv {
@@ -10,41 +9,32 @@ class File;
 
 namespace cmn::settings {
 
+/// Recognizes the standalone camera source tokens `webcam` and `basler`.
+constexpr bool is_camera_source(std::string_view source) {
+    return source == "webcam" || source == "basler";
+}
+
 std::optional<std::string> video_source_error(const file::PathArray& source);
 
-/// Resolves parent traversal while retaining the filename or checkpoint basename.
-file::Path resolve_file_path(const file::Path& path);
-/// Searches the supplied model location first, then the output location.
-file::Path resolve_output_path(const file::Path& path, bool (*available)(const file::Path&) = nullptr,
-                              const sprite::Map* map = nullptr);
+/// Derives one default .pv filename from the selected input files. For a movie
+/// sequence, pass the resolved input paths so their common directory is known.
+file::Filename choose_output_name(const file::PathArray& source);
 
-/// Resolves the extensionless base path used when creating output.
-///
-/// This function is side-effect free and never checks whether the result exists.
-/// A supplied source overrides `map["source"]` even if its pattern matches no files.
-/// When `respect_user_choice` is true, `map["filename"]` takes precedence over the
-/// source-derived name. The registered `output` DataLocation applies `output_dir`
-/// and `output_prefix` to that basename or to an ordinary source-derived name.
-/// When deriving the name from a sole `.pv` source, its absolute base path is
-/// used. Any trailing `.pv` is removed.
-file::Path find_output_name(const sprite::Map& map,
-                            file::PathArray source = {},
-                            bool respect_user_choice = true);
+/// Uses the explicit filename from the snapshot, or derives the default from its
+/// source. Pass the result to DataLocation::parse("output", ...) to place it.
+/// Open an explicit PV through DataLocation::parse("input", ...) with its original path.
+file::Filename choose_output_name(const sprite::Map& map);
 
-/// Resolves the extensionless base path of an existing PV file for tracking.
-///
-/// Checks the registered `output` location first, using the basename from
-/// `find_output_name()` with a `.pv` extension. If that file is missing and
-/// there is a single source, checks the source PV itself or the corresponding
-/// `.pv` file beside the source. Returns the matching path with `.pv` removed.
-/// An empty source and filename return an empty path. If lookup fails, throws
-/// when `required` is true and returns an empty path otherwise.
-file::Path find_existing_output_name(const sprite::Map& map,
-                                     file::PathArray source = {},
-                                     bool required = true);
-/// Returns the usable camera or raw input, including metadata fallback locations.
-file::PathArray find_conversion_source(const sprite::Map& map);
-bool conversion_source_exists(const sprite::Map& map);
+/// Resolves the recording within a global settings read.
+file::Path resolve_recording_path();
+
+/// Resolves the recording for the map's source, returning an empty path for an
+/// empty or invalid selection.
+file::Path resolve_recording_path(const sprite::Map& map);
+
+/// Uses the caller's source matches to select the input or output resolver.
+file::Path resolve_recording_path(const sprite::Map& map, const file::PathArray& source);
+
 Float2_t infer_cm_per_pixel(const sprite::Map* map = nullptr);
 Float2_t infer_meta_real_width_from(const pv::File& file, const sprite::Map* map = nullptr);
 

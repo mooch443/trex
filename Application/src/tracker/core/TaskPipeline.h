@@ -170,6 +170,10 @@ public:
 
 template<typename Data>
 class BasicManager {
+protected:
+    bool _input_closed{false};
+    std::mutex _pause_mutex;
+private:
     typename BaseTask<Data>::Ptr _c;
     mutable std::shared_mutex _mutex;
     std::mutex _future_mutex;
@@ -224,29 +228,35 @@ public:
         _c = nullptr;
     }
 
-    virtual void enqueue(Data&& ptr) {
+    // Returns false when closed input rejects a new item. An empty item can still flush the batch.
+    virtual bool enqueue(Data&& ptr) {
         std::scoped_lock g(_future_mutex);
         if (_future.valid())
             _future.get();
-        
+
         std::unique_lock guard(_mutex);
+        std::unique_lock input_guard(_pause_mutex);
+        if(ptr && _input_closed)
+            return false;
+
         if(not _create) {
             thread_print("[WARNING] _create method not set.");
-            return;
+            return true;
         }
         
         if(not _c) {
             _create();
             assert(_c != nullptr);
             if(not _c)
-                return;
+                return true;
         }
         
         if(ptr)
             _c->push(std::move(ptr));
+        input_guard.unlock();
         
         if(_c->weight() < _weight_limit.load()) {
-            return;
+            return true;
         }
         
         _future = std::async(std::launch::async, [this]() {
@@ -257,6 +267,7 @@ public:
             
             (*_c)();
         });
+        return true;
     }
 
     void set_weight_limit(double w) {
@@ -273,35 +284,41 @@ public:
 template<typename Data>
 class PipelineManager : public BasicManager<Data> {
     bool _paused{false};
-    std::mutex _pause_mutex;
     PersistentCondition _pause_variable;
 
 public:
+    /// Rejects new items and wakes a paused producer. Queued items can still flush.
+    void close_input() {
+        std::unique_lock guard(this->_pause_mutex);
+        this->_input_closed = true;
+        _pause_variable.notify();
+    }
+
     template<typename... Args>
     PipelineManager(double weight_limit, bool start_paused, Args... args)
         : BasicManager<Data>(weight_limit, std::forward<Args>(args)...),
           _paused(start_paused)
     { }
     
-    void enqueue(Data&& data) override {
+    bool enqueue(Data&& data) override {
         //if(not data)
         //    return;
         if(data) {
             {
-                std::unique_lock p(_pause_mutex);
-                while(_paused)
+                std::unique_lock p(this->_pause_mutex);
+                while(_paused && not this->_input_closed)
                     _pause_variable.wait(p);
             }
             
-            BasicManager<Data>::enqueue(std::move(data));
+            return BasicManager<Data>::enqueue(std::move(data));
         } else {
-            BasicManager<Data>::enqueue({});
+            return BasicManager<Data>::enqueue({});
         }
     }
     
     void set_paused(bool v) {
         {
-            std::unique_lock g(_pause_mutex);
+            std::unique_lock g(this->_pause_mutex);
             _paused = v;
             _pause_variable.notify();
         }

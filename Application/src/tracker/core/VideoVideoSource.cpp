@@ -21,7 +21,7 @@ AbstractBaseVideoSource::VideoFrame_t VideoSourceVideoSource::fetch_next() {
             if(_loop.load() && i > 0_f)
                 i = 0_f;
             else
-                return std::unexpected("EOF");
+                return ReachedEOF_t{};
         }
 
         auto index = i++;
@@ -54,7 +54,7 @@ AbstractBaseVideoSource::VideoFrame_t VideoSourceVideoSource::fetch_next() {
         }*/
 
         if (not buffer || buffer->empty())
-            throw std::unexpected("Failed to read frame");
+            return std::unexpected("Failed to read frame");
         
         return VideoFrame{
             .index = index,

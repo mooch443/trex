@@ -414,21 +414,6 @@ namespace track::detect {
     }
 
     template<typename T>
-    std::shared_ptr<T> transfer_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
-        py::buffer_info buf_info = input.request();
-        T* ptr = static_cast<T*>(buf_info.ptr);
-        //std::size_t size = buf_info.size * sizeof(T);
-
-        // Increase reference count to prevent Python from garbage collecting the array
-        Py_INCREF(input.ptr());
-
-        // Create shared_ptr with custom deleter that decreases the Python object's reference count
-        return std::shared_ptr<T>(ptr, [cap = input.ptr()](T*) mutable {
-            Py_DECREF(cap);
-            });
-    }
-
-    template<typename T>
     std::vector<T> move_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
         // Get buffer info and pointer
         py::buffer_info buf_info = input.request();
@@ -478,18 +463,23 @@ public:
 public:
     KeypointArray(py::array_t<float, py::array::c_style | py::array::forcecast> keypoint) {
         py::buffer_info buf_info = keypoint.request();
-        size_t points = buf_info.shape[0];
-        if(points == 0)
+        if(buf_info.size == 0)
             return;
-        
-        size_t bones = buf_info.shape[1];
-        size_t dims = buf_info.shape[2];
-        assert(dims == 2u);
-        auto array = transfer_array<float>(keypoint);
-        data = KeypointData{
-            std::vector<float>(array.get(), array.get() + points * bones * dims),
-            bones
-        };
+        if(buf_info.ndim != 3 || (buf_info.shape[2] != 2 && buf_info.shape[2] != Bone::dimensions))
+            throw InvalidArgumentException("Expected keypoints shaped [objects, joints, 2 or 3] with x, y and optional confidence.");
+
+        std::vector<Bone> bones(size_t(buf_info.size / buf_info.shape[2]));
+        if(buf_info.shape[2] == Bone::dimensions) {
+            std::memcpy(bones.data(), buf_info.ptr, bones.size() * sizeof(Bone));
+        } else {
+            const auto* xy = static_cast<const char*>(buf_info.ptr);
+            for(auto& bone : bones) {
+                std::memcpy(&bone, xy, 2u * sizeof(float));
+                bone.conf = bone.valid() ? 1.f : 0.f;
+                xy += 2u * sizeof(float);
+            }
+        }
+        data = KeypointData{std::move(bones), size_t(buf_info.shape[1])};
     }
 };
 
@@ -701,8 +691,11 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             return v.toStr();
         })
         .def_readonly("x", &Bone::x)
-        .def_readonly("y", &Bone::y);
-        //.def_readonly("conf", &Bone::conf);
+        .def_readonly("y", &Bone::y)
+        .def_readonly("conf", &Bone::conf)
+        .def_property_readonly("visible", [](const Bone& b) {
+            return b.is_visible(READ_SETTING(detect_keypoint_threshold, Float2_t));
+        });
     
     py::class_<Keypoint>(m, "Keypoint")
         .def("__repr__", [](const Keypoint& v) -> std::string {

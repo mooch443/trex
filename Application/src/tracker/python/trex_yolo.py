@@ -281,7 +281,7 @@ class StrippedYoloResults(StrippedResults):
         Args:
             results (Any): Raw output from a YOLO model inference. Expected to contain:
                 - boxes: tensor of shape [n, 6] with values [clid, conf, x, y, w, h].
-                - keypoints (optional): tensor of shape [n, num_keypoints, 2], with (x, y) coordinates.
+                - keypoints (optional): tensor of shape [n, num_keypoints, 2 or 3], with (x, y) and optional confidence.
                 - obb (optional): tensor of shape [n, 5] as [x_center, y_center, width, height, angle] before class/conf insertion.
                 - masks (optional): tensor of shape [n, mask_h, mask_w] for segmentation masks.
             scale (np.ndarray): A 2-element array [scale_x, scale_y] to map tile coordinates back to source image coordinates.
@@ -326,32 +326,30 @@ class StrippedYoloResults(StrippedResults):
         # Process keypoints: scale valid keypoint coordinates
         keypoints_attr = getattr(results, 'keypoints', None)
         if keypoints_attr is not None:
-            # keypoints: list of arrays of shape [num_objects, num_keypoints, 2]
+            # keypoints: list of [num_objects, num_keypoints, 3] arrays (x, y, confidence)
             self.keypoints: List[np.ndarray] = []
             #print(f"keypoints={keypoints_attr}")
 
-            keypoint_tensor = keypoints_attr.cpu().data
-            keys = np.ascontiguousarray(
-                keypoint_tensor[..., :2].numpy(),
-                dtype=np.float32,
-            )
+            keypoints = keypoints_attr.cpu()
+            keypoint_tensor = np.asarray(keypoints.data)
+            if keypoint_tensor.shape[-1] >= 3:
+                keys = np.require(keypoint_tensor[..., :3], dtype=np.float32, requirements=["C", "W"])
+            else:
+                keys = np.empty((*keypoint_tensor.shape[:-1], 3), dtype=np.float32)
+                keys[..., :2] = keypoint_tensor
+                visible = getattr(keypoints, "visible", None)
+                keys[..., 2] = 1.0 if visible is None else visible
             #print("keys=",keys.shape, keypoints_attr.cpu())
             if len(keys) > 0 and len(keys[0]):
-                valid_elements = np.isfinite(keys).all(axis=-1)
+                valid_elements = np.isfinite(keys[..., :2]).all(axis=-1)
                 valid_elements &= np.logical_or(keys[..., 0] != 0, keys[..., 1] != 0)
-                if keypoint_tensor.shape[-1] >= 3:
-                    threshold = float(TRex.setting("detect_keypoint_threshold"))
-                    confidence = keypoint_tensor[..., 2].numpy()
-                    valid_elements &= np.isfinite(confidence)
-                    valid_elements &= confidence >= threshold
 
-                keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
-                keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
+                keys[..., :2] += offset + box_offset
+                keys[..., :2] *= scale
 
-                keys[..., 0] = np.where(valid_elements, keys[..., 0], 0)
-                keys[..., 1] = np.where(valid_elements, keys[..., 1], 0)
+                keys[~valid_elements] = 0
 
-                # Append scaled keypoints if any valid points exist
+                # Keep every joint slot, including missing points.
                 self.keypoints.append(keys) # bones * 3 elements
 
         # Process oriented bounding boxes (OBB): 

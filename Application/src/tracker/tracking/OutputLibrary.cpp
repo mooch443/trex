@@ -1274,7 +1274,7 @@ cached_output_fields_t Library::get_cached_fields() {
         
         auto& pt = pose.point(index);
         if(not pt.valid())
-            return GlobalSettings::invalid();
+            return component == 2 ? 0 : GlobalSettings::invalid();
         
         if(component == 0)
             return pt.x();

@@ -9,6 +9,7 @@
 #include <ui/RecentItems.h>
 #include <misc/CommandLine.h>
 #include <file/PathArray.h>
+#include <file/DataLocation.h>
 #include <tracking/Individual.h>
 #include <tracking/LockGuard.h>
 #include <tracking/Stuffs.h>
@@ -731,7 +732,7 @@ bool TrackingScene::on_global_event(Event event) {
                 if(_data) {
                     SceneManager::enqueue([this](IMGUIBase* base, DrawStructure& graph){
                         if(_data->_recorder.recording()) {
-                            _data->_recorder.stop_recording(base, &graph);
+                            _data->_recorder.stop_recording(&graph);
                             _data->_background->set_strict(false);
                         } else {
                             _data->_background->set_strict(true);
@@ -769,17 +770,21 @@ void TrackingScene::settings_callback(std::string_view key) {
             fois.insert(FOI::Make<FOI::annotated>(frame, true));
         }
 
-        if(not fois.empty()) {
+        auto id = FOI::to_id(FOI::annotated);
+        if(id == -1) {
+            if(not fois.empty())
+                FormatError("Failed to resolve FOI id for type ", FOI::annotated, ".");
+        }
+        else if(not fois.empty()) {
             /// Resolve the id AFTER constructing the FOIs: the reason is registered
             /// lazily on first construction, so reading it earlier returns -1 and files
             /// the annotations under the "none" slot on the very first edit.
-            auto id = FOI::to_id(FOI::annotated);
-            if(id == -1)
-                FormatError("Failed to resolve FOI id for type ", FOI::annotated, ".");
-            else
-                FOI::replace_all_of(id, std::move(fois));
-            _data->update_cached_fois(_state->tracker, _state->video, true);
+            FOI::replace_all_of(id, std::move(fois));
+        } else {
+            FOI::remove_all_of(id);
         }
+
+        _data->update_cached_fois(_state->tracker, _state->video, true);
     }
     else if(key == "gui_mode") {
         //if(_data && _data->_bowl)
@@ -811,7 +816,7 @@ void TrackingScene::settings_callback(std::string_view key) {
     {
         _data->_bowl->_screen_size = Vec2();
         _data->_zoom_dirty = true;
-        _data->_cache->set_fish_dirty(true);
+        //_data->_cache->set_fish_dirty(true);
     } else if(key == "gui_run") {
         
     } else if(key == "track_pause") {
@@ -859,54 +864,43 @@ void TrackingScene::settings_callback(std::string_view key) {
         }
     }
     
-    if(utils::beginsWith(key, "gui_show_")
-       || is_in(key,
+    if(is_in(key,
+             "detect_skeleton",
+             "gui_fish_label",
+             "gui_focus_group",
+             "gui_highlight_categories",
+             "gui_pose_smoothing",
+             "gui_show_blobs",
+             "gui_show_centroid",
+             "gui_show_cliques",
+             "gui_show_graph",
+             "gui_show_match_modes",
+             "gui_show_midline",
+             "gui_show_outline",
+             "gui_show_paths",
+             "gui_show_probabilities",
+             "gui_show_selections",
+             "gui_show_texts",
+             "outline_holes_approximate"))
+    {
+        redraw_tracking();
+    }
+    else if(is_in(key,
+             "analysis_range",
+             "blob_split_algorithm",
              "cam_matrix",
              "cam_undistort",
              "cam_undistort_vector",
-             "analysis_range",
-             "track_threshold",
-             "blob_split_algorithm",
+             "frame_rate",
+             "meta_encoding",
+             "track_background_subtraction",
+             "track_ignore",
+             "track_include",
              "track_posture_threshold",
              "track_size_filter",
-             "frame_rate",
-             "track_background_subtraction",
-             "meta_encoding",
-             "individual_image_normalization",
-             "gui_highlight_categories",
-             "individual_image_size",
-             "individual_image_scale",
-             "gui_zoom_polygon",//"gui_zoom_limit",
-                "track_detect_annotations",
-                "track_frame_tags",
-             "detect_skeleton",
-            "gui_pose_smoothing",
-                "outline_holes_approximate",
-             "track_include", "track_ignore",
-                "track_detect_annotations"))
+             "track_threshold"))
     {
         redraw_all();
-    }
-    
-    if(key == "gui_focus_group"
-       || key == "gui_fish_label"
-       || key == "detect_skeleton"
-       || key == "track_detect_annotations"
-       || utils::beginsWith(key, "heatmap_"))
-    {
-        if(_data && _data->_cache) {
-            _data->_primary_selection = {};
-            _data->_cache->set_tracking_dirty();
-            //_data->_cache->set_raw_blobs_dirty();
-            _data->_cache->set_fish_dirty(true);
-            //if(frame.valid())
-            //    _data->_cache->set_reload_frame(frame);
-            _data->_cache->set_redraw();
-            //_data->_cache->set_blobs_dirty();
-            //_data->_cache->frame_idx = {};
-            //SETTING(gui_frame) = Frame_t{};
-            //set_frame(frame);
-        }
     }
     
     if(key == "output_prefix") {
@@ -917,10 +911,11 @@ void TrackingScene::settings_callback(std::string_view key) {
 void TrackingScene::activate() {
     WorkProgress::instance().start();
 
-    const auto filename = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_existing_output_name(config.values);
-    });
-    SETTING(filename) = file::Filename(filename.filename());
+    const auto filename = settings::resolve_recording_path();
+    if(not filename.is_regular())
+        throw U_EXCEPTION("Cannot open PV recording ", filename, " for source ", READ_SETTING(source, file::PathArray), ".");
+    if(READ_SETTING_WITH_DEFAULT(filename, file::Filename{}).path().empty())
+        SETTING(filename) = file::Filename(filename.remove_extension().filename());
     
     _state = std::make_unique<TrackingState>(SceneManager::getInstance().gui_task_queue(), filename);
     
@@ -933,71 +928,53 @@ void TrackingScene::activate() {
     };
     
     _data->_callback = GlobalSettings::register_callbacks({
+        "detect_skeleton",
+        "gui_fish_label",
         "gui_focus_group",
-        "gui_run",
-        "track_pause",
+        "gui_highlight_categories",
+        "gui_pose_smoothing",
+        "gui_show_blobs",
+        "gui_show_centroid",
+        "gui_show_cliques",
+        "gui_show_graph",
+        "gui_show_match_modes",
+        "gui_show_midline",
+        "gui_show_outline",
+        "gui_show_paths",
+        "gui_show_probabilities",
+        "gui_show_selections",
+        "gui_show_texts",
+        "outline_holes_approximate",
+
         "analysis_range",
-        "frame_rate",
-        
+        "blob_split_algorithm",
         "cam_matrix",
         "cam_undistort",
         "cam_undistort_vector",
-        
-        "manual_matches",
-        "manual_splits",
-        "track_ignore_bdx",
-        
-        "gui_show_texts",
-        "gui_show_centroid",
-        "gui_show_probabilities",
-        "gui_show_visualfield",
-        "gui_show_outline",
-        "gui_show_midline",
-        "gui_show_posture",
-        "gui_show_heatmap",
-        "gui_show_blobs",
-        "gui_show_selections",
-        "gui_zoom_polygon",
-        "gui_zoom_limit",
-        "gui_highlight_categories",
-        "gui_show_match_modes",
-        "gui_show_cliques",
-        "gui_show_graph",
-        "gui_pose_smoothing",
-        "gui_mode",
-        
-        "outline_holes_approximate",
-        
-        "gui_foi_name",
-        
-        "gui_fish_label",
-        
-        "individual_image_normalization",
-        "individual_image_size",
-        "individual_image_scale",
-        
-        "track_background_subtraction",
+        "frame_rate",
         "meta_encoding",
-        "track_threshold",
-        "blob_split_algorithm",
+        "track_background_subtraction",
+        "track_ignore",
+        "track_include",
         "track_posture_threshold",
         "track_size_filter",
-        "track_include", "track_ignore",
-        
-        "detect_skeleton",
-        
-        "heatmap_resolution", "heatmap_dynamic",
-        "heatmap_ids", "heatmap_value_range",
-        "heatmap_normalization", "heatmap_frames",
-        "heatmap_source",
-        
-        "output_prefix",
-        
+        "track_threshold",
+
+        "gui_zoom_limit",
+        "gui_zoom_polygon",
+
+        "gui_foi_name",
+        "gui_frame",
+        "gui_mode",
+        "gui_run",
         "gui_wait_for_background",
+        "manual_matches",
+        "manual_splits",
+        "output_prefix",
         "track_detect_annotations",
-        
-        "gui_frame"
-        
+        "track_frame_tags",
+        "track_ignore_bdx",
+        "track_pause"
     }, [this](std::string_view key){
         if(key == "gui_frame"
            || key == "gui_mode")
@@ -1107,6 +1084,34 @@ void TrackingScene::redraw_all() {
     });
 }
 
+/// Queues a tracking overlay refresh and clears the selection while keeping the current frame loaded.
+void TrackingScene::redraw_tracking() {
+    if(not _data || not _data->_cache) {
+#ifndef NDEBUG
+        FormatWarning("No data set, cannot redraw all.");
+#endif
+        return;
+    }
+    
+    SceneManager::enqueue([this, frame = _data->_cache->frame_idx](){
+        if(not _data || not _data->_cache)
+            return;
+        
+        //_data->_tracker_has_added_frames = true;
+        _data->_primary_selection = {};
+        _data->_cache->set_tracking_dirty();
+        //_data->_cache->set_raw_blobs_dirty();
+        _data->_cache->set_fish_dirty(true);
+        //if(frame.valid())
+            //_data->_cache->set_reload_frame(frame);
+        _data->_cache->set_redraw();
+        //_data->_cache->set_blobs_dirty();
+        //_data->_cache->frame_idx = {};
+        //SETTING(gui_frame) = Frame_t{};
+        //set_frame(frame);
+    });
+}
+
 void TrackingScene::init_undistortion() {
     if(not BOOL_SETTING(cam_undistort)) {
         _data->_background->set_undistortion(std::nullopt, std::nullopt);
@@ -1123,7 +1128,7 @@ void TrackingScene::deactivate() {
     ThreadManager::getInstance().printThreadTree();
 #endif
     if(_data && _data->_recorder.recording()) {
-        _data->_recorder.stop_recording(nullptr, nullptr);
+        _data->_recorder.stop_recording(nullptr);
         if(_data->_background)
             _data->_background->set_strict(false);
     }
@@ -2116,6 +2121,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                             return;
                         
                         it->second.erase(kit);
+                        if(it->second.empty()) {
+                            tags.erase(it);
+                        }
                     });
                 }
             }),
@@ -2328,7 +2336,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         throw InvalidArgumentException(point_idx, " out of range for detect annotation uid ", detect_annotation_uid, " with ", annotation->points.size(), " points.");
                     
                     auto& pt = annotation->points.at(point_idx);
-                    Print("Toggling visibility of ", pt);
+                    if(not pt.valid())
+                        return;
                     pt.set_visible(not pt.visible());
                     
                     SETTING(track_detect_annotations) = std::move(detect_annotations);

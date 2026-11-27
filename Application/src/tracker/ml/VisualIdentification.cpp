@@ -11,7 +11,6 @@
 #include <tracking/Tracker.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
-#include <core/SettingsPaths.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <python/ModuleProxy.h>
@@ -150,7 +149,7 @@ void VINetwork::setup(bool force) {
         auto image_mode = Background::meta_encoding();
         py::set_variable("image_channels", (long_t)required_image_channels(image_mode), module_name);
         py::set_variable("output_path", filename.str(), module_name);
-        py::set_variable("output_prefix", READ_SETTING(output_prefix, std::string), module_name);
+        py::set_variable("output_prefix", READ_SETTING(output_prefix, file::RelativePath).str(), module_name);
         py::set_variable("filename", READ_SETTING(filename, file::Filename).str(), module_name);
         
         if(!py::valid("model", module_name)) {
@@ -295,6 +294,16 @@ static bool loadable_weights_at(const file::Path& path) {
     return false;
 }
 
+static file::Path find_weights(const file::Path& requested, bool (*available)(const file::Path&)) {
+    return GlobalSettings::read([&](const Configuration& config) {
+        const auto input = file::DataLocation::parse("input", requested, &config.values);
+        if(requested.is_absolute() || available(input))
+            return input;
+        const auto output = file::DataLocation::parse("output", requested, &config.values);
+        return available(output) ? output : requested;
+    });
+}
+
 std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     //reinitialize_internal();
     
@@ -302,7 +311,7 @@ std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
         weights._path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>).value_or(file::Path{});
     }
     weights._path = weights.path().empty()
-        ? network_path() : settings::resolve_output_path(weights.path(), loadable_weights_at);
+        ? network_path() : find_weights(weights.path(), loadable_weights_at);
     
     try {
         auto json = py::run(module_name, "load_weights", weights.path().str());
@@ -387,7 +396,7 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                         if(visual_identification_model_path.has_value()
                            && not visual_identification_model_path->empty())
                         {
-                            auto path = settings::resolve_output_path(*visual_identification_model_path, weights_available_at);
+                            auto path = find_weights(*visual_identification_model_path, weights_available_at);
                             array = m.run("find_available_weights", path.str());
                             
                         } else {

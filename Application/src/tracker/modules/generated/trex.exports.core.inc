@@ -37,14 +37,11 @@ using ::cmn::settings::reset;
 using ::cmn::settings::set_defaults_for;
 using ::cmn::settings::write_config;
 // core/SettingsPaths.h
-using ::cmn::settings::conversion_source_exists;
-using ::cmn::settings::find_conversion_source;
-using ::cmn::settings::find_existing_output_name;
-using ::cmn::settings::find_output_name;
+using ::cmn::settings::choose_output_name;
 using ::cmn::settings::infer_cm_per_pixel;
 using ::cmn::settings::infer_meta_real_width_from;
-using ::cmn::settings::resolve_file_path;
-using ::cmn::settings::resolve_output_path;
+using ::cmn::settings::is_camera_source;
+using ::cmn::settings::resolve_recording_path;
 using ::cmn::settings::video_source_error;
 }
 

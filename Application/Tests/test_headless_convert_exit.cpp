@@ -180,6 +180,8 @@ fs::path copy_video_fixture(const fs::path& source_dir) {
 
 using namespace cmn;
 
+const fs::path pv_fixture = fs::path(TREX_TEST_FOLDER).parent_path().parent_path() / "videos" / "test.pv";
+
 struct RepresentativeSettings {
     uint32_t track_max_individuals;
     int track_threshold;
@@ -241,7 +243,7 @@ void reset_settings_loader_state() {
     cmn::GlobalSettings::set_current_defaults_with_config({});
 }
 
-cmn::sprite::Map effective_pv_settings(const fs::path& pv_path) {
+cmn::sprite::Map effective_pv_settings(const fs::path& pv_path, cmn::sprite::Map location = {}) {
     register_data_locations_once();
     reset_settings_loader_state();
 
@@ -260,12 +262,7 @@ cmn::sprite::Map effective_pv_settings(const fs::path& pv_path) {
     const ScopedCurrentPath current_path(application_dir);
     cmn::CommandLine::instance().add_setting("wd", application_dir.string());
 
-    cmn::sprite::Map location;
-    location["output_dir"] = base.remove_filename();
-    location["output_prefix"] = std::string{};
-
-    // The explicit PV directory and basename locate both persisted files;
-    // settings::load applies their contents in the production order.
+    // Reopen the original source with the output options used for conversion.
     cmn::settings::load(cmn::settings::LoadContext{
         .source = cmn::file::PathArray(*video.header().source),
         .filename = base.filename(),
@@ -313,7 +310,7 @@ std::vector<std::string> conversion_arguments(const fs::path& source) {
         "-detect_type", "none",
         "-i", source.string(),
         "-video_conversion_range", "[0,2]",
-        "-auto_no_outputs",
+        "-auto_no_outputs", "false",
         "-auto_quit"
     };
 }
@@ -627,7 +624,7 @@ TEST(PvinfoResults, InspectsStoredBackgroundsWithoutASourcePv) {
         const auto output_dir = file::Path((workspace.path / "output").string());
         const auto results_path = output_dir / (std::string(encoding.name()) + ".results");
         SETTING(output_dir) = output_dir;
-        SETTING(output_prefix) = std::string{};
+        SETTING(output_prefix) = file::RelativePath{};
         SETTING(filename) = file::Filename(file::Path(results_path.filename()).remove_extension());
         SETTING(meta_encoding) = encoding;
         SETTING(meta_video_size) = Size2(64, 48);
@@ -755,7 +752,10 @@ TEST(HeadlessSettingsStartup, CommandLineOverridesConflictingSettingsFile) {
     EXPECT_FALSE(fs::exists(output_dir / "video.pv"));
     EXPECT_FALSE(fs::exists(poison_root / "output"));
 
-    const auto values = effective_pv_settings(pv_path);
+    cmn::sprite::Map location;
+    location["output_dir"] = cmn::file::Path(output_dir.string());
+    location["output_prefix"] = file::RelativePath("cli-prefix");
+    const auto values = effective_pv_settings(pv_path, std::move(location));
     expect_representative_settings(values, command_line_values);
     EXPECT_EQ(values.at("source").value<cmn::file::PathArray>(),
               cmn::file::PathArray(cmn::file::Path(source.string())));
@@ -793,7 +793,7 @@ TEST(HeadlessSettingsStartup, SettingsFileAppliesWithoutMatchingCommandLineOverr
     const auto values = effective_pv_settings(pv_path);
     expect_representative_settings(values, settings_values);
     EXPECT_TRUE(values.at("output_dir").value<cmn::file::Path>().empty());
-    EXPECT_TRUE(values.at("output_prefix").value<std::string>().empty());
+    EXPECT_TRUE(values.at("output_prefix").value<file::RelativePath>().empty());
     EXPECT_EQ(values.at("source").value<cmn::file::PathArray>(),
               cmn::file::PathArray(cmn::file::Path(source.string())));
     EXPECT_TRUE(values.at("settings_file").value<cmn::file::Path>().empty());
@@ -827,7 +827,7 @@ TEST(HeadlessSettingsStartup, RegisteredDefaultsApplyWithoutSettingsOrOverrides)
     const auto values = effective_pv_settings(pv_path);
     expect_representative_settings(values, default_values);
     EXPECT_TRUE(values.at("output_dir").value<cmn::file::Path>().empty());
-    EXPECT_TRUE(values.at("output_prefix").value<std::string>().empty());
+    EXPECT_TRUE(values.at("output_prefix").value<file::RelativePath>().empty());
     EXPECT_EQ(values.at("source").value<cmn::file::PathArray>(),
               cmn::file::PathArray(cmn::file::Path(source.string())));
     expect_pv_range(pv_path, 0, 2);
@@ -873,6 +873,80 @@ TEST(HeadlessSettingsStartup, OutputFilenameWithDirectoryReturnsErrorExitCode) {
     EXPECT_FALSE(fs::exists(workspace.path / "output" / "video.pv"));
 }
 
+TEST(HeadlessSettingsStartup, ExplicitOutputNameIsRejectedForAPvSource) {
+    TempDirectory workspace;
+    const ScopedCurrentPath launch_directory(workspace.path);
+    fs::copy_file(pv_fixture, workspace.path / "fish000.pv");
+    fs::copy_file(pv_fixture, workspace.path / "chosen.pv");
+
+    for(const auto* source : {"fish000.pv", "fish%03d.pv"}) {
+        SCOPED_TRACE(source);
+        const auto exit_code = run_process({
+            TREX_TEST_EXECUTABLE, "-nowindow", "-i", source, "-o", "chosen",
+            "-analysis_range", "[0,1]", "-auto_no_outputs", "-auto_quit"
+        }, std::chrono::seconds(60));
+        EXPECT_EQ(exit_code, 1);
+    }
+}
+
+TEST(HeadlessSettingsStartup, MultiplePvSourcesRequireAnUnambiguousTrackingInput) {
+    TempDirectory workspace;
+    const auto input = workspace.path / "source";
+    const ScopedCurrentPath launch(workspace.path);
+    fs::copy_file(pv_fixture, input / "fish000.pv");
+    fs::copy_file(pv_fixture, input / "fish001.pv");
+    fs::copy_file(pv_fixture, input / "source.pv");
+
+    EXPECT_EQ(run_process({
+        TREX_TEST_EXECUTABLE, "-nowindow", "-task", "track", "-i", "source/fish%03d.pv",
+        "-analysis_range", "[0,1]", "-auto_no_outputs", "-auto_quit"
+    }, std::chrono::seconds(60)), 1)
+        << "Two matching PVs are ambiguous even when a PV named after their directory exists.";
+}
+
+TEST(HeadlessSettingsStartup, MissingPrefixedRecordingDoesNotUseUnprefixedShorthand) {
+    TempDirectory workspace;
+    const ScopedCurrentPath launch(workspace.path);
+    fs::rename(copy_video_fixture(workspace.path), workspace.path / "clip");
+    fs::copy_file(pv_fixture, workspace.path / "clip.pv");
+
+    EXPECT_EQ(run_process({
+        TREX_TEST_EXECUTABLE, "-nowindow", "-i", "clip", "-p", "run",
+        "-detect_type", "none", "-video_conversion_range", "[0,1]",
+        "-analysis_range", "[0,1]", "-auto_no_outputs", "-auto_quit"
+    }, std::chrono::seconds(60)), 1)
+        << "The shorthand -i clip -p run requires run/clip.pv.";
+    EXPECT_FALSE(fs::exists(workspace.path / "run" / "clip.pv"))
+        << "A movie stored under the extensionless name clip must not trigger conversion.";
+}
+
+TEST(HeadlessSettingsStartup, MissingAbsolutePvIsRejectedEvenWhenTheOutputContainsItsName) {
+    TempDirectory workspace;
+    const auto missing = workspace.path / "source" / "clip.pv";
+    const auto output = workspace.path / "output";
+    fs::copy_file(pv_fixture, output / "clip.pv");
+    ASSERT_FALSE(fs::exists(missing));
+
+    const auto exit_code = run_process({
+        TREX_TEST_EXECUTABLE, "-nowindow", "-i", missing.string(), "-d", output.string(),
+        "-analysis_range", "[0,1]", "-auto_no_outputs", "-auto_quit"
+    }, std::chrono::seconds(60));
+    EXPECT_EQ(exit_code, 1);
+}
+
+TEST(HeadlessSettingsStartup, ExplicitConversionRejectsAPvEvenWithAnAvailableRawVideo) {
+    TempDirectory workspace;
+    const auto raw = copy_video_fixture(workspace.path / "source");
+    const auto recording = workspace.path / "source" / "video.pv";
+    fs::copy_file(pv_fixture, recording);
+    const auto original = read_binary_file(recording);
+
+    auto arguments = conversion_arguments(recording);
+    arguments.insert(arguments.end(), {"-meta_source_path", raw.string()});
+    EXPECT_EQ(run_process(arguments, std::chrono::seconds(60)), 1);
+    EXPECT_EQ(read_binary_file(recording), original);
+}
+
 TEST(HeadlessSettingsStartup, MixedPvAndRawInputsExitWithoutConverting) {
     TempDirectory workspace;
     const auto input_dir = workspace.path / "source";
@@ -902,6 +976,10 @@ struct OutputLayoutCase {
     bool use_output_prefix;
     const char* name;
 };
+
+void PrintTo(const OutputLayoutCase& rule, std::ostream* os) {
+    *os << "use_output_dir=" << rule.use_output_dir << " use_output_prefix=" << rule.use_output_prefix << " name=" << rule.name;
+}
 
 class HeadlessAutomaticLaunch : public ::testing::TestWithParam<OutputLayoutCase> {};
 
@@ -980,6 +1058,24 @@ TEST_P(HeadlessAutomaticLaunch, ConvertsMissingPvThenTracksExistingPvAndExportsC
     ASSERT_FALSE(tracked_csv_files.empty()) << data_dir;
     for(const auto& csv : tracked_csv_files)
         expect_csv_shape(csv);
+
+    // Repeat the conversion with exports suppressed in the same output layout.
+    ASSERT_TRUE(fs::remove(pv_path));
+    ASSERT_TRUE(fs::remove(results_path));
+    ASSERT_TRUE(fs::remove(settings_path));
+    ASSERT_GT(fs::remove_all(data_dir), 0u);
+    ASSERT_EQ(csv_files_below(workspace.path), std::vector<fs::path>{});
+
+    arguments.insert(arguments.end(), {"-task", "convert", "-auto_no_outputs", "true"});
+    const auto suppressed_exit = run_process(arguments, std::chrono::seconds(300));
+    ASSERT_TRUE(suppressed_exit.has_value())
+        << "TRex did not finish the conversion with suppressed outputs before the deadline.";
+    ASSERT_EQ(*suppressed_exit, 0);
+    ASSERT_TRUE(fs::is_regular_file(pv_path)) << pv_path;
+    expect_pv_range(pv_path, 0, 30);
+    EXPECT_FALSE(fs::exists(settings_path)) << settings_path;
+    EXPECT_FALSE(fs::exists(results_path)) << results_path;
+    EXPECT_EQ(csv_files_below(workspace.path), std::vector<fs::path>{});
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -993,6 +1089,29 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<OutputLayoutCase>& info) {
         return std::string(info.param.name);
     });
+
+TEST(HeadlessSettingsStartup, SuppressedConversionPreservesExistingSettings) {
+    TempDirectory workspace;
+    const ScopedCurrentPath launch_directory(workspace.path);
+    const auto source = copy_video_fixture(workspace.path / "source");
+    const auto settings_path = source.parent_path() / "video.settings";
+    const auto backup_path = source.parent_path() / "video.settings.backup";
+    std::ofstream(settings_path) << "track_max_individuals = 7\n";
+    const auto original = read_binary_file(settings_path);
+    ASSERT_FALSE(original.empty());
+
+    const auto exit_code = run_process({
+        TREX_TEST_EXECUTABLE, "-nowindow", "-task", "convert", "-detect_type", "none",
+        "-i", source.string(), "-video_conversion_range", "[0,2]", "-auto_quit", "-auto_no_outputs", "true"
+    }, std::chrono::seconds(60));
+
+    ASSERT_EQ(exit_code, 0);
+    const auto pv_path = source.parent_path() / "video.pv";
+    ASSERT_TRUE(fs::is_regular_file(pv_path)) << pv_path;
+    EXPECT_FALSE(fs::exists(backup_path)) << backup_path;
+    ASSERT_TRUE(fs::is_regular_file(settings_path)) << settings_path;
+    EXPECT_EQ(read_binary_file(settings_path), original);
+}
 
 // Policy: Without a source directory or an explicit output directory, recordings
 // and exports use the launch directory even when startup changes directories.

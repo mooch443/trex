@@ -288,33 +288,33 @@ TEST(SpriteMapTests, CopyAssignmentPreservesCallbacksAcrossTypeChanges) {
 
 TEST(GlobalSettingsTests, DiscardingMutableSnapshotPreservesLaterLiveEdits) {
     const auto restore = GlobalSettings::read(GlobalSettings::snapshot);
-    SETTING(output_prefix) = std::string("original");
+    SETTING(output_prefix) = file::RelativePath("original");
     auto snapshot = GlobalSettings::mutable_snapshot();
-    EXPECT_EQ(snapshot->config.at("output_prefix").value<std::string>(), "original");
+    EXPECT_EQ(snapshot->config.at("output_prefix").value<file::RelativePath>().str(), "original");
 
-    snapshot->config.values["output_prefix"] = std::string("preview");
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "original");
+    snapshot->config.values["output_prefix"] = file::RelativePath("preview");
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "original");
 
-    SETTING(output_prefix) = std::string("edited");
-    EXPECT_EQ(snapshot->config.at("output_prefix").value<std::string>(), "preview");
+    SETTING(output_prefix) = file::RelativePath("edited");
+    EXPECT_EQ(snapshot->config.at("output_prefix").value<file::RelativePath>().str(), "preview");
     snapshot.reset();
-    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "edited");
+    EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "edited");
 }
 
 TEST(GlobalSettingsTests, ApplyingMutableSnapshotNotifiesExistingCallbacks) {
     const auto restore = GlobalSettings::read(GlobalSettings::snapshot);
-    SETTING(output_prefix) = std::string("original");
+    SETTING(output_prefix) = file::RelativePath("original");
     std::string observed_prefix;
     auto callback = GlobalSettings::register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
-        {"output_prefix"}, [&](auto) { observed_prefix = READ_SETTING(output_prefix, std::string); });
+        {"output_prefix"}, [&](auto) { observed_prefix = READ_SETTING(output_prefix, file::RelativePath).str(); });
 
     auto snapshot = GlobalSettings::mutable_snapshot();
-    snapshot->config.values["output_prefix"] = std::string("converted");
+    snapshot->config.values["output_prefix"] = file::RelativePath("converted");
     EXPECT_TRUE(observed_prefix.empty());
 
     snapshot->apply();
     EXPECT_EQ(observed_prefix, "converted");
-    SETTING(output_prefix) = std::string("tracked");
+    SETTING(output_prefix) = file::RelativePath("tracked");
     EXPECT_EQ(observed_prefix, "tracked");
     GlobalSettings::unregister_callbacks(std::move(callback));
 }
@@ -324,16 +324,16 @@ TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
         GlobalSettings::reset();
         config.values["source"] = file::PathArray("input/recording.pv");
         config.values["output_dir"] = file::Path("input");
-        config.values["output_prefix"] = std::string("session");
+        config.values["output_prefix"] = file::RelativePath("session");
         config.values["filename"] = file::Filename("recording");
-        config.defaults["output_prefix"] = std::string("default");
-        config.examples["output_prefix"] = std::string("example");
+        config.defaults["output_prefix"] = file::RelativePath("default");
+        config.examples["output_prefix"] = file::RelativePath("example");
         config.docs["output_prefix"] = "prefix documentation";
         config.access["output_prefix"] = AccessLevelType::PUBLIC;
-        config.history.push().values["output_prefix"] = std::string("session");
+        config.history.push().values["output_prefix"] = file::RelativePath("session");
     });
-    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", std::string("current")});
-    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", std::string("configured")});
+    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", file::RelativePath("current")});
+    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", file::RelativePath("configured")});
     auto before = GlobalSettings::read([](const Configuration& config) {
         return GlobalSettings::snapshot(config);
     });
@@ -343,37 +343,37 @@ TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
     GlobalSettings::write([](Configuration& config) {
         config.values["source"] = file::PathArray("original/recording.mp4");
         config.values["output_dir"] = file::Path("original");
-        config.values["output_prefix"] = std::string("changed");
+        config.values["output_prefix"] = file::RelativePath("changed");
         config.values["filename"] = file::Filename("changed");
         config.values["snapshot_added_setting"] = true;
-        config.defaults["output_prefix"] = std::string("changed");
+        config.defaults["output_prefix"] = file::RelativePath("changed");
         config.examples.erase("output_prefix");
         config.docs.clear();
         config.access.clear();
         config.history.clear();
     });
-    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", std::string("changed")});
-    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", std::string("changed")});
+    GlobalSettings::set_current_defaults(sprite::Map{"output_prefix", file::RelativePath("changed")});
+    GlobalSettings::set_current_defaults_with_config(sprite::Map{"output_prefix", file::RelativePath("changed")});
     GlobalSettings::write([&](Configuration& config) { before->rollback(config); });
 
     GlobalSettings::read([](const Configuration& config) {
         EXPECT_EQ(config.values.at("source").value<file::PathArray>(), file::PathArray("input/recording.pv"));
         EXPECT_EQ(config.values.at("output_dir").value<file::Path>(), file::Path("input"));
-        EXPECT_EQ(config.values.at("output_prefix").value<std::string>(), "session");
+        EXPECT_EQ(config.values.at("output_prefix").value<file::RelativePath>().str(), "session");
         EXPECT_EQ(config.values.at("filename").value<file::Filename>().path(), file::Path("recording"));
         EXPECT_FALSE(config.values.has("snapshot_added_setting"));
-        EXPECT_EQ(config.defaults.at("output_prefix").value<std::string>(), "default");
-        EXPECT_EQ(config.examples.at("output_prefix").value<std::string>(), "example");
+        EXPECT_EQ(config.defaults.at("output_prefix").value<file::RelativePath>().str(), "default");
+        EXPECT_EQ(config.examples.at("output_prefix").value<file::RelativePath>().str(), "example");
         EXPECT_EQ(config.docs.at("output_prefix"), "prefix documentation");
         EXPECT_EQ(config.access.at("output_prefix"), AccessLevelType::PUBLIC);
-        EXPECT_EQ(config.history.last().values.at("output_prefix").value<std::string>(), "session");
+        EXPECT_EQ(config.history.last().values.at("output_prefix").value<file::RelativePath>().str(), "session");
     });
     GlobalSettings::read([](const sprite::Map& current, const sprite::Map& configured) {
-        EXPECT_EQ(current.at("output_prefix").value<std::string>(), "current");
-        EXPECT_EQ(configured.at("output_prefix").value<std::string>(), "configured");
+        EXPECT_EQ(current.at("output_prefix").value<file::RelativePath>().str(), "current");
+        EXPECT_EQ(configured.at("output_prefix").value<file::RelativePath>().str(), "configured");
     });
     changes = 0;
-    SETTING(output_prefix) = std::string("after rollback");
+    SETTING(output_prefix) = file::RelativePath("after rollback");
     EXPECT_EQ(changes, 1);
     GlobalSettings::unregister_callbacks(std::move(callback));
 }
@@ -381,7 +381,7 @@ TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
 TEST(GlobalSettingsTests, SnapshotRollsBackLastOwnerUnlessCommitted) {
     for(bool commit : {false, true}) {
         SCOPED_TRACE(commit);
-        SETTING(output_prefix) = std::string("before");
+        SETTING(output_prefix) = file::RelativePath("before");
         CommandLine::instance().reset_settings({});
         CommandLine::instance().add_setting("output_prefix", "before");
         std::shared_ptr<GlobalSettings::Snapshot> pending;
@@ -390,15 +390,15 @@ TEST(GlobalSettingsTests, SnapshotRollsBackLastOwnerUnlessCommitted) {
                 return GlobalSettings::snapshot(config);
             });
             pending = before;
-            SETTING(output_prefix) = std::string("changed");
+            SETTING(output_prefix) = file::RelativePath("changed");
             CommandLine::instance().reset_settings({});
             if(commit)
                 before->commit();
         }
-        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "changed");
+        EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), "changed");
         EXPECT_TRUE(CommandLine::instance().settings().empty());
         pending.reset();
-        EXPECT_EQ(READ_SETTING(output_prefix, std::string), commit ? "changed" : "before");
+        EXPECT_EQ(READ_SETTING(output_prefix, file::RelativePath).str(), commit ? "changed" : "before");
         ASSERT_EQ(CommandLine::instance().settings().size(), commit ? 0u : 1u);
         if(not commit) {
             EXPECT_EQ(CommandLine::instance().settings().front().name, "output_prefix");
@@ -2662,6 +2662,18 @@ TEST(SplitTest, TestBasicSplit) {
     std::wstring ws = L"hello,world";
     std::vector<std::wstring_view> expected_ws = {L"hello", L"world"};
     EXPECT_EQ(split(ws, ','), expected_ws);
+}
+
+TEST(SplitTest, SplitsStringViewWithinItsBounds) {
+    const std::string buffer = "[first,second]";
+    const auto input = std::string_view(buffer).substr(1, buffer.size() - 2);
+
+    const auto parts = split(input, ',');
+
+    const std::vector<std::string_view> expected{"first", "second"};
+    ASSERT_EQ(parts, expected);
+    EXPECT_EQ(parts[0].data(), input.data());
+    EXPECT_EQ(parts[1].data(), input.data() + input.find("second"));
 }
 
 TEST(SplitTest, CombinedTests) {

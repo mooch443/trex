@@ -144,8 +144,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
     {                               /// so we dont fill up the buffer queue
         auto e = _source->next();
         
-        if(e.has_value()) {
-            auto &image = e.value();
+        if(e && std::holds_alternative<PreprocessedFrame>(e.value())) {
+            auto &image = std::get<PreprocessedFrame>(e.value());
             if(_source->is_finite()
                && image.index + 1_f >= _source->length())
             {
@@ -174,8 +174,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
             }
         }
         else {
-            /// oh no, it went wrong!
-            FormatError("[blurry] Failed to load video frame: ", e.error());
+            if(not e)
+                FormatError("[blurry] Failed to load video frame: ", e.error());
             
             /// if its a video
             if(_source->is_finite()) {

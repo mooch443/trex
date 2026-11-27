@@ -17,7 +17,7 @@ public:
     void update_recording(Image::Ptr&&, Base*, cmn::Frame_t frame, cmn::Frame_t max_frame);
     bool recording() const;
     void start_recording(Base*, cmn::Frame_t frame);
-    void stop_recording(Base*, DrawStructure*);
+    void stop_recording(DrawStructure*);
     void set_frame(cmn::Frame_t frame);
 };
 

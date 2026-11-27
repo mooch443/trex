@@ -5,7 +5,7 @@
 #include <file/DataLocation.h>
 #include <core/default_config.h>
 #include <ui/GuiSettings.h>
-#include <core/SettingsPaths.h>
+#include <core/SettingsInitializer.h>
 
 using namespace cmn::gui;
 using namespace cmn;
@@ -79,24 +79,57 @@ std::string RecentItemJSON::toStr() const {
     return name;
 }
 
+void RecentItemJSON::load() const {
+    auto options = _options;
+    auto source = options.value_with_default("source", file::PathArray{});
+    if(not source.has_source())
+        source = file::PathArray(options.value_with_default("meta_source_path", std::string{}));
+
+    const file::Path recording(name);
+    auto directory = file::Path(output_dir);
+    if(recording.is_absolute() && not directory.is_absolute()) {
+        // The saved recording path includes the prefix and anchors relative output directories.
+        auto parent = recording.remove_filename();
+        auto prefix = file::Path(output_prefix);
+        while(not prefix.filename().empty() && parent.filename() == prefix.filename()) {
+            parent = parent.remove_filename();
+            prefix = prefix.remove_filename();
+        }
+        if(prefix.empty())
+            directory = parent;
+    }
+    options["output_dir"] = directory;
+    options["output_prefix"] = file::RelativePath(output_prefix);
+
+    auto output_map = GlobalSettings::mutable_snapshot();
+    settings::load(settings::LoadContext{
+        .source = std::move(source),
+        .filename = filename.empty() ? options.value_with_default("filename", file::Filename{}).path() : file::Path(filename),
+        .source_map = std::move(options),
+        .output_map = output_map
+    });
+    output_map->apply();
+}
+
 void RecentItems::open(const file::PathArray& name, const sprite::Map& options) {
     auto recent = RecentItems::read();
     //if (recent.has(name)) {
     //    return;
     //}
-    auto basename = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_output_name(config.values, config.values.at("source"), true);
-    });
-    
-    if(basename.empty())
-        basename = file::DataLocation::parse("output", file::find_basename(name));
-    //file::Path basepath = file::DataLocation::parse("output", basename);
-    
     sprite::Map lookup = options;
-    lookup["source"] = name;
-    SETTING(settings_file).copy_to(lookup);
-    if(auto path = READ_SETTING(meta_source_path, std::string); not path.empty())
-        lookup["meta_source_path"] = path;
+    GlobalSettings::read([&](const Configuration& config) {
+        for(const auto key : {"filename", "output_dir", "output_prefix", "settings_file", "meta_source_path"}) {
+            if(not lookup.has(key))
+                config.at(key).get().copy_to(lookup);
+        }
+    });
+    const auto source = settings::is_camera_source(name.source())
+        ? name : file::DataLocation::parse("input", name, &lookup);
+    lookup["source"] = source;
+    const auto recording = settings::choose_output_name(lookup);
+    if(recording.path().empty())
+        return;
+    const auto basename = file::DataLocation::parse("output", recording.path(), &lookup).remove_extension();
     recent.add(basename.str(), lookup);
     recent.write();
 }
@@ -256,9 +289,9 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 }
                 
                 //item._options = options;
-                item.filename = READ_SETTING(filename, file::Filename).str();
-                item.output_prefix = READ_SETTING(output_prefix, std::string);
-                item.output_dir = READ_SETTING(output_dir, file::Path).str();
+                item.filename = config.at("filename").value<file::Filename>().str();
+                item.output_prefix = config.at("output_prefix").value<file::RelativePath>().str();
+                item.output_dir = config.at("output_dir").value<file::Path>().str();
                 item.modified = timestamp_t::now().get();
                 item.settings = {};
                 for(auto &key : item._options.keys())
@@ -273,9 +306,9 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
 
     RecentItemJSON item{
         .name = name,
-        .output_prefix = READ_SETTING(output_prefix, std::string),
-        .output_dir = READ_SETTING(output_dir, file::Path).str(),
-        .filename = READ_SETTING(filename, file::Filename).str(),
+        .output_prefix = config.at("output_prefix").value<file::RelativePath>().str(),
+        .output_dir = config.at("output_dir").value<file::Path>().str(),
+        .filename = config.at("filename").value<file::Filename>().str(),
     };
     
     for(auto &key : config.keys()) {

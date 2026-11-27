@@ -156,7 +156,7 @@ void HeatmapController::save(const data::FrameRepository& repo) {
     size_t package_index = 0;
     
     auto data_prefix = READ_SETTING(data_prefix, file::Path);
-    auto fishdata = file::DataLocation::parse("output", data_prefix);
+    auto fishdata = file::DataLocation::parse("output", data_prefix.empty() ? file::Path(".") : data_prefix);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
@@ -1405,9 +1405,9 @@ void Grid::fill(const std::vector<DataPoint> &data)
         }
 
 #ifndef __APPLE__
-        static file::Path path("C:/Users/mooch/Desktop/visualization_cells_"+READ_SETTING(filename, file::Filename).str()+"_"+READ_SETTING(output_prefix, std::string)+".avi");
+        static file::Path path("C:/Users/mooch/Desktop/visualization_cells_"+READ_SETTING(filename, file::Filename).str()+"_"+READ_SETTING(output_prefix, file::RelativePath).str()+".avi");
 #else
-        static file::Path path("/Users/tristan/Desktop/visualization_cells_"+READ_SETTING(filename, file::Filename).str() + "_" + READ_SETTING(output_prefix, std::string) +".avi");
+        static file::Path path("/Users/tristan/Desktop/visualization_cells_"+READ_SETTING(filename, file::Filename).str() + "_" + READ_SETTING(output_prefix, file::RelativePath).str() +".avi");
 #endif
         static cv::VideoWriter writer(path.str(), cv::VideoWriter::fourcc('F','F','V','1'), FAST_SETTING(frame_rate), cv::Size(smaller.cols, smaller.rows), true);
         

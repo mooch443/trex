@@ -39,13 +39,13 @@ std::string window_title() {
     }
     
     auto filename = READ_SETTING(filename, file::Filename).str();
-    auto output_prefix = READ_SETTING(output_prefix, std::string);
+    auto output_prefix = READ_SETTING(output_prefix, file::RelativePath).str();
     return version_prefix + READ_SETTING(app_name, std::string)
         + (READ_SETTING(version, std::string).empty() ? "" : (" " + READ_SETTING(version, std::string)))
         + (not filename.empty() ? " (" + filename + ")" : "")
         + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
     
-    //auto output_prefix = READ_SETTING(output_prefix, std::string);
+    //auto output_prefix = READ_SETTING(output_prefix, file::RelativePath).str();
     /*return READ_SETTING(app_name, std::string)
         + (READ_SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version, std::string)))
         + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));*/

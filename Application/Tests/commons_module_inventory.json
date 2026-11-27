@@ -376,7 +376,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/Deprecations.h",
-      "sha256": "a33f00831316918e8de45d002d1ac98925175b2971ecd45c4834c10f91f7a659",
+      "sha256": "af05c16c7fde5cd7fc2a5cf03aa91474f15164c3f221cc54a29608512c56d64c",
       "symbols": [
         {
           "kind": "struct",
@@ -398,7 +398,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/DisplayValue.h",
-      "sha256": "28f926605715da1e27a583df6e237f790e1b1957db791319a4f068c2cde7637b",
+      "sha256": "4ba433798b284990fc34f0d3da69b099de09e85f2f7ce9e38f891df29e7bf45f",
       "symbols": [
         {
           "kind": "function",
@@ -522,7 +522,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/GlobalSettings.h",
-      "sha256": "12ccd7b56a3cc58c11aececf6b3e978da58f566c974450e19650f498fd372caf",
+      "sha256": "5871b3a0b8c05e95a157ad09ddd1db4f5ef86fdddda66ae0d916dca11aaa1096",
       "symbols": [
         {
           "kind": "enum_class",
@@ -782,7 +782,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/Path.h",
-      "sha256": "5ae52b6f084a15456a958e40cc6516d2fdca716dddbc17f5d1555072b7992976",
+      "sha256": "2ed283d1d26c17a0e93bdc65343fbfbff367a4322a74a39e4955ff759af186c8",
       "symbols": [
         {
           "kind": "function_template",
@@ -803,6 +803,13 @@
           "name": "Filename",
           "namespace": "cmn::file",
           "qualified": "cmn::file::Filename",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "RelativePath",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::RelativePath",
           "smoke": "using"
         },
         {
@@ -2900,7 +2907,7 @@
       "excluded": [],
       "module": "commons.file",
       "path": "file/DataLocation.h",
-      "sha256": "8c69182c706eea6bf0eef61948c61bea76dc0ad6153d91b5c0eba114a3835207",
+      "sha256": "2552888f27c552b2cd466bf37db4433b02a537e6614d2d44d404852c075b9d20",
       "symbols": [
         {
           "kind": "class",
@@ -2966,7 +2973,7 @@
       "excluded": [],
       "module": "commons.file",
       "path": "file/PathArray.h",
-      "sha256": "3463caa830205a7560e45fae31eca9f7286218440bc18b6a8e426827a924a94c",
+      "sha256": "2141b51b9868c5ef745a29b909259334e9bc9026c003277720f4381fbf03f6dc",
       "symbols": [
         {
           "kind": "class_template",
@@ -4783,14 +4790,14 @@
         {
           "header": "gui/IMGUIBase.h",
           "kind": "group",
-          "line": "42",
+          "line": "43",
           "name": "cmn::gui::Effects::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "commons.gui",
       "path": "gui/IMGUIBase.h",
-      "sha256": "3b04448d77ebfadc38cd8ff7cbb9cb39b1855dcd7601ec080f848361532fa048",
+      "sha256": "b771e1fbbf4d8c3b8d16af14aa5f19b1765a9ad1c0068555e3f9584522d94c59",
       "symbols": [
         {
           "kind": "enum_class",
@@ -4833,7 +4840,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/LabeledField.h",
-      "sha256": "b895ee97f9bbb299ef41bec7e9d33976d983f6262184bce0fb3d3f408818aabd",
+      "sha256": "ce68c4faef185e61eba776162ec9e7604ae673c3db7fbb80e0619c6398ddc362",
       "symbols": [
         {
           "kind": "class",
@@ -6496,7 +6503,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/ScrollableList.h",
-      "sha256": "49f6b0b0871ffd3858c6b284fbbb9d9dc09fb0c335430347e31d9df95c14cc57",
+      "sha256": "aaad30f806f8fce4c423118443cee9ba75313a6e97726514bce2d13a572b6b4f",
       "symbols": [
         {
           "kind": "concept",
@@ -6923,7 +6930,7 @@
   "summary": {
     "excluded": 45,
     "headers": 164,
-    "symbols": 751
+    "symbols": 752
   },
   "version": 1
 }

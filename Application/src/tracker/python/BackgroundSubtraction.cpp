@@ -108,11 +108,7 @@ BackgroundSubtraction::Data& BackgroundSubtraction::data() {
 std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Tiled.promise was already set.");
-    tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-    
-    auto f = tiled.promise->get_future();
-    manager().enqueue(std::move(tiled));
-    return f;
+    return std::move(tiled).enqueue(manager());
 }
 
 void BackgroundSubtraction::deinit() {

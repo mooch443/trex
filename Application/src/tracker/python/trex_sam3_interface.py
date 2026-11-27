@@ -21,6 +21,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from torch.nn import functional as F
+from ultralytics.cfg import DEFAULT_CFG_DICT
 from ultralytics.models.sam.predict import SAM3VideoSemanticPredictor
 from ultralytics.utils.checks import check_imgsz
 
@@ -339,7 +340,7 @@ def _empty_result(frame_index: int) -> "TRex.Result":
         int(frame_index),
         TRex.Boxes(np.empty((0, 6), dtype=np.float32)),  # type: ignore[attr-defined]
         [],
-        TRex.KeypointData(np.empty((0, 1, 2), dtype=np.float32)),  # type: ignore[attr-defined]
+        TRex.KeypointData(np.empty((0, 0, 3), dtype=np.float32)),  # type: ignore[attr-defined]
         TRex.ObbData(np.empty((0, 7), dtype=np.float32)),  # type: ignore[attr-defined]
         TRex.PointData(np.empty((0, 5), dtype=np.float32)),  # type: ignore[attr-defined]
     )
@@ -578,7 +579,7 @@ def _build_result(
         int(frame_index),
         TRex.Boxes(boxes),  # type: ignore[attr-defined]
         trex_masks,
-        TRex.KeypointData(np.empty((0, 1, 2), dtype=np.float32)),  # type: ignore[attr-defined]
+        TRex.KeypointData(np.empty((0, 0, 3), dtype=np.float32)),  # type: ignore[attr-defined]
         TRex.ObbData(np.empty((0, 7), dtype=np.float32)),  # type: ignore[attr-defined]
         TRex.PointData(np.empty((0, 5), dtype=np.float32)),  # type: ignore[attr-defined]
     )
@@ -868,7 +869,13 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     if isinstance(predictor_kwargs, Mapping):
         overrides.update(cast(Mapping[str, object], predictor_kwargs))
 
-    if str(device).startswith("mps"):
+    if "quantize" in DEFAULT_CFG_DICT:
+        half = overrides.pop("half")
+        if device.startswith("mps"):
+            overrides["quantize"] = 32
+        else:
+            overrides.setdefault("quantize", 16 if half else 32)
+    elif device.startswith("mps"):
         overrides["half"] = False
 
     predictor = SAM3VideoSemanticPredictor(overrides=overrides)
@@ -912,7 +919,7 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
         f"device={device} "
         f"imgsz={predictor.imgsz} "
         f"conf={float(overrides['conf']):.3f} "
-        f"half={bool(overrides['half'])} "
+        f"precision={'fp16' if predictor.model.fp16 else 'fp32'} "
         f"video_capacity={video_capacity_text}"
     )
     return {"ok": True, "device": device}

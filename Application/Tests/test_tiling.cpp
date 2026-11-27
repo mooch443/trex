@@ -114,7 +114,7 @@ track::detect::Result makeBoxResult(
 track::detect::Result makePoseResult(
     int index,
     std::initializer_list<std::array<float, 6>> rows,
-    std::vector<float> keypoints,
+    std::vector<track::detect::Bone> keypoints,
     size_t bones)
 {
     return track::detect::Result{
@@ -944,10 +944,10 @@ TEST(DetectionTilePostprocessTest, PoseMatchingFillsOnlyMissingJoints) {
     std::vector<track::detect::Result> results;
     results.emplace_back(makePoseResult(
         0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}},
-        {90.f, 30.f, 0.f, 0.f}, 2u));
+        {{90.f, 30.f, 1.f}, {0.f, 0.f, 0.f}}, 2u));
     results.emplace_back(makePoseResult(
         1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
-        {91.f, 31.f, 100.f, 40.f}, 2u));
+        {{91.f, 31.f, 1.f}, {100.f, 40.f, 1.f}}, 2u));
 
     auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
@@ -971,10 +971,10 @@ TEST(DetectionTilePostprocessTest, PoseDistanceKeepsNearbyDistinctPosesSeparate)
     std::vector<track::detect::Result> results;
     results.emplace_back(makePoseResult(
         0, {{70.f, 10.f, 115.f, 90.f, 0.9f, 1.f}},
-        {75.f, 20.f, 80.f, 25.f}, 2u));
+        {{75.f, 20.f, 1.f}, {80.f, 25.f, 1.f}}, 2u));
     results.emplace_back(makePoseResult(
         1, {{72.f, 10.f, 117.f, 90.f, 0.8f, 1.f}},
-        {105.f, 60.f, 110.f, 65.f}, 2u));
+        {{105.f, 60.f, 1.f}, {110.f, 65.f, 1.f}}, 2u));
 
     auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
@@ -991,10 +991,10 @@ TEST(DetectionTilePostprocessTest, PoseYoloModeUsesTheModelBoxGate) {
     std::vector<track::detect::Result> results;
     results.emplace_back(makePoseResult(
         0, {{70.f, 10.f, 115.f, 90.f, 0.9f, 1.f}},
-        {75.f, 20.f, 80.f, 25.f}, 2u));
+        {{75.f, 20.f, 1.f}, {80.f, 25.f, 1.f}}, 2u));
     results.emplace_back(makePoseResult(
         1, {{72.f, 10.f, 117.f, 90.f, 0.8f, 1.f}},
-        {105.f, 60.f, 110.f, 65.f}, 2u));
+        {{105.f, 60.f, 1.f}, {110.f, 65.f, 1.f}}, 2u));
 
     auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
@@ -1012,10 +1012,10 @@ TEST(DetectionTilePostprocessTest, PoseKeypointModeRequiresACommonValidJoint) {
     std::vector<track::detect::Result> results;
     results.emplace_back(makePoseResult(
         0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}},
-        {90.f, 30.f, 0.f, 0.f}, 2u));
+        {{90.f, 30.f, 1.f}, {100.f, 40.f, 0.f}}, 2u));
     results.emplace_back(makePoseResult(
         1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
-        {0.f, 0.f, 100.f, 40.f}, 2u));
+        {{90.f, 30.f, 0.f}, {100.f, 40.f, 1.f}}, 2u));
 
     auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
@@ -1110,15 +1110,16 @@ TEST(DetectionTilePostprocessIntegrationTest, SelectedBoxRoutesThroughYoloReceiv
 TEST(DetectionTilePostprocessIntegrationTest, FusedPoseRoutesThroughYoloReceive) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_keypoint_threshold) = Float2_t{0.5f};
     SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
 
     std::vector<track::detect::Result> results;
     results.emplace_back(makePoseResult(
         0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}},
-        {90.f, 30.f, 0.f, 0.f}, 2u));
+        {{90.f, 30.f, 0.5f}, {98.f, 42.f, 0.1f}, {85.f, 35.f, 0.4f}, {0.f, 0.f, 0.f}}, 4u));
     results.emplace_back(makePoseResult(
         1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
-        {91.f, 31.f, 100.f, 40.f}, 2u));
+        {{91.f, 31.f, 1.f}, {100.f, 40.f, 0.75f}, {0.f, 0.f, 0.f}, {88.f, 45.f, 0.f}}, 4u));
 
     auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
@@ -1130,9 +1131,22 @@ TEST(DetectionTilePostprocessIntegrationTest, FusedPoseRoutesThroughYoloReceive)
     ASSERT_EQ(data.predictions.size(), 1u);
     ASSERT_EQ(data.frame.n(), 1u);
     ASSERT_EQ(data.keypoints.size(), 1u);
-    ASSERT_EQ(data.keypoints[0].bones.size(), 2u);
+    ASSERT_EQ(data.keypoints[0].bones.size(), 4u);
     EXPECT_FLOAT_EQ(data.keypoints[0].bones[1].x, 100.f);
     EXPECT_FLOAT_EQ(data.keypoints[0].bones[1].y, 40.f);
+    EXPECT_FLOAT_EQ(data.keypoints[0].bones[1].conf, 0.75f);
+
+    ASSERT_EQ(data.frame.predictions().size(), 1u);
+    const auto& pose = data.frame.predictions().front().pose;
+    ASSERT_EQ(pose.size(), 4u);
+    EXPECT_EQ(pose.point(0), (blob::Pose::Point{90, 30, true}));
+    EXPECT_EQ(pose.point(1), (blob::Pose::Point{100, 40, true}));
+    EXPECT_EQ(pose.point(2), (blob::Pose::Point{85, 35, false}));
+    EXPECT_EQ(pose.point(3), (blob::Pose::Point{88, 45, false}));
+
+    const auto updated = data.keypoints[0].toPose(0.f);
+    EXPECT_EQ(updated.point(2), (blob::Pose::Point{85, 35, true}));
+    EXPECT_EQ(updated.point(3), (blob::Pose::Point{88, 45, false}));
 }
 
 TEST(DetectionTilePostprocessIntegrationTest, StitchedMaskRoutesThroughYoloReceive) {
@@ -1444,6 +1458,7 @@ TEST(ImageResizeTest, LetterboxReusesDestinationAllocationForMatchingTargetSize)
 TEST(PythonWrapperShutdownTest, DeinitFailsQueuedTasksInsteadOfLeavingThemPending) {
     FakePythonImplScope scope;
     FakePythonImplScope::install(scope);
+    resetGlobalSettings();
 
     auto started = std::promise<void>{};
     auto started_future = started.get_future();

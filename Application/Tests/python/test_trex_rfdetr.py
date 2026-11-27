@@ -615,6 +615,7 @@ class RFDETRAdapterTest(unittest.TestCase):
         )
         self.assertEqual(pose_config.output_format, FakeObjectDetectionFormat.poses)
         self.assertEqual(pose_config.keypoint_format.n_points, 3)
+        self.assertEqual(pose_config.keypoint_format.n_dims, 2)
         self.assertEqual(
             pose_config.classes,
             {0: "__background__", 1: "fish", 2: "crab"},
@@ -910,8 +911,14 @@ class RFDETRAdapterTest(unittest.TestCase):
         self.assertAlmostEqual(float(output["scores"][0]), 2.5 / 3.5)
         torch.testing.assert_close(
             output["keypoints"],
-            torch.tensor([[[0.0, 0.0, 0.0], [4.0, 5.0, 0.10], [6.0, 7.0, 0.75]]]),
+            result["keypoints"],
         )
+
+        rejected = model._predict_tile_results(
+            [np.zeros((8, 8, 3), dtype=np.uint8)],
+            conf=0.8,
+        )[0]
+        self.assertEqual(rejected["keypoints"].shape, (0, 3, 3))
 
     def test_segmentation_filters_queries_before_mask_upsampling(self):
         result = {
@@ -977,8 +984,24 @@ class RFDETRAdapterTest(unittest.TestCase):
             offset=np.array([5.0, 7.0]),
             image_shape=(8, 8),
         )
-        np.testing.assert_allclose(stripped_pose.keypoints[0][0, 0], [14.0, 30.0])
-        np.testing.assert_array_equal(stripped_pose.keypoints[0][0, 1], [0.0, 0.0])
+        np.testing.assert_allclose(stripped_pose.keypoints[0][0, 0], [14.0, 30.0, 0.9])
+        np.testing.assert_array_equal(stripped_pose.keypoints[0][0, 1], [0.0, 0.0, 0.0])
+
+        pose_result["keypoints"] = pose_result["keypoints"][..., :2]
+        stripped_pose = self.module.StrippedRFDETRResults(
+            pose_result, scale=np.ones(2), offset=np.zeros(2), image_shape=(8, 8),
+        )
+        np.testing.assert_array_equal(stripped_pose.keypoints[0][0], [
+            [2.0, 3.0, 1.0], [0.0, 0.0, 0.0],
+        ])
+
+        pose_result["visible"] = torch.tensor([[False, True]])
+        stripped_pose = self.module.StrippedRFDETRResults(
+            pose_result, scale=np.ones(2), offset=np.zeros(2), image_shape=(8, 8),
+        )
+        np.testing.assert_array_equal(stripped_pose.keypoints[0][0], [
+            [2.0, 3.0, 0.0], [0.0, 0.0, 0.0],
+        ])
 
     def test_mask_box_uses_floor_ceil_source_bounds_and_exact_raster_size(self):
         result = {

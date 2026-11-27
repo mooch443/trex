@@ -105,7 +105,7 @@ def _empty_result(index):
         index,
         TRex.Boxes(empty),
         [],
-        TRex.KeypointData(empty),
+        TRex.KeypointData(np.empty((0, 0, 3), dtype=np.float32)),
         TRex.ObbData(empty),
         TRex.PointData(empty),
     )
@@ -468,6 +468,23 @@ protected:
             buffers::TileBuffers::clear();
     }
 };
+
+TEST_F(MLFailures, LegacyKeypointArraysInferConfidenceFromCoordinates) {
+    auto checked = Python::schedule([] {
+        Python::execute(R"PY(import numpy as np
+import TRex
+
+pose = TRex.KeypointData(np.array([[[12., 15.], [0., 0.]]], dtype=np.float32))
+located, missing = pose.at(0).bones
+assert (located.x, located.y, located.conf) == (12., 15., 1.)
+assert (missing.x, missing.y, missing.conf) == (0., 0., 0.)
+
+assert TRex.KeypointData(np.empty((0, 1, 2), dtype=np.float32)).num_bones() == 0
+assert TRex.KeypointData([]).num_bones() == 0
+)PY");
+    });
+    ASSERT_NO_THROW(checked.get());
+}
 
 TEST_F(MLFailures, CategoryLearningCanRetryAfterInitializationFailure) {
     write_text_file(python_environment->root / "trex_learn_category.py", R"PY(import builtins
