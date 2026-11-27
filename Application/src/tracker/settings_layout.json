@@ -371,6 +371,39 @@
                             },
                             {
                                 "type":"condition",
+                                "var":"{sam3}",
+                                "then":{
+                                    "type":"hlayout",
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"<b>SAM3 checkpoint</b>\n<gray>Leave blank to find <c>sam3.pt</c> automatically.</gray>",
+                                            "pad":[10,3,10,4],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_sam3_model",
+                                            "corners":["left"],
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:60:{-:{-:{element_w}:{inside_label_w}}:54}},45]",
+                                            "desc":""
+                                        },
+                                        {
+                                            "type":"button",
+                                            "text":"Reset",
+                                            "corners":["right"],
+                                            "fill":"{if:{hovered}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{hovered}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":[54,45],
+                                            "action":"set:detect_sam3_model:null"
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "type":"condition",
                                 "var":"{machine_learning}",
                                 "then": {
                                     "type":"gridlayout",

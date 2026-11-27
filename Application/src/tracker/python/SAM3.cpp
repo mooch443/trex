@@ -45,13 +45,7 @@ std::future<SegmentationData> SAM3::apply(TileImage&& tiled) {
 }
 
 void SAM3::reinit(track::ModuleProxy& proxy) {
-    auto weights = detect::yolo::current_detect_model_path();
-    if(weights.empty()) {
-        throw U_EXCEPTION("SAM3 requires `detect_model` to point to the SAM3 weights path.");
-    }
-
     glz::generic create_req {
-        {"weights_path", weights.str()},
         {"imgsz", cvt2json(std::vector<uint16_t>{
             READ_SETTING(detect_resolution, detect::DetectResolution).width,
             READ_SETTING(detect_resolution, detect::DetectResolution).height
@@ -60,6 +54,14 @@ void SAM3::reinit(track::ModuleProxy& proxy) {
         {"half", true},
         {"verbose", true}
     };
+
+    if(auto weights = READ_SETTING(detect_sam3_model, std::optional<file::Path>);
+       weights && not weights->empty())
+    {
+        create_req["weights_path"] = file::from_launch_dir(*weights).str();
+    } else {
+        create_req["launch_dir"] = file::from_launch_dir().str();
+    }
 
     if(auto detect_iou_threshold = READ_SETTING(detect_iou_threshold, std::optional<Float2_t>); detect_iou_threshold.has_value()) {
         create_req["detect_iou_threshold"] = static_cast<float>(*detect_iou_threshold);

@@ -63,7 +63,7 @@ namespace track::detect {
 ENUM_CLASS_DOCS(ObjectDetectionType,
 "Disable object detection.",
 "Detect objects using the machine-learning model selected by `detect_model`.",
-"Segment objects using SAM3 and prompts from `detect_sam3_prompt`.",
+"Segment objects using SAM3 and prompts from `detect_sam3_prompt`, with an optional checkpoint override in `detect_sam3_model`.",
 "Detect foreground objects by comparing video frames with a background image.",
 "Load existing detections from the CSV selected by `detect_precomputed_file`."
 )
@@ -1158,6 +1158,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {Frame_t{}, track::detect::Sam3PromptList{track::detect::Sam3PromptPayload::fromStr("shark")}}
         }};
         CONFIG("detect_sam3_prompt", std::optional<track::detect::Sam3Prompts>{}, "Frame-indexed SAM3 prompt repository. C++ resolves this map into per-image prompt arrays before dispatching batches to the Python SAM3 adapter.", PUBLIC, {std::move(example_prompts)});
+        CONFIG("detect_sam3_model", std::optional<file::Path>{}, "Optional SAM3 checkpoint for `detect_type=sam3`. Relative paths are resolved from the TRex launch directory. If unset or blank, TRex looks for sam3.pt in that directory, then in the Ultralytics weights directory. Obtain the checkpoint from Meta at https://huggingface.co/facebook/sam3.", PUBLIC);
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
         CONFIG("detect_model", file::Path(), "The path to a .pt or .pth file that contains a supported PyTorch object detection model (such as YOLO or RF-DETR).");
@@ -1482,6 +1483,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             });
         } else {
             explicitly_include.emplace("detect_threshold");
+            if(type == track::detect::ObjectDetectionType::sam3
+               && not READ_SETTING(detect_sam3_model, std::optional<file::Path>).value_or(file::Path{}).empty())
+            {
+                explicitly_include.emplace("detect_sam3_model");
+            }
         }
         
         /**

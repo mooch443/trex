@@ -23,6 +23,7 @@ import torch
 from torch.nn import functional as F
 from ultralytics.cfg import DEFAULT_CFG_DICT
 from ultralytics.models.sam.predict import SAM3VideoSemanticPredictor
+from ultralytics.utils import SETTINGS
 from ultralytics.utils.checks import check_imgsz
 
 try:
@@ -843,12 +844,22 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     """Create or replace the singleton SAM3 model session."""
     global _SESSION
 
-    if "weights_path" not in request:
-        raise ValueError("create_session requires 'weights_path'.")
-
-    weights_path = Path(str(cast(str | Path, request["weights_path"])))
-    if not weights_path.exists():
-        raise ValueError(f"SAM3 weights_path does not exist: {weights_path}")
+    if "weights_path" in request:
+        weights_path = Path(str(request["weights_path"])).absolute()
+        if not weights_path.is_file():
+            raise FileNotFoundError(f"The checkpoint set by detect_sam3_model is not a file: {weights_path}")
+    else:
+        launch_dir = Path(str(request.get("launch_dir", "."))).absolute()
+        launch_weights_path = launch_dir / "sam3.pt"
+        weights_path = launch_weights_path
+        if not weights_path.is_file():
+            weights_path = Path(SETTINGS["weights_dir"]).expanduser().absolute() / launch_weights_path.name
+            if not weights_path.is_file():
+                raise FileNotFoundError(
+                    f"SAM3 checkpoint not found at '{launch_weights_path}' or '{weights_path}'. "
+                    "Download sam3.pt from https://huggingface.co/facebook/sam3 and save it in one of those "
+                    "locations, or set detect_sam3_model to the checkpoint path."
+                )
 
     if _SESSION is not None:
         shutdown()
@@ -857,7 +868,6 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     overrides: dict[str, object] = {
         "task": "segment",
         "mode": "predict",
-        "model": str(weights_path),
         "imgsz": request.get("imgsz", 640),
         "conf": float(request.get("conf", 0.25)),
         "half": bool(request.get("half", True)),
@@ -868,6 +878,7 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     predictor_kwargs = request.get("predictor_kwargs")
     if isinstance(predictor_kwargs, Mapping):
         overrides.update(cast(Mapping[str, object], predictor_kwargs))
+    overrides["model"] = str(weights_path)
 
     if "quantize" in DEFAULT_CFG_DICT:
         half = overrides.pop("half")
@@ -878,6 +889,7 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     elif device.startswith("mps"):
         overrides["half"] = False
 
+    _session_log(f"loading checkpoint {weights_path}")
     predictor = SAM3VideoSemanticPredictor(overrides=overrides)
     predictor.setup_model(verbose=bool(overrides["verbose"]))
     predictor.score_threshold_detection = float(overrides["conf"])

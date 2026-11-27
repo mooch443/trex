@@ -134,6 +134,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             }
         };
         
+        if(detect_type == detect::ObjectDetectionType::sam3)
+            exclude.emplace_back("detect_model");
         apply_values(values);
     }
     

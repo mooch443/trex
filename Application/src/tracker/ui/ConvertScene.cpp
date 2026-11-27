@@ -455,7 +455,8 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
-    if(not detect::yolo::valid_model(detect::yolo::current_detect_model_path()))
+    if(detect::detection_type() != detect::ObjectDetectionType::sam3
+       && not detect::yolo::valid_model(detect::yolo::current_detect_model_path()))
     {
         SETTING(detect_model) = file::Path(track::detect::yolo::default_model());
     }
