@@ -134,7 +134,7 @@
                         {
                           "type": "button",
                           "text": "<sym>🗁</sym>",
-                          "action": "choose-file:meta_source_path:{folder:{global.meta_source_path}}",
+                          "action": "choose-file:meta_source_path",
                           "corners": ["right"],
                           "size": "[40, {label_height}]",
                           "pad": [1, 0, 0, 0],

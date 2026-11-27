@@ -276,10 +276,10 @@ Frame_t exported_source_index(Frame_t frame, const Options& options) {
     return frame;
 }
 
-std::string export_video_source(const Options& options) {
+std::string export_video_source(const Options& options, const file::PathArray& files) {
     if(!options.video_source_basename.empty())
         return file::Path(options.video_source_basename).filename();
-    return file::Path(file::find_basename(options.source)).filename();
+    return file::Path(file::find_basename(files)).filename();
 }
 
 void ensure_folder(const file::Path& path) {
@@ -300,9 +300,9 @@ void validate_source_paths(const file::PathArray& source) {
 void write_jpeg(VideoSource& source, Frame_t frame, const file::Path& path, int quality) {
     cv::Mat input;
     if(!source.frame(frame, input))
-        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot retrieve frame ", frame, " from ", source.source(), "."));
+        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Cannot retrieve frame ", frame, " from ", source, "."));
     if(input.empty())
-        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Frame ", frame, " from ", source.source(), " is empty."));
+        throw cmn::UtilsException(cmn::format<cmn::FormatterType::NONE>("Frame ", frame, " from ", source, " is empty."));
 
     cv::Mat output;
     if(input.channels() == 4)
@@ -902,20 +902,25 @@ std::string coco_frame_mapping_image_path(const file::PathArray& video, Frame_t 
     return (file::Path(std::string(kSplitDir)) / (frame_stem(video, frame) + ".jpg")).str();
 }
 
-}
-
-std::string build_frame_mapping_csv(const Options& options, const std::vector<Frame_t>& image_frames) {
+std::string build_frame_mapping_csv(const Options& options, const file::PathArray& files, const std::vector<Frame_t>& image_frames) {
     std::string text = "image,video_source,source_index\n";
-    const auto video_source = export_video_source(options);
+    const auto video_source = export_video_source(options, files);
     for(const auto& frame : image_frames) {
         text += (options.format == annotation_dataset::format_t::yolo
-                 ? yolo_frame_mapping_image_path(options.source, frame)
-                 : coco_frame_mapping_image_path(options.source, frame))
+                 ? yolo_frame_mapping_image_path(files, frame)
+                 : coco_frame_mapping_image_path(files, frame))
               + ","
               + video_source + ","
               + exported_source_index(frame, options).toStr() + "\n";
     }
     return text;
+}
+
+}
+
+std::string build_frame_mapping_csv(const Options& options, const std::vector<Frame_t>& image_frames) {
+    const auto files = file::DataLocation::parse("input", options.source);
+    return build_frame_mapping_csv(options, files, image_frames);
 }
 
 std::vector<std::string> default_keypoint_names(const AnnotationMap& annotations, const std::map<size_t, std::string>& configured_names) {
@@ -1221,9 +1226,10 @@ Summary export_dataset(const Options& options) {
     auto summary = summarize(options);
     if(!summary.can_export())
         throw std::invalid_argument(cmn::format<cmn::FormatterType::NONE>("Cannot export annotations: ", summary.errors));
-    validate_source_paths(options.source);
+    const auto files = file::DataLocation::parse("input", options.source);
+    validate_source_paths(files);
 
-    VideoSource source(options.source);
+    VideoSource source(files);
     source.set_colors(ImageMode::RGB);
 
     summary = summarize(options, source.length(), source.size());
@@ -1249,19 +1255,19 @@ Summary export_dataset(const Options& options) {
 
     if(options.format == dataset::format_t::yolo) {
         for(const auto& frame : image_frames)
-            write_jpeg(source, frame, yolo_image_path(options.source, options.output_directory, frame), options.jpeg_quality);
+            write_jpeg(source, frame, yolo_image_path(files, options.output_directory, frame), options.jpeg_quality);
 
         for(const auto& [frame, frame_annotations] : annotations) {
             std::string text;
             for(const auto& annotation : frame_annotations) {
-                auto row = annotation_to_yolo(options.source, annotation, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius);
+                auto row = annotation_to_yolo(files, annotation, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius);
                 if(!row.empty())
                     text += row + "\n";
             }
-            write_text(yolo_label_path(options.source, options.output_directory, frame), text);
+            write_text(yolo_label_path(files, options.output_directory, frame), text);
         }
         for(const auto& frame : background_frames)
-            write_text(yolo_label_path(options.source, options.output_directory, frame), "");
+            write_text(yolo_label_path(files, options.output_directory, frame), "");
 
         auto yaml = YamlNode::mapping();
         yaml["train"] = "./train";
@@ -1270,15 +1276,15 @@ Summary export_dataset(const Options& options) {
 
     } else {
         for(const auto& frame : image_frames)
-            write_jpeg(source, frame, coco_image_path(options.source, options.output_directory, frame), options.jpeg_quality);
+            write_jpeg(source, frame, coco_image_path(files, options.output_directory, frame), options.jpeg_quality);
 
-        auto json = build_coco_json(options.source, annotations, image_frames, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius);
+        auto json = build_coco_json(files, annotations, image_frames, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius);
         auto text = glz::write_json(json).value_or("{}");
         text = glz::prettify_json(text);
         write_text(options.output_directory / kSplitDir / "_annotations.coco.json", text);
     }
 
-    write_text(options.output_directory / "frame_mapping.csv", build_frame_mapping_csv(options, image_frames));
+    write_text(options.output_directory / "frame_mapping.csv", build_frame_mapping_csv(options, files, image_frames));
 
     return summary;
 }

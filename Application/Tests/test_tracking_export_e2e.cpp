@@ -347,7 +347,7 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
     const file::Path output_dir((workspace.root / "output").string());
     const Range<long_t> analysis_range{kAnalysisStart, kAnalysisEnd};
 
-    SETTING(source) = file::PathArray(video_path);
+    SETTING(source) = file::PathArray::from_files({video_path});
     SETTING(filename) = file::Filename{};
     SETTING(output_dir) = output_dir;
     SETTING(output_prefix) = file::RelativePath(kOutputPrefix);
@@ -501,7 +501,7 @@ TEST(HeadlessTrackingExport, PoseVideoExportsKeypointsWithDefaultOutputFields) {
         }
 
         settings::load(settings::LoadContext{
-            .source = file::PathArray(video_base.add_extension("pv")),
+            .source = file::PathArray::from_files({video_base.add_extension("pv")}),
             .filename = video_base,
             .task = default_config::TRexTask_t::track,
             .source_map = std::move(user_settings),

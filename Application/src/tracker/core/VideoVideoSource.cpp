@@ -1,7 +1,7 @@
 #include "VideoVideoSource.h"
 
 VideoSourceVideoSource::VideoSourceVideoSource(VideoSource&& source)
-    : AbstractBaseVideoSource({ .base = file::PathArray{source.base()},
+    : AbstractBaseVideoSource({ .base = file::PathArray::from_files({source.base()}),
                                 .resolution = source.size(),
                                 .framerate = source.framerate(),
                                 .finite = true,

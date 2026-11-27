@@ -18,7 +18,6 @@
 #include <core/DetectAnnotation.h>
 #include <core/FrameTags.h>
 #include <core/FOI.h>
-#include <misc/CommandLine.h>
 #include <core/TrackingSettings.h>
 
 #ifndef WIN32
@@ -1670,9 +1669,11 @@ inline bool isRunningInAppBundle() {
                     path = path.remove_extension();
             }
             if(path.empty()) {
-                auto array = map.at("source").value<file::PathArray>();
-                auto base = file::find_basename(array);
-                path = base;
+                const auto source = map.at("source").value<file::PathArray>();
+                if(settings::is_camera_source(source))
+                    path = *source.expression();
+                else
+                    path = file::find_basename(file::DataLocation::parse("input", source, &map));
             }
             
             if(path.empty())
@@ -1715,15 +1716,9 @@ inline bool isRunningInAppBundle() {
         });
         
         file::DataLocation::register_path("input", [](const sprite::Map&, file::Path filename) -> file::Path {
-            if(filename.empty() || filename.is_absolute())
-                return resolve_relative_path(filename);
-            
-            auto base = CommandLine::instance().launch_dir();
-            if(base.empty())
-                base = file::cwd();
-            //if(base.empty())
-                //base = map.value_with_default("output_dir", file::Path{});
-            return resolve_relative_path(base / filename);
+            if(filename.empty())
+                return {};
+            return resolve_relative_path(file::from_launch_dir(filename));
         });
         
         file::DataLocation::register_path("output", [](const sprite::Map& map, file::Path filename) -> file::Path {
@@ -1733,11 +1728,7 @@ inline bool isRunningInAppBundle() {
             auto output_prefix = map.value_with_default("output_prefix", file::RelativePath{});
             auto output_dir = map.value_with_default("output_dir", file::Path{});
             
-            auto source = map.value_with_default("source", file::PathArray{});
-            auto launch = CommandLine::instance().launch_dir();
-            if(launch.empty()) {
-                launch = file::cwd();
-            }
+            const auto launch = file::from_launch_dir();
             
             auto absolute = filename.is_absolute();
             if(absolute) {
@@ -1754,10 +1745,13 @@ inline bool isRunningInAppBundle() {
             if(output_dir.empty()) {
                 /// but if none is set, replace fallback directory with the source directory
                 /// (i.e. the folder where the video source is located)
-                if(not source.empty()
-                   && source.has_single_match()) //! TODO: or if we have a combined parent?
+                const auto requested = map.value_with_default("source", file::PathArray{});
+                const auto source = settings::is_camera_source(requested)
+                    ? file::PathArray::from_files({}) 
+                    : requested.resolve_if();
+                if(source.has_single_match()) //! TODO: or if we have a combined parent?
                 {
-                    auto p = source.get_paths().front();
+                    auto p = file::DataLocation::parse("input", source.get_paths().front(), &map);
                     if(p.is_absolute()) {
                         /// if its a relative path, apply it:
                         p = p.remove_filename();

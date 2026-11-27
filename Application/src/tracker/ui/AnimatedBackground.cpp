@@ -38,7 +38,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     }
     
     for(auto &[test, offset] : result.tests) {
-        if(auto result = VideoSource::TestVideoSource(test);
+        const auto source = file::PathArray::from_input(test);
+        if(auto result = VideoSource::TestVideoSource(source);
            not result)
         {
             FormatError("Cannot open ", test, ": ", no_quotes(result.error()));
@@ -47,7 +48,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         
         std::unique_lock guard(_source_mutex);
         try {
-            _source = std::make_unique<VideoSource>(test);
+            _source = std::make_unique<VideoSource>(source);
             _source->set_colors(ImageMode::RGB);
             _source->set_lazy_loader(true);
             _file_opened = true;
@@ -105,7 +106,7 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
     if(video_conversion_range.start > -1)
         offset = video_conversion_range.start;
 
-    std::optional<std::string> meta_source_path_from_video;
+    std::string meta_source_path_from_video;
     std::optional<int> video_offset_from_video;
     std::optional<file::Path> video_output_dir;
     file::RelativePath video_prefix_path;
@@ -159,47 +160,62 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
     if(video_offset_from_video)
         offset = video_offset_from_video;
 
-    if(not meta_source_path.empty() && not settings::is_camera_source(meta_source_path)) {
-        const file::Path path(meta_source_path);
-        const auto output_name = path.is_absolute() ? path.filename() : meta_source_path;
-        result.tests = {
-            {meta_source_path, offset}
-        };
-        result.tests.emplace(file::DataLocation::parse("input", meta_source_path).str(), offset);
-        result.tests.emplace(file::DataLocation::parse("output", output_name).str(), offset);
-    }
-    
-    if(meta_source_path_from_video && not meta_source_path_from_video->empty() && not settings::is_camera_source(*meta_source_path_from_video)) {
-        std::string path = meta_source_path_from_video.value();
-        
-        const file::Path mp4_path(path);
+    for(bool from_video : {false, true}) {
+        const auto& text = from_video ? meta_source_path_from_video : meta_source_path;
+        if(text.empty() || settings::is_camera_source(text))
+            continue;
+        const auto source_offset = from_video ? video_offset_from_video : offset;
+        file::PathArray source;
+        try {
+            source = file::PathArray::from_input(text);
+        } catch(const std::exception& ex) {
+            FormatWarning("Cannot parse background video source ", text, ": ", ex.what());
+            continue;
+        }
+        result.tests.emplace(text, source_offset);
+        const auto expression = source.expression();
+        if(not expression && not source.has_single_match()) {
+            const auto input = file::DataLocation::parse("input", source);
+            if(not input.empty())
+                result.tests.emplace(input.toStr(), source_offset);
+            continue;
+        }
+
+        const file::Path mp4_path = expression ? file::Path(*expression) : source[0];
         const auto mp4_filename = mp4_path.filename();
-        const auto mp4_folder = mp4_path.remove_filename();
-        
-        if(video && video_output_dir)
+        const file::Path output_name = mp4_path.is_absolute() ? file::Path(mp4_filename) : mp4_path;
+        std::vector candidates{file::DataLocation::parse("input", mp4_path), file::DataLocation::parse("output", output_name)};
+        if(from_video && video)
         {
-            auto original_pv_folder = *video_output_dir;
+            auto original_pv_folder = video_output_dir.value_or(file::Path{});
             auto current_pv_folder = video->filename().remove_filename();
             
             try {
+                const auto mp4_folder = mp4_path.remove_filename();
+                if(original_pv_folder.empty()) {
+                    original_pv_folder = mp4_folder;
+                    // A moved PV may be one subdirectory below its movie even when
+                    // the recording does not identify its original output folder.
+                    if(video_prefix_path.empty() && mp4_path.is_absolute() && mp4_folder != current_pv_folder
+                       && not mp4_path.is_regular() && not (current_pv_folder / mp4_filename).is_regular())
+                        candidates.push_back(current_pv_folder.remove_filename() / mp4_filename);
+                }
                 if(not original_pv_folder.empty())
                     original_pv_folder = original_pv_folder / video_prefix_path;
 
                 namespace fs = std::filesystem;
                 file::Path rel = fs::path(fs::path(mp4_folder.str())).lexically_relative(original_pv_folder.str()).string();
                 auto abs = (current_pv_folder / rel / mp4_filename).canonical();
-                if (abs)
-                    result.tests.emplace(abs.value(), video_offset_from_video);
+                if(abs)
+                    candidates.push_back(*abs);
             }
             catch (const std::exception& ex) {
                 FormatWarning("Failed to resolve ", original_pv_folder, " for ", video->filename(), ": ", ex.what());
             }
         }
-        
-        result.tests.emplace(path, video_offset_from_video);
-        result.tests.emplace(file::DataLocation::parse("input", path).str(), video_offset_from_video);
-        const auto output_name = mp4_path.is_absolute() ? mp4_filename : path;
-        result.tests.emplace(file::DataLocation::parse("output", output_name).str(), video_offset_from_video);
+        for(const auto& path : candidates) {
+            result.tests.emplace(expression ? path.str() : file::PathArray::from_files({path}).toStr(), source_offset);
+        }
     }
     
     return result;

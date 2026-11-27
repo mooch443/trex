@@ -7,30 +7,55 @@
 namespace cmn::settings {
 
 std::optional<std::string> video_source_error(const file::PathArray& source) {
+    if(source.empty_or_invalid() || is_camera_source(source))
+        return std::nullopt;
+    if(source.needs_resolving())
+        return video_source_error(source.resolved_at());
     if(source.any_files_are("pv") && not source.all_files_are("pv"))
         return "The source mixes PV recordings with raw input files. Select PV recordings or raw inputs separately.";
     if(source.all_files_are("pv") && not source.has_single_match())
-        return "Tracking requires one PV recording. Selected " + source.blocking_toStr() + ".";
+        return format<FormatterType::NONE>("Tracking requires one PV recording. Selected ", source, ".");
     return std::nullopt;
 }
 
-file::Filename choose_output_name(const file::PathArray& source) {
-    if(source.has_single_match("pv"))
-        return file::Filename(source[0].filename());
+file::Filename choose_output_name() {
+    return GlobalSettings::read([](const Configuration& config) {
+        return settings::choose_output_name(config.values);
+    });
+}
 
-    const file::Path name(file::find_basename(source));
+/// Derives the default recording name using the effective input location.
+static file::Filename choose_output_name(const file::PathArray& source, const sprite::Map* map) {
+    if(source.empty_or_invalid())
+        return {};
+    if(is_camera_source(source))
+        return file::Filename(file::Path(*source.expression()).add_extension("pv"));
+
+    const auto files = file::DataLocation::parse("input", source, map);
+    if(files.has_single_match("pv"))
+        return file::Filename(files[0].filename());
+
+    const file::Path name(file::find_basename(files));
     return name.empty() ? file::Filename{} : file::Filename(name.add_extension("pv"));
 }
 
-file::Filename choose_output_name(const sprite::Map& map) {
+file::Filename choose_output_name(const file::PathArray& source) {
+    return choose_output_name(source, nullptr);
+}
+
+/// Uses an explicit filename first, then the caller's matches or the configured source.
+static file::Filename choose_output_name(const sprite::Map& map, const file::PathArray* matches) {
     const auto requested = map.value_with_default("filename", file::Filename{});
     if(not requested.path().empty())
         return file::Filename(requested.path().add_extension("pv"));
 
-    auto source = map.value_with_default("source", file::PathArray{});
-    if(source.has_source() && not source.is_single_file())
-        source = file::DataLocation::parse("input", source, &map);
-    return choose_output_name(source);
+    if(matches)
+        return choose_output_name(*matches, &map);
+    return choose_output_name(map.value_with_default("source", file::PathArray{}), &map);
+}
+
+file::Filename choose_output_name(const sprite::Map& map) {
+    return choose_output_name(map, nullptr);
 }
 
 file::Path resolve_recording_path() {
@@ -41,18 +66,22 @@ file::Path resolve_recording_path() {
 
 file::Path resolve_recording_path(const sprite::Map& map) {
     const auto source = map.at("source").value<file::PathArray>();
-    if(source.empty() || video_source_error(source))
-        return {};
     return resolve_recording_path(map, source);
 }
 
 file::Path resolve_recording_path(const sprite::Map& map, const file::PathArray& source) {
+    const bool camera = is_camera_source(source);
+    if(not camera && source.needs_resolving())
+        return resolve_recording_path(map, source.resolved_at());
+    if(source.empty_or_invalid() || video_source_error(source))
+        return {};
+
     // One PV match identifies the recording to open. A raw source uses the
     // configured conversion output. Source validation rejects multiple PVs
     // and selections that mix PVs with raw files.
-    if(source.has_single_match("pv"))
+    if(not camera && source.has_single_match("pv"))
         return file::DataLocation::parse("input", source[0], &map);
-    const auto name = choose_output_name(map);
+    const auto name = choose_output_name(map, &source);
     return file::DataLocation::parse("output", name.path(), &map);
 }
 

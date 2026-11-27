@@ -16,6 +16,9 @@ library for shared utilities and GUI infrastructure.
 Do not use whitespace cleanup tools if they produce lots of diff, never commit huge diff that is just whitespace changes.
 Write inline code comments in terms of current invariants, responsibilities,
 and behavior. Do not use them to narrate code history or earlier implementations.
+Preserve the detail in existing comments, diagnostics, help text, and other
+descriptions. When behavior changes, update the text to match the new facts
+and retain the context and guidance that still apply.
 When creating commits, match recent repository style: use bullet-style,
 past-tense messages where each line starts with `* Added`, `* Updated`,
 `* Modified`, or similar wording.
@@ -25,6 +28,9 @@ past-tense messages where each line starts with `* Added`, `* Updated`,
 - In an `if` with an initializer, put the condition on the next line, aligned
   with the initializer. Put the opening brace on its own line.
 - Prefer `not` for logical negation.
+- Pass objects directly to `Print`, warnings, and custom exception formatters.
+  The formatter calls `toStr()` and applies the object's type-specific coloring.
+  Calling `.toStr()` first gives the formatter a plain string and changes the colors.
 
 ```cpp
 if(auto region_model = detect::yolo::current_region_model_path();
@@ -305,6 +311,8 @@ conda build -c conda-forge .
   incidental cleanup, renaming, refactoring, or extract one-off code into new
   helpers. When staged changes exist, use the staged version as the baseline
   for reviewing the new diff, while preserving all existing worktree changes.
+  Prefer the smaller diff when behavior and performance are equivalent. Make
+  the larger change when it fixes a correctness issue or avoids extra work.
 - Do not change existing test, variable, or function names unless the rename is
   absolutely vital to the requested change.
 - When creating a new branch, use a concise descriptive name without a

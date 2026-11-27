@@ -757,7 +757,7 @@ TEST_F(MLFailures, PredictRaisesAfterNFramesFullConversion) {
     const auto source_paths = create_synthetic_sequence(ws.root / "source", 12);
     SETTING(output_dir) = Path((ws.root / "output").string());
     SETTING(filename) = file::Filename("synthetic_ml_failure");
-    SETTING(source) = PathArray(source_paths);
+    SETTING(source) = PathArray::from_files(source_paths);
     SETTING(save_raw_movie) = false;
     SETTING(frame_rate) = uint32_t(25);
     SETTING(track_threshold) = int(15);

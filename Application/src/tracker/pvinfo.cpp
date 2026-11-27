@@ -191,7 +191,7 @@ int main(int argc, char** argv) try {
                 case Arguments::input: {
                     //parse_input(option);
                     if(option.value.has_value()) {
-                        SETTING(source) = file::PathArray(*option.value);
+                        SETTING(source) = file::PathArray::from_input(*option.value);
                         CommandLine::instance().add_setting("source", *option.value);
                     }
                     break;
@@ -293,19 +293,22 @@ int main(int argc, char** argv) try {
         return 0;
     }
 
-    file::PathArray source = READ_SETTING(source, file::PathArray).resolved_at(cmd.launch_dir());
-    if(source.empty())
+    auto source = READ_SETTING(source, file::PathArray);
+    const bool camera = settings::is_camera_source(source);
+    if(not camera)
+        source = file::DataLocation::parse("input", source, &cmd_options);
+    if(source.empty_or_invalid())
         throw InvalidArgumentException("No input file provided.");
     if(auto error = settings::video_source_error(source)) {
         FormatError(*error);
         return 1;
     }
 
-    const bool results_input = source.all_files_are("results");
+    const bool results_input = not camera && source.all_files_are("results");
     file::Path input;
 
     if(results_input && source.has_single_match()) {
-        auto results = file::DataLocation::parse("input", source[0], &cmd_options);
+        const auto& results = source[0];
         if(results.is_regular())
             input = results.remove_extension();
         source = file::PathArray::from_file(results.remove_extension());
@@ -324,10 +327,7 @@ int main(int argc, char** argv) try {
     });
     
     if(not results_input) {
-        input = GlobalSettings::read([](const Configuration& config) {
-            const auto source = config.at("source").value<file::PathArray>();
-            return settings::resolve_recording_path(config.values, source);
-        });
+        input = settings::resolve_recording_path();
         if(not input.is_regular()) {
             FormatError("Cannot open PV recording ", input, " for source ", source, ".");
             return 1;
@@ -730,7 +730,7 @@ int main(int argc, char** argv) try {
         
         SETTING(quiet) = true;
         settings::load(settings::LoadContext{
-            .source = file::PathArray{input.add_extension("results")},
+            .source = file::PathArray::from_files({input.add_extension("results")}),
             .filename = input.is_absolute() ? input : file::Path{},
             .task = default_config::TRexTask_t::track,
             .type = detect_type,

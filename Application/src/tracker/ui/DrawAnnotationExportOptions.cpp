@@ -108,7 +108,7 @@ struct DrawAnnotationExportOptions::Data {
     file::PathArray export_source() const {
         auto meta_source = READ_SETTING(meta_source_path, std::string);
         if(!meta_source.empty())
-            return file::PathArray(meta_source);
+            return file::PathArray::from_input(meta_source);
         return READ_SETTING(source, file::PathArray);
     }
 
@@ -122,7 +122,6 @@ struct DrawAnnotationExportOptions::Data {
         options.fallback_point_radius = 0.5f * std::max(image_size.width, image_size.height);
         options.source = export_source();
         options.output_directory = output_directory();
-        options.video_source_basename = file::Path(file::find_basename(options.source)).filename();
         auto range = READ_SETTING(video_conversion_range, Range<long_t>);
         if(range.start >= 0)
             options.source_start = Frame_t(range.start);
@@ -225,6 +224,10 @@ struct DrawAnnotationExportOptions::Data {
                         WorkProgress::add_queue("Selecting file", [action]() {
                             auto parm = action.parameters.front();
                             auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
+                            if(parm == "meta_source_path") {
+                                const auto source = file::PathArray::from_input(READ_SETTING(meta_source_path, std::string));
+                                folder = file::find_parent(source).value_or(file::Path{}).str();
+                            }
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
 

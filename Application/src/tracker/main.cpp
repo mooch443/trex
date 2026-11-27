@@ -129,15 +129,16 @@ void save_rst_files() {
 
 TRexTask determineTaskType() {
     return GlobalSettings::read([](const Configuration& config) -> TRexTask {
-        const auto source = config.at("source").value<file::PathArray>().resolved_at(CommandLine::instance().launch_dir());
-        if(source.empty())
+        const auto requested = config.at("source").value<file::PathArray>();
+        const bool camera = settings::is_camera_source(requested);
+        const auto source = camera ? requested : requested.resolve_if();
+        if(source.empty_or_invalid())
             return TRexTask_t::none;
         
         /// if we have a single file with no extension and it's not a camera source, assume tracking task
         /// we can't technically know, its just a special case to accept "-i video" because we're being nice.
-        if(source.is_single_file() 
-           && not source[0].has_extension()
-           && not settings::is_camera_source(source.source()))
+        if(not camera && not requested.contains_patterns() && source.has_single_match()
+           && not source[0].has_extension())
         {
             return TRexTask_t::track;
         }
@@ -150,7 +151,7 @@ TRexTask determineTaskType() {
         /// if we have the pv file, open it for tracking, otherwise we will need to convert the source video file first
         /// but force tracking if we have a single pv file. dont try to turn it into a conversion task when this
         /// is clearly not what we meant.
-        if(pv.is_regular() || source.has_single_match("pv"))
+        if(pv.is_regular() || (not camera && source.has_single_match("pv")))
             return TRexTask_t::track;
 
         /// last resort, try to convert this bs
@@ -314,7 +315,7 @@ void launch_gui(std::future<void>& f) {
 	};
 
     const auto task = READ_SETTING(task, TRexTask);
-    const auto source = READ_SETTING(source, file::PathArray).resolved_at(CommandLine::instance().launch_dir());
+    const auto source = READ_SETTING(source, file::PathArray);
     if(settings::video_source_error(source)) {
         manager.set_active(&settings_scene);
     } else if(task == TRexTask_t::none) {
@@ -554,7 +555,7 @@ std::string start_tracking(std::future<void>& f) {
             return with_config;
         });
         
-        RecentItems::open(READ_SETTING(source, file::PathArray).source(), current_defaults_with_config);
+        RecentItems::open(READ_SETTING(source, file::PathArray), current_defaults_with_config);
     }
     
     if(wants_to_load) {
@@ -587,7 +588,7 @@ std::string start_tracking(std::future<void>& f) {
 
 std::string start_converting(std::future<void>& f) {
     if(READ_SETTING(filename, file::Filename).path().empty()) {
-        const auto name = settings::choose_output_name(READ_SETTING(source, file::PathArray));
+        const auto name = settings::choose_output_name();
         SETTING(filename) = file::Filename(name.path().remove_extension());
     }
     
@@ -627,7 +628,7 @@ std::string start_converting(std::future<void>& f) {
     Timer last_tick;
     size_t bar_spinner_index = 0;
     
-    if (settings::is_camera_source(READ_SETTING(source, file::PathArray).source())) {
+    if (settings::is_camera_source(READ_SETTING(source, file::PathArray))) {
         segmenter.open_camera();
     } else {
         segmenter.open_video();
@@ -922,12 +923,14 @@ int main(int argc, char**argv) {
 
     try {
         CommandLine::instance().load_settings();
-        const auto source = READ_SETTING(source, file::PathArray).resolved_at(CommandLine::instance().launch_dir());
+        const auto requested = READ_SETTING(source, file::PathArray);
+        const bool camera = settings::is_camera_source(requested);
+        const auto source = camera ? requested : requested.resolve_if();
         if(BOOL_SETTING(nowindow)) {
             if(auto error = settings::video_source_error(source))
                 throw InvalidArgumentException(*error);
         }
-        if(source.all_files_are("pv")) {
+        if(not camera && source.all_files_are("pv")) {
             if(CommandLine::instance().settings_keys().contains("filename"))
                 throw InvalidArgumentException("Cannot supply an output name (-o) when selecting a PV recording (-i).");
             if(READ_SETTING(task, TRexTask) == TRexTask_t::convert)

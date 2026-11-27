@@ -264,7 +264,7 @@ cmn::sprite::Map effective_pv_settings(const fs::path& pv_path, cmn::sprite::Map
 
     // Reopen the original source with the output options used for conversion.
     cmn::settings::load(cmn::settings::LoadContext{
-        .source = cmn::file::PathArray(*video.header().source),
+        .source = cmn::file::PathArray::from_input(*video.header().source),
         .filename = base.filename(),
         .task = ::default_config::TRexTask_t::track,
         .source_map = std::move(location),
@@ -407,7 +407,7 @@ DetectorE2ESource detector_e2e_source(const fs::path& source_dir) {
         const int frame_index =
             frame_value != nullptr ? std::stoi(frame_value) : 12;
         cmn::VideoSource source{
-            cmn::file::PathArray(cmn::file::Path(video_value))
+            cmn::file::PathArray::from_files({video_value})
         };
         source.set_colors(cmn::ImageMode::RGB);
         cmn::Image frame;
@@ -611,6 +611,29 @@ std::optional<int> run_process(const std::vector<std::string>& arguments, std::c
 
 #endif
 
+TEST(PvinfoResults, PreservesCameraSourceWhenOpeningItsRecording) {
+    TempDirectory workspace;
+    const ScopedCurrentPath launch_directory(workspace.path);
+    const auto output = file::Path((workspace.path / "output").string());
+    auto video = pv::File::Write(output / "webcam", meta_encoding_t::gray);
+    video.set_resolution(Size2(64, 48));
+    video.set_start_time(std::chrono::system_clock::now());
+    video.set_average(cv::Mat::zeros(48, 64, CV_8UC1));
+    pv::Frame frame;
+    frame.set_index(0_f);
+    frame.set_source_index(0_f);
+    frame.set_timestamp(40000);
+    video.add_individual(frame);
+    video.close();
+
+    ASSERT_EQ(run_process({
+        TREX_PVINFO_EXECUTABLE, "-i", "webcam", "-d", output.str(), "-write_settings", "true", "-quiet"
+    }, std::chrono::seconds(60)), 0);
+    const auto saved = output / "webcam.settings.auto";
+    ASSERT_TRUE(saved.is_regular());
+    EXPECT_NE(saved.read_file().find("meta_source_path = \"webcam\"\n"), std::string::npos);
+}
+
 TEST(PvinfoResults, InspectsStoredBackgroundsWithoutASourcePv) {
     TempDirectory workspace;
     const ScopedCurrentPath launch_directory(workspace.path);
@@ -758,7 +781,7 @@ TEST(HeadlessSettingsStartup, CommandLineOverridesConflictingSettingsFile) {
     const auto values = effective_pv_settings(pv_path, std::move(location));
     expect_representative_settings(values, command_line_values);
     EXPECT_EQ(values.at("source").value<cmn::file::PathArray>(),
-              cmn::file::PathArray(cmn::file::Path(source.string())));
+              cmn::file::PathArray::from_files({source.string()}));
     EXPECT_TRUE(values.at("settings_file").value<cmn::file::Path>().empty());
     expect_pv_range(pv_path, 0, 2);
 }
@@ -795,7 +818,7 @@ TEST(HeadlessSettingsStartup, SettingsFileAppliesWithoutMatchingCommandLineOverr
     EXPECT_TRUE(values.at("output_dir").value<cmn::file::Path>().empty());
     EXPECT_TRUE(values.at("output_prefix").value<file::RelativePath>().empty());
     EXPECT_EQ(values.at("source").value<cmn::file::PathArray>(),
-              cmn::file::PathArray(cmn::file::Path(source.string())));
+              cmn::file::PathArray::from_files({source.string()}));
     EXPECT_TRUE(values.at("settings_file").value<cmn::file::Path>().empty());
     expect_pv_range(pv_path, 0, 2);
 }
@@ -829,7 +852,7 @@ TEST(HeadlessSettingsStartup, RegisteredDefaultsApplyWithoutSettingsOrOverrides)
     EXPECT_TRUE(values.at("output_dir").value<cmn::file::Path>().empty());
     EXPECT_TRUE(values.at("output_prefix").value<file::RelativePath>().empty());
     EXPECT_EQ(values.at("source").value<cmn::file::PathArray>(),
-              cmn::file::PathArray(cmn::file::Path(source.string())));
+              cmn::file::PathArray::from_files({source.string()}));
     expect_pv_range(pv_path, 0, 2);
 }
 
@@ -952,21 +975,24 @@ TEST(HeadlessSettingsStartup, MixedPvAndRawInputsExitWithoutConverting) {
     const auto input_dir = workspace.path / "source";
     const auto original = copy_video_fixture(input_dir);
     const ScopedCurrentPath launch_directory(input_dir);
-    const auto inputs = Meta::toStr(std::vector<std::string>{original.generic_string(), "*.pv"});
     const auto output = workspace.path / "output" / "mixed.pv";
-    const std::vector<std::string> arguments{
-        TREX_TEST_EXECUTABLE, "-nowindow", "-task", "convert", "-detect_type", "none",
-        "-i", inputs, "-meta_source_path", original.string(),
-        "-d", (workspace.path / "output").string(), "-o", "mixed",
-        "-video_conversion_range", "[0,2]", "-auto_no_outputs", "-auto_quit"
+    const auto arguments = [&](const std::string& inputs) {
+        return std::vector<std::string>{
+            TREX_TEST_EXECUTABLE, "-nowindow", "-task", "convert", "-detect_type", "none",
+            "-i", inputs, "-meta_source_path", original.string(),
+            "-d", (workspace.path / "output").string(), "-o", "mixed",
+            "-video_conversion_range", "[0,2]", "-auto_no_outputs", "-auto_quit"
+        };
     };
 
-    const auto raw_only_exit = run_process(arguments, std::chrono::seconds(240));
+    const auto raw_only_exit = run_process(arguments(original.string()), std::chrono::seconds(240));
     ASSERT_EQ(raw_only_exit, 0);
     ASSERT_TRUE(fs::is_regular_file(output));
 
-    fs::rename(output, input_dir / "recording.pv");
-    const auto mixed_exit = run_process(arguments, std::chrono::seconds(60));
+    const auto recording = input_dir / "recording.pv";
+    fs::rename(output, recording);
+    const auto inputs = Meta::toStr(std::vector<std::string>{original.generic_string(), recording.filename().generic_string()});
+    const auto mixed_exit = run_process(arguments(inputs), std::chrono::seconds(60));
     EXPECT_EQ(mixed_exit, 1);
     EXPECT_FALSE(fs::exists(output));
 }

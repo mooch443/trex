@@ -1034,7 +1034,7 @@ void TrackingScene::activate() {
     
     {
         auto current_defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config; });
-        RecentItems::open(READ_SETTING(source, file::PathArray).source(), current_defaults_with_config);
+        RecentItems::open(READ_SETTING(source, file::PathArray), current_defaults_with_config);
     }
     
     if(_load_requested) {
@@ -1182,7 +1182,7 @@ void TrackingScene::deactivate() {
         return with_config;
     });
     
-    RecentItems::open(READ_SETTING(source, file::PathArray).source(), std::move(current_defaults_with_config));
+    RecentItems::open(READ_SETTING(source, file::PathArray), std::move(current_defaults_with_config));
     
     SETTING(filename) = file::Filename{};
     SETTING(source) = file::PathArray();

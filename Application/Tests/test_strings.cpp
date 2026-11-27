@@ -322,7 +322,7 @@ TEST(GlobalSettingsTests, ApplyingMutableSnapshotNotifiesExistingCallbacks) {
 TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
     GlobalSettings::write([](Configuration& config) {
         GlobalSettings::reset();
-        config.values["source"] = file::PathArray("input/recording.pv");
+        config.values["source"] = file::PathArray::from_input("input/recording.pv");
         config.values["output_dir"] = file::Path("input");
         config.values["output_prefix"] = file::RelativePath("session");
         config.values["filename"] = file::Filename("recording");
@@ -341,7 +341,7 @@ TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
     int changes = 0;
     auto callback = GlobalSettings::register_callbacks({"output_prefix"}, [&](auto) { ++changes; });
     GlobalSettings::write([](Configuration& config) {
-        config.values["source"] = file::PathArray("original/recording.mp4");
+        config.values["source"] = file::PathArray::from_input("original/recording.mp4");
         config.values["output_dir"] = file::Path("original");
         config.values["output_prefix"] = file::RelativePath("changed");
         config.values["filename"] = file::Filename("changed");
@@ -357,7 +357,7 @@ TEST(GlobalSettingsTests, SnapshotRestoresConfigurationAndDefaults) {
     GlobalSettings::write([&](Configuration& config) { before->rollback(config); });
 
     GlobalSettings::read([](const Configuration& config) {
-        EXPECT_EQ(config.values.at("source").value<file::PathArray>(), file::PathArray("input/recording.pv"));
+        EXPECT_EQ(config.values.at("source").value<file::PathArray>(), file::PathArray::from_input("input/recording.pv"));
         EXPECT_EQ(config.values.at("output_dir").value<file::Path>(), file::Path("input"));
         EXPECT_EQ(config.values.at("output_prefix").value<file::RelativePath>().str(), "session");
         EXPECT_EQ(config.values.at("filename").value<file::Filename>().path(), file::Path("recording"));
@@ -2033,9 +2033,9 @@ TEST(ConversionTest, FoiInfoSupportsRuntimeLookupAndJsonSerialization) {
 }
 
 TEST(ConversionTest, VideoInfoSerializesAllFields) {
-    const std::string source = R"(["recording-1.mp4","recording-2.mp4"])";
+    const std::vector<file::Path> source{"recording-1.mp4", "recording-2.mp4"};
     const VideoInfo info{
-        .base = file::PathArray(source),
+        .base = file::PathArray::from_files(source),
         .resolution = Size2(640, 480),
         .framerate = 25,
         .finite = true,
@@ -2051,7 +2051,11 @@ TEST(ConversionTest, VideoInfoSerializesAllFields) {
     for(const auto& json : {info.to_json(), reflected}) {
         const auto& fields = json.get_object();
         ASSERT_EQ(fields.size(), 6u);
-        EXPECT_EQ(fields.at("base").get_string(), source);
+        ASSERT_TRUE(fields.at("base").is_array());
+        const auto& base = fields.at("base").get_array();
+        ASSERT_EQ(base.size(), source.size());
+        EXPECT_EQ(base[0].get_string(), source[0].str());
+        EXPECT_EQ(base[1].get_string(), source[1].str());
         const auto& resolution = fields.at("resolution").get_array();
         ASSERT_EQ(resolution.size(), 2u);
         EXPECT_DOUBLE_EQ(resolution[0].get_number(), 640);
@@ -6505,9 +6509,9 @@ TEST(FrameTagTest, JsonRoundTripPreservesSimpleTagsInFrameMap) {
     EXPECT_EQ(FrameTags::fromStr(glz::write_json(tags.to_json()).value()), tags);
 }
 
-// Test constructor with array of paths as string
+// Test parsing and serializing an array of literal paths.
 TEST(PathArrayTest, ArrayOfStringConstructor) {
-    file::PathArray paths("[\"path/to/file1\", \"path/to/file2\"]");
+    const auto paths = file::PathArray::from_input("[\"path/to/file1\", \"path/to/file2\"]");
     EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
     EXPECT_EQ(paths.get_paths()[0].str(), file::make_path("path", "to", "file1"));  // Check the first path
     EXPECT_EQ(paths.get_paths()[1].str(), file::make_path("path", "to", "file2"));  // Check the second path

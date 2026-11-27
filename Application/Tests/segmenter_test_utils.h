@@ -88,7 +88,7 @@ inline void register_data_locations_once() {
 }
 
 #ifdef TREX_TEST_SEGMENTER_DEBUG_PLAYBACK
-inline void debug_play_synthetic_sequence_once(const std::vector<std::string>& paths,
+inline void debug_play_synthetic_sequence_once(const std::vector<cmn::file::Path>& paths,
                                                 bool grayscale)
 {
     static std::once_flag color_once;
@@ -101,7 +101,7 @@ inline void debug_play_synthetic_sequence_once(const std::vector<std::string>& p
             : "Synthetic Segmenter input (color)";
 
         for(const auto& path : paths) {
-            const auto frame = cv::imread(path, cv::IMREAD_UNCHANGED);
+            const auto frame = cv::imread(path.str(), cv::IMREAD_UNCHANGED);
             if(frame.empty())
                 continue;
 
@@ -116,11 +116,11 @@ inline void debug_play_synthetic_sequence_once(const std::vector<std::string>& p
 }
 #endif
 
-inline std::vector<std::string> create_synthetic_sequence(const fs::path& source_dir,
+inline std::vector<cmn::file::Path> create_synthetic_sequence(const fs::path& source_dir,
                                                           size_t frame_count,
                                                           bool grayscale = false)
 {
-    std::vector<std::string> paths;
+    std::vector<cmn::file::Path> paths;
     paths.reserve(frame_count);
 
     constexpr int width = 64;

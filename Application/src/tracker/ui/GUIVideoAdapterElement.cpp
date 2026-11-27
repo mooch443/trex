@@ -68,9 +68,9 @@ Layout::Ptr GUIVideoAdapterElement::_create(LayoutContext& context) {
     
     Layout::Ptr ptr;
     if(_create_object)
-        ptr = Layout::Ptr(_create_object(file::PathArray(path), _window, _open_callback));
+        ptr = Layout::Ptr(_create_object(file::PathArray::from_input(path), _window, _open_callback));
     else
-        ptr = Layout::Make<GUIVideoAdapter>{file::PathArray(path), _window, _open_callback};
+        ptr = Layout::Make<GUIVideoAdapter>{file::PathArray::from_input(path), _window, _open_callback};
     
     auto p = ptr.to<GUIVideoAdapter>();
     p->set(Blur{blur});
@@ -115,7 +115,7 @@ bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
         
         if(not _last_path_str || path != *_last_path_str) {
             _last_path_str = path;
-            _last_path = file::PathArray{path};
+            _last_path = file::PathArray::from_input(path);
         }
         
         if(_last_path)

@@ -156,9 +156,9 @@ void StartingScene::_draw(DrawStructure& graph) {
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("open_camera", [](auto) {
-                        SETTING(source) = file::PathArray("webcam");
+                        SETTING(source) = file::PathArray::from_input("webcam");
                         settings::load(settings::LoadContext{
-                            .source = file::PathArray("webcam"),
+                            .source = file::PathArray::from_input("webcam"),
                             .task = default_config::TRexTask_t::convert,
                             .type = track::detect::ObjectDetectionType::yolo
                         });

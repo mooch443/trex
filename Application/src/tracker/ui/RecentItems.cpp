@@ -82,8 +82,8 @@ std::string RecentItemJSON::toStr() const {
 void RecentItemJSON::load() const {
     auto options = _options;
     auto source = options.value_with_default("source", file::PathArray{});
-    if(not source.has_source())
-        source = file::PathArray(options.value_with_default("meta_source_path", std::string{}));
+    if(source.empty_or_invalid())
+        source = file::PathArray::from_input(options.value_with_default("meta_source_path", std::string{}));
 
     const file::Path recording(name);
     auto directory = file::Path(output_dir);
@@ -123,7 +123,7 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
                 config.at(key).get().copy_to(lookup);
         }
     });
-    const auto source = settings::is_camera_source(name.source())
+    const auto source = settings::is_camera_source(name)
         ? name : file::DataLocation::parse("input", name, &lookup);
     lookup["source"] = source;
     const auto recording = settings::choose_output_name(lookup);

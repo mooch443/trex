@@ -17,6 +17,8 @@ void reset_global_settings() {
     cmn::GlobalSettings::write([](cmn::Configuration& config) {
         config.values["video_conversion_range"] = cmn::Range<long_t>(-1, -1);
         config.values["meta_source_path"] = std::string{};
+        config.values["output_dir"] = file::Path{};
+        config.values["output_prefix"] = file::RelativePath{};
         config.values["gui_source_video_frame"] = cmn::Frame_t{0u};
         config.values["gui_show_video_background"] = true;
 
@@ -53,11 +55,12 @@ pv::File make_artificial_pv_file(const file::Path& path,
     
 
     sprite::Map metadata;
-    metadata["source"] = file::PathArray(original_source);
+    metadata["source"] = file::PathArray::from_files({original_source});
     metadata["meta_source_path"] = original_source.str();
     metadata["output_prefix"] = file::RelativePath(output_prefix);
     metadata["filename"] = file::Filename(path.remove_extension("pv").filename());
-    metadata["output_dir"] = output_dir ? *output_dir : original_source.remove_filename();
+    if(output_dir)
+        metadata["output_dir"] = *output_dir;
     metadata["video_conversion_range"] = Range<long_t>(
         conversion_start,
         conversion_end);
@@ -95,7 +98,7 @@ TEST_F(AnimatedBackgroundTest, BasicBehaviorMovedLocation) {
     SETTING(meta_source_path) = meta_source_path.str();
 
     const auto source = file::Path("/Users/test/Downloads/converted_video.pv").absolute();
-    SETTING(source) = file::PathArray{source};
+    SETTING(source) = file::PathArray::from_files({source});
 
     auto result = AnimatedBackground::configure_video_source(nullptr);
 
@@ -110,7 +113,7 @@ TEST_F(AnimatedBackgroundTest, UnixSourceWithoutStoredFilenameDoesNotThrow) {
     const std::string original_source = "/media/some/weird/path.mp4";
     const auto source = file::Path("video.pv").absolute();
     SETTING(meta_source_path) = original_source;
-    SETTING(source) = file::PathArray{source};
+    SETTING(source) = file::PathArray::from_files({source});
     SETTING(output_dir) = file::Path{};
     SETTING(output_prefix) = file::RelativePath{};
 
@@ -131,6 +134,37 @@ TEST_F(AnimatedBackgroundTest, UnixSourceWithoutStoredFilenameDoesNotThrow) {
     }));
 }
 
+TEST_F(AnimatedBackgroundTest, FrameListIsResolvedAsAnOrderedSequence) {
+    const auto frames_dir = file::Path("camera_frames").absolute();
+    const auto output_dir = file::Path("converted").absolute();
+    const auto recording = output_dir / "shoal.pv";
+    const auto frames = file::PathArray::from_files({
+        frames_dir / "second%03d.jpg", frames_dir / "first.jpg"
+    });
+    const auto saved_source = frames.toStr();
+    SETTING(source) = file::PathArray::from_files({recording});
+    SETTING(output_dir) = output_dir;
+    SETTING(output_prefix) = file::RelativePath{};
+    SETTING(meta_source_path) = saved_source;
+
+    const auto from_settings = AnimatedBackground::configure_video_source(nullptr);
+    const std::set<std::pair<std::string, std::optional<int>>> expected_from_settings{
+        {saved_source, std::nullopt}
+    };
+    EXPECT_EQ(from_settings.tests, expected_from_settings);
+
+    SETTING(meta_source_path) = std::string{};
+    auto video = pv::File::Write<pv::FileMode::WRITE>(recording, meta_encoding_t::gray);
+    video.set_source(saved_source);
+    video.set_conversion_range({10u, 11u});
+
+    const auto from_header = AnimatedBackground::configure_video_source(&video);
+    const std::set<std::pair<std::string, std::optional<int>>> expected_from_header{
+        {saved_source, 10}
+    };
+    EXPECT_EQ(from_header.tests, expected_from_header);
+}
+
 TEST_F(AnimatedBackgroundTest, MovedEverythingSetManualSourcePath) {
     /// Video used to be at /Users/aalbi/video.mp4
     /// it was converted using video_conversion_range [10,1000]
@@ -142,10 +176,10 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetManualSourcePath) {
     /// We set source path manually to /Users/test/share/videos/video.mp4
     const auto manual_source_path = file::Path("/Users/test/share/videos/video.mp4").absolute();
 
-    auto video = make_artificial_pv_file(source, meta_source_path, "", std::nullopt, 10u, 1000u);
+    auto video = make_artificial_pv_file(source, meta_source_path, "", meta_source_path.remove_filename(), 10u, 1000u);
 
     SETTING(meta_source_path) = manual_source_path.str();
-    SETTING(source) = file::PathArray{source};
+    SETTING(source) = file::PathArray::from_files({source});
 
     std::set<std::pair<std::string, std::optional<int>>> expected = {
         { manual_source_path.str(), 10 },
@@ -166,10 +200,10 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefix) {
     /// Downloaded video to my PC at /Users/test/Downloads/2026/prefix/converted_video.pv
     const auto source = file::Path("/Users/test/Downloads/2026/prefix/converted_video.pv").absolute();
 
-    auto video = make_artificial_pv_file(source, meta_source_path, "prefix", std::nullopt, 10u, 1000u);
+    auto video = make_artificial_pv_file(source, meta_source_path, "prefix", meta_source_path.remove_filename(), 10u, 1000u);
 
     SETTING(meta_source_path) = std::string{};
-    SETTING(source) = file::PathArray{source};
+    SETTING(source) = file::PathArray::from_files({source});
     
     auto original_video_name = meta_source_path.filename();
 
@@ -197,7 +231,7 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefixButPrefixIsNo
     auto video = make_artificial_pv_file(source, meta_source_path, "", output_dir, 10u, 1000u);
 
     SETTING(meta_source_path) = std::string{};
-    SETTING(source) = file::PathArray{source};
+    SETTING(source) = file::PathArray::from_files({source});
 
     const std::set<std::pair<std::string, std::optional<int>>> expected = {
         { meta_source_path.str(), 10 },
@@ -210,10 +244,27 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefixButPrefixIsNo
 
     /// now the same, but we dont even set the output dir. it should still find it:
     {
-        auto result = AnimatedBackground::configure_video_source(&video);
         auto video = make_artificial_pv_file(source, meta_source_path, "", std::nullopt, 10u, 1000u);
+        ASSERT_TRUE(video.header().metadata.has_value());
+        glz::generic metadata;
+        ASSERT_EQ(glz::read_json(metadata, *video.header().metadata), glz::error_code::none);
+        ASSERT_TRUE(metadata.is_object());
+        ASSERT_FALSE(metadata.get_object().contains("output_dir"));
+        auto result = AnimatedBackground::configure_video_source(&video);
         ASSERT_EQ(result.tests, expected);
     }
+}
+
+TEST_F(AnimatedBackgroundTest, MalformedSourceSettingStillUsesThePvHeader) {
+    const auto recording = file::Path("shoal.pv").absolute();
+    const auto movie = file::Path("shoal.mp4").absolute();
+    auto video = make_artificial_pv_file(recording, movie, "", movie.remove_filename(), 10u, 1000u);
+    SETTING(source) = file::PathArray::from_file(recording);
+    SETTING(meta_source_path) = std::string("PathArray<invalid>");
+
+    const auto result = AnimatedBackground::configure_video_source(&video);
+    EXPECT_TRUE(result.tests.contains({movie.str(), 10}));
+    EXPECT_FALSE(result.tests.contains({"PathArray<invalid>", 10}));
 }
 
 TEST_F(AnimatedBackgroundTest, ReopenedPvFindsOriginalVideoAfterMovingTheFolder) {
@@ -244,7 +295,7 @@ TEST_F(AnimatedBackgroundTest, ReopenedPvFindsOriginalVideoAfterMovingTheFolder)
     video.add_individual(frame);
     video.close();
 
-    SETTING(source) = file::PathArray(recording);
+    SETTING(source) = file::PathArray::from_files({recording});
     SETTING(output_dir) = file::Path{};
     SETTING(output_prefix) = file::RelativePath{};
     auto reopened = pv::File::Read(recording);

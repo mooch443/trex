@@ -1,7 +1,7 @@
 #include "WebcamVideoSource.h"
 
 WebcamVideoSource::WebcamVideoSource(fg::Webcam&& source)
-    : AbstractBaseVideoSource({.base = "Webcam",
+    : AbstractBaseVideoSource({.base = file::PathArray::from_input("Webcam"),
                                 .resolution = source.size(),
                                 .framerate = short(source.frame_rate()),
                                 .finite = false,

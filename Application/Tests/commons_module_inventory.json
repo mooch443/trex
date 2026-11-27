@@ -782,7 +782,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/Path.h",
-      "sha256": "2ed283d1d26c17a0e93bdc65343fbfbff367a4322a74a39e4955ff759af186c8",
+      "sha256": "0108be3eef415d49402f3c85d888b888653d623858fc86d20694caf8cd8ca5a0",
       "symbols": [
         {
           "kind": "function_template",
@@ -838,6 +838,13 @@
           "name": "cwd",
           "namespace": "cmn::file",
           "qualified": "cmn::file::cwd",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "from_launch_dir",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::from_launch_dir",
           "smoke": "using"
         },
         {
@@ -1205,7 +1212,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/SpriteProperty.h",
-      "sha256": "dd33b5168cc336f4bf4646ec27d6aa63b52c48b74929114dba6f083264155607",
+      "sha256": "a8200e1c50a78a75d495af5b65b1827848bb390d0b40e5fc9b72b99123dd435d",
       "symbols": [
         {
           "kind": "class_template",
@@ -2973,7 +2980,7 @@
       "excluded": [],
       "module": "commons.file",
       "path": "file/PathArray.h",
-      "sha256": "2141b51b9868c5ef745a29b909259334e9bc9026c003277720f4381fbf03f6dc",
+      "sha256": "8b1d30c944c780dffc3c3b8a0db9a3bc68c97dfdbb86557f92af148162631b7d",
       "symbols": [
         {
           "kind": "class_template",
@@ -4840,7 +4847,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/LabeledField.h",
-      "sha256": "ce68c4faef185e61eba776162ec9e7604ae673c3db7fbb80e0619c6398ddc362",
+      "sha256": "49e28caeae51e07440959ff60f8f650d67c0ca72267cfb3548d4ed069a5d5554",
       "symbols": [
         {
           "kind": "class",
@@ -6930,7 +6937,7 @@
   "summary": {
     "excluded": 45,
     "headers": 164,
-    "symbols": 752
+    "symbols": 753
   },
   "version": 1
 }

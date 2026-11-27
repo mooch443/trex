@@ -1,6 +1,5 @@
 #include "SettingsScene.h"
 #include <file/PathArray.h>
-#include <misc/CommandLine.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
@@ -68,7 +67,10 @@ struct SettingsScene::Data {
     double blur_percentage{0};
     
     std::mutex _video_source_mutex;
-    using CheckedSource = std::expected<file::PathArray, std::string>;
+    struct SourceSelection {
+        file::PathArray requested, input;
+    };
+    using CheckedSource = std::expected<SourceSelection, std::string>;
     std::future<CheckedSource> check_new_video_source;
     std::atomic<bool> _video_source_changed{true};
     
@@ -84,7 +86,7 @@ struct SettingsScene::Data {
     std::optional<file::Path> existing_pv_path;
     std::optional<file::PathArray> conversion_input;
 
-    // Only a checked source with its settings loaded is available to the preview and conversion.
+    // Only checked input files or a camera token with its settings loaded are available to the preview and conversion.
     std::optional<file::PathArray> current_path;
     
     std::mutex _task_lock;
@@ -216,7 +218,7 @@ struct SettingsScene::Data {
     bool detection_model_ready() const {
         auto detect_type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
         if(detect_type == track::detect::ObjectDetectionType::precomputed)
-            return not READ_SETTING(detect_precomputed_file, file::PathArray).empty();
+            return not READ_SETTING(detect_precomputed_file, file::PathArray).resolves_to_empty();
         if(detect_type != track::detect::ObjectDetectionType::yolo)
             return true;
 
@@ -234,7 +236,7 @@ struct SettingsScene::Data {
                 });
             }
             const auto usable = [&](const file::PathArray& requested) -> file::PathArray {
-                if(settings::is_camera_source(requested.source()))
+                if(settings::is_camera_source(requested))
                     return requested;
                 auto input = file::DataLocation::parse("input", requested, values);
                 const auto& paths = input.get_paths();
@@ -244,20 +246,29 @@ struct SettingsScene::Data {
                     return input;
                 return {};
             };
-            const auto selected = values->at("source").value<file::PathArray>().resolved_at(CommandLine::instance().launch_dir());
+            const auto requested = values->at("source").value<file::PathArray>();
+            if(settings::is_camera_source(requested))
+                return requested;
+            const auto selected = requested.resolve_if();
             if(selected.empty() || settings::video_source_error(selected))
                 return {};
             auto input = usable(selected);
-            if(not input.empty())
+            if(not input.empty_or_invalid())
                 return input;
 
-            const auto original = values->value_with_default("meta_source_path", std::string{});
-            if(original.empty())
-                return {};
-            input = usable(file::PathArray(original));
-            if(not input.empty() || file::Path(original).is_absolute())
+            const auto original = file::PathArray::from_input(values->value_with_default("meta_source_path", std::string{}));
+            input = usable(original);
+            if(not input.empty_or_invalid())
                 return input;
-            return usable(file::PathArray(file::DataLocation::parse("output", original, values)));
+            const auto expression = original.expression();
+            if(not expression && not original.has_single_match())
+                return {};
+            const file::Path path = expression ? file::Path(*expression) : original[0];
+            if(path.empty() || path.is_absolute())
+                return {};
+            const auto fallback = file::DataLocation::parse("output", path, values);
+            return usable(expression ? file::PathArray::from_input(fallback.str())
+                                     : file::PathArray::from_files({fallback}));
         } catch(const std::exception&) {
             return {};
         }
@@ -426,7 +437,7 @@ struct SettingsScene::Data {
 
         }, fn);
         
-        if(READ_SETTING(source, file::PathArray).has_source())
+        if(not READ_SETTING(source, file::PathArray).empty_or_invalid())
             fn("detect_model");
     }
     
@@ -503,13 +514,13 @@ struct SettingsScene::Data {
                 SceneManager::set_switching_error(checked.error());
                 return;
             }
-            auto source = std::move(*checked);
+            auto& [source, input] = *checked;
             if(source != READ_SETTING(source, file::PathArray))
                 return;
 
             // otherwise we can go on committing the results...
             // unless we received empty?
-            if(not source.has_source())
+            if(source.empty_or_invalid())
                 return;
             
             if(source != _loaded_source) {
@@ -517,7 +528,7 @@ struct SettingsScene::Data {
                     return;
             }
             
-            current_path = std::move(source);
+            current_path = std::move(input);
             
         } catch(const std::exception& e) {
             if(not callback)
@@ -605,14 +616,14 @@ struct SettingsScene::Data {
 
                         auto output_map = GlobalSettings::mutable_snapshot();
                         auto input = current_conversion_source(&output_map->config.values);
-                        if(input.empty()) {
+                        if(input.empty_or_invalid()) {
                             FormatWarning("Cannot convert because the original input video could not be found.");
                             return;
                         }
 
                         DebugHeader("Converting ", utils::ShortenText(current_path->toStr(), 100));
                         
-                        auto f = WorkProgress::add_queue("", [this, source = *current_path, input = std::move(input), output_map = std::move(output_map)]() mutable {
+                        auto f = WorkProgress::add_queue("", [this, source = _loaded_source, input = std::move(input), output_map = std::move(output_map)]() mutable {
                             if(_video_source_changed || source != READ_SETTING(source, file::PathArray))
                                 return;
                             auto copy = get_changed_props(*output_map);
@@ -860,7 +871,7 @@ struct SettingsScene::Data {
                                     GlobalSettings::write([&](Configuration& config) {
                                         auto& property = config.values[parm].toProperty<file::PathArray>();
                                         // Selecting the current file also supersedes a draft in its editor.
-                                        property.assign_if(file::PathArray(Meta::toStr(dir)));
+                                        property.assign_if(file::PathArray::from_files(std::vector<file::Path>(dir.begin(), dir.end())));
                                         property.triggerCallbacks();
                                     });
                                 }
@@ -890,7 +901,7 @@ struct SettingsScene::Data {
                                 std::unique_lock guard{_video_source_mutex};
                                 if(path.has_extension() && utils::lowercase(path.extension()) == "pv") {
                                     _video_source_changed = true;
-                                    load_video_settings(file::PathArray{path}, false);
+                                    load_video_settings(file::PathArray::from_files({path}), false);
                                     
                                 } else {
                                     path = file::DataLocation::parse("input", path);
@@ -920,11 +931,7 @@ struct SettingsScene::Data {
                         SETTING(track_background_subtraction) = not BOOL_SETTING(track_background_subtraction);
                     }),
                     VarFunc("video_file", [this](const VarProps&) -> file::PathArray {
-                        if(not current_path)
-                            return {};
-                        if(settings::is_camera_source(current_path->source()))
-                            return *current_path;
-                        return file::DataLocation::parse("input", *current_path);
+                        return current_path.value_or(file::PathArray{});
                     }),
                     VarFunc("current_conversion_source", [this](const VarProps&) -> file::PathArray {
                         if(not conversion_input)
@@ -932,7 +939,7 @@ struct SettingsScene::Data {
                         return *conversion_input;
                     }),
                     VarFunc("selected_source_exists", [this](const VarProps&) -> bool {
-                        return current_path && current_path->has_single_match("pv");
+                        return current_path && not settings::is_camera_source(*current_path) && current_path->has_single_match("pv");
                     }),
                     VarFunc("basler_support_compiled", [](const VarProps&) -> bool {
 #if WITH_PYLON
@@ -1035,7 +1042,7 @@ struct SettingsScene::Data {
                             return false;
                         if(not conversion_input)
                             conversion_input = current_conversion_source();
-                        return not conversion_input->empty();
+                        return not conversion_input->empty_or_invalid();
                     }),
                     VarFunc("valid_pv_file", [this](const VarProps&) -> bool {
                         return not existing_pv_file().empty();
@@ -1069,8 +1076,9 @@ struct SettingsScene::Data {
                 }, [this](VideoInfo info) {
                     _video_size = info.resolution;
                 }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) {
-                    if(_video_adapters.contains(path.source())) {
-                        return _video_adapters[path.source()];
+                    const auto key = path.toStr();
+                    if(_video_adapters.contains(key)) {
+                        return _video_adapters[key];
                     } else {
                         Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>{path, window, callback};
                         //Print("Making new video adapter for ", path);
@@ -1078,7 +1086,7 @@ struct SettingsScene::Data {
                             Print("Clearing video adapter history...");
                             _video_adapters.clear();
                         }
-                        _video_adapters[path.source()] = ptr;
+                        _video_adapters[key] = ptr;
                         return ptr;
                     }
                 })
@@ -1129,11 +1137,11 @@ SettingsScene::~SettingsScene() {
 
 SettingsScene::Data::CheckedSource SettingsScene::Data::check_video_source(file::PathArray source) {
     update_running_tasks(true);
-    if(not source.has_source() || settings::is_camera_source(source.source()))
-        return source;
+    if(source.empty_or_invalid() || settings::is_camera_source(source))
+        return SourceSelection{source, std::move(source)};
 
     auto lookup = GlobalSettings::read([](const Configuration& config) { return config.values; });
-    const auto input = file::DataLocation::parse("input", source, &lookup);
+    auto input = file::DataLocation::parse("input", source, &lookup);
     lookup["source"] = input;
     if(auto error = settings::video_source_error(input))
         return std::unexpected(*error);
@@ -1147,7 +1155,7 @@ SettingsScene::Data::CheckedSource SettingsScene::Data::check_video_source(file:
         {
             const auto name = settings::choose_output_name(lookup);
             if(file::DataLocation::parse("output", name.path(), &lookup).is_regular())
-                return source;
+                return SourceSelection{std::move(source), std::move(input)};
         }
         
         if(input.empty())
@@ -1157,7 +1165,7 @@ SettingsScene::Data::CheckedSource SettingsScene::Data::check_video_source(file:
         Print("VideoSource for ", no_quotes(utils::ShortenText(source.toStr(), 1000)), " of size ", v.size(), ".");
     }
     
-    return source;
+    return SourceSelection{std::move(source), std::move(input)};
 }
 
 bool SettingsScene::Data::load_video_settings(const file::PathArray& source, bool keep_selected_source) {
@@ -1178,14 +1186,15 @@ bool SettingsScene::Data::load_video_settings(const file::PathArray& source, boo
         sprite::Map promote;
         copy_file_locations(promote, config.values);
         
-        const auto selected = settings::is_camera_source(source.source())
-            ? source : file::DataLocation::parse("input", source, &config.values);
+        const bool camera = settings::is_camera_source(source);
+        const auto selected = camera ? source : file::DataLocation::parse("input", source, &config.values);
+        const bool has_selection = not source.empty_or_invalid();
         file::Path source_path;
-        if(selected.has_single_match("pv")) {
+        if(not camera && selected.has_single_match("pv")) {
             source_path = selected[0];
         }
 
-        if(selected.has_source() && not selected.all_files_are("pv")) {
+        if(camera || (not selected.empty() && not selected.all_files_are("pv"))) {
             settings::load(settings::LoadContext{
                 .source = source,
                 .filename = filename,
@@ -1228,10 +1237,10 @@ bool SettingsScene::Data::load_video_settings(const file::PathArray& source, boo
                 .output_map = output_map
             });
             
-        } else if(source.has_source())
+        } else if(has_selection)
             loaded = false;
 
-        if(output_map && loaded && source.has_source()) {
+        if(output_map && loaded && has_selection) {
             GlobalSettings::write([&](Configuration& config) {
                 if(config.at("source").value<file::PathArray>() == source) {
                     output_map->config.values["source"] = source;

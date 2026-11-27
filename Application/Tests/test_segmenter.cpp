@@ -29,7 +29,7 @@ namespace fs = std::filesystem;
 using namespace trex_test;
 
 void configure_segmenter_case(const TempWorkspace& ws,
-                              const std::vector<std::string>& source_paths,
+                              const std::vector<file::Path>& source_paths,
                               std::optional<Range<long_t>> conversion_range,
                               meta_encoding_t::Class encoding)
 {
@@ -37,7 +37,7 @@ void configure_segmenter_case(const TempWorkspace& ws,
 
     SETTING(output_dir) = Path(output_dir.string());
     SETTING(filename) = file::Filename("synthetic_segment");
-    SETTING(source) = PathArray(source_paths);
+    SETTING(source) = PathArray::from_files(source_paths);
     SETTING(detect_type) = ObjectDetectionType_t{ObjectDetectionType::background_subtraction};
     SETTING(track_background_subtraction) = true;
     SETTING(calculate_posture) = false;
@@ -388,7 +388,7 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
 TEST(SegmenterInputTest, OpeningMixedPvAndRawFilesThrowsBeforeConversion) {
     register_data_locations_once();
     reset_global_settings();
-    SETTING(source) = PathArray{R"(["recording.pv","video.mp4"])"};
+    SETTING(source) = PathArray::from_input(R"(["recording.pv","video.mp4"])");
 
     Segmenter segmenter([]() {});
     EXPECT_THROW(segmenter.open_video(), std::invalid_argument);
@@ -442,12 +442,12 @@ TEST(SegmenterExistingOutputTest, LoadContextLoadsExistingPvAndClearsDerivedFile
     CommandLine::instance() = CommandLine{};
 
     settings::load(settings::LoadContext{
-        .source = PathArray(output_pv),
+        .source = PathArray::from_files({output_pv}),
         .task = default_config::TRexTask_t::track,
         .quiet = true
     });
 
-    EXPECT_EQ(READ_SETTING(source, PathArray), PathArray(output_pv));
+    EXPECT_EQ(READ_SETTING(source, PathArray), PathArray::from_files({output_pv}));
     EXPECT_EQ(READ_SETTING(detect_type, ObjectDetectionType_t),
               ObjectDetectionType_t{ObjectDetectionType::background_subtraction});
     EXPECT_TRUE(READ_SETTING(filename, file::Filename).path().empty());
@@ -493,7 +493,7 @@ TEST(SegmenterAverageGenerationTest, ShortRangeAllowsMoreSamplesThanFrames) {
 
     const TempWorkspace ws = make_workspace();
     const cv::Mat expected(4, 6, CV_8UC3, cv::Scalar(40, 80, 120));
-    std::vector<std::string> source_paths;
+    std::vector<file::Path> source_paths;
     for(size_t i = 0; i < 3; ++i) {
         const auto path = ws.root / "source" / ("frame_" + std::to_string(i) + ".png");
         ASSERT_TRUE(cv::imwrite(path.string(), expected));
@@ -503,7 +503,7 @@ TEST(SegmenterAverageGenerationTest, ShortRangeAllowsMoreSamplesThanFrames) {
     SETTING(average_samples) = uint32_t(25);
     SETTING(averaging_method) = averaging_method_t::Class(averaging_method_t::mean);
     SETTING(video_conversion_range) = Range<long_t>(0, 2);
-    VideoSource source{PathArray(source_paths)};
+    VideoSource source{PathArray::from_files(source_paths)};
     source.set_colors(ImageMode::RGB);
     cv::Mat average = cv::Mat::zeros(expected.size(), expected.type());
     float progress = 0;

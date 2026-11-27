@@ -89,7 +89,9 @@ PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
         (csv_path.is_absolute() ? file::Path(csv_path.filename()) : csv_path).replace_extension("pdcache"))),
     _df(_cache_path)
 {
-    uint64_t csv_hash = computeFileHash(csv_path);
+    const auto input = file::DataLocation::parse("input", csv_path);
+    Print(" * Loading ", input, " precomputed data (", FileSize{input.file_size()}, ")...");
+    uint64_t csv_hash = computeFileHash(input);
 
     bool needs_rebuild = true;
     if (_cache_path.exists()) {
@@ -130,7 +132,9 @@ PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
         }
     }
     if (needs_rebuild) {
-        buildCache(csv_path, _cache_path);
+        if(not _cache_path.remove_filename().create_folder())
+            throw RuntimeError("Cannot create cache directory for ", _cache_path, ".");
+        buildCache(input, _cache_path);
     }
 
     _df.start_reading();
@@ -783,14 +787,13 @@ std::expected<PrecomputedDetectionCache, std::string> PrecomputedDetection::Data
     if(not _filename.has_value())
         throw RuntimeError("No filename has been set for precomputed detection. Please set the `detect_precomputed_file` parameter.");
     
-    for(auto &path : _filename.value()) {
-        Print(" * Loading ", path, " precomputed data (",FileSize{path.file_size()},")...");
-        
+    for(const auto& path : _filename->resolve_if()) {
         if(path.has_extension("csv")) {
             return PrecomputedDetectionCache(path);
         }
         
-        Print("* Done loading ", path,".");
+        const auto input = file::DataLocation::parse("input", path);
+        Print("* Skipping ", input, " (", FileSize{input.file_size()}, "). Precomputed detections require a CSV file.");
     }
     
     return std::unexpected("Was not able to load any detection cache files from "+Meta::toStr(_filename)+".");

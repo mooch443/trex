@@ -107,9 +107,12 @@ struct DrawDetectAnnotationImportOptions::Data {
         options.mode = _mode;
         options.video_size = READ_SETTING(video_size, Size2);
 
-        auto meta_source = READ_SETTING(meta_source_path, std::string);
-        if(!meta_source.empty()) {
-            options.current_source_basename = file::Path(meta_source).filename();
+        const auto meta_source = file::PathArray::from_input(READ_SETTING(meta_source_path, std::string));
+        if(meta_source.is_valid_expression()) {
+            options.current_source_basename = file::Path(*meta_source.expression()).filename();
+        } else if(not meta_source.empty_or_invalid()) {
+            options.current_source_basename = meta_source.has_single_match()
+                ? meta_source[0].filename() : file::Path(file::find_basename(meta_source)).filename();
         } else {
             options.current_source_basename = file::Path(file::find_basename(READ_SETTING(source, file::PathArray))).filename();
         }

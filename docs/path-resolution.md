@@ -33,6 +33,8 @@ An explicit PV supplies both frames and PV metadata. A recording of the same nam
 For a movie, AUTO tracks the existing derived PV or converts the raw source there if needed. Explicit tracking requires the recording to exist.
 An output name (`-o`) is a literal basename for a raw source. Supplying it with a PV input is an error, as is explicitly requesting conversion of a PV.
 A PV pattern must select one recording for tracking. A selection mixing raw inputs and PVs is invalid.
+For a movie sequence, relative entries in a literal list use the same launch directory as a pattern.
+For example, from `/work/survey`, both `["first.mov", "second.mov"]` and a `*.mov` pattern matching those files give the default name `survey.pv`.
 
 When the original movie has moved, the settings loader updates `meta_source_path` if it locates and opens the movie.
 The animated background can also locate the movie for playback. It keeps that choice local and preserves both `source` and `meta_source_path`.
@@ -54,9 +56,10 @@ Resolving that PV or the export `/work/run/run/data/fish.csv` again preserves ev
 
 For `-i clip.mov`, conversion chooses the filename `clip.pv` before passing it to `parse("output", …)`. Passing `clip.mov` to that same location produces an output path ending in `clip.mov`.
 
-For example, expanding `clips/*.mov` inside a `PathArray` yields relative names such as `clips/a.mov`.
+By default, `PathArray` expands relative patterns in the launch directory, even after the process changes directory.
+For example, expanding `clips/*.mov` yields relative names such as `clips/a.mov`.
 When TRex launches from `/work`, `DataLocation::parse` passes `/work/clips/a.mov` to the registered resolver.
-The returned array holds the resolver's results as literal paths. Camera tokens such as `webcam` are handled by TRex before file resolution.
+The returned array holds the resolver's results as literal paths. TRex and pvinfo recognize the scalar inputs `webcam` and `basler` as camera tokens before file resolution. An entry such as `["webcam"]` selects a literal file.
 
 ## Testing one rule
 

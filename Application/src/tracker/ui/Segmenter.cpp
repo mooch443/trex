@@ -739,7 +739,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
 
 void Segmenter::open_video() {
     const auto source = GlobalSettings::read([this](const Configuration& config) {
-        auto source = config.at("source").value<file::PathArray>();
+        const auto source = file::DataLocation::parse("input", config.at("source").value<file::PathArray>(), &config.values);
         if(auto error = settings::video_source_error(source))
             throw InvalidArgumentException(*error);
         const auto name = settings::choose_output_name(config.values);
@@ -831,7 +831,7 @@ void Segmenter::open_camera() {
         _output_file_path = file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
         return source;
     });
-    const bool use_basler = (source == file::PathArray("basler"));
+    const bool use_basler = source.expression() == "basler";
     
     _crop_offsets = READ_SETTING_WITH_DEFAULT(crop_offsets, CropOffsets{});
     
@@ -839,7 +839,7 @@ void Segmenter::open_camera() {
     //const auto encoding = Background::meta_encoding();
     //const uint8_t channels = required_image_channels(encoding);
 
-    if(settings::is_camera_source(source.source())) {
+    if(settings::is_camera_source(source)) {
         //if(not CommandLine::instance().settings_keys().contains("detect_model"))
         //    SETTING(detect_model) = file::Path(Yolo::default_model());
         //if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))

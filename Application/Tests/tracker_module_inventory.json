@@ -856,7 +856,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsPaths.h",
-      "sha256": "9778d8f45013fab56ad648e4ac4e9f8b39a1501cb32781775b7b5dbd4c077e76",
+      "sha256": "0cf09c95acd0211d009d6671e3fb2c0484fdd41f9a79c2f2a3caaa436f883c1a",
       "symbols": [
         {
           "kind": "function",

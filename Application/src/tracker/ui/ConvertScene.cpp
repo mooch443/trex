@@ -499,7 +499,7 @@ void ConvertScene::activate()  {
     
     auto source = READ_SETTING(source, file::PathArray);
     if(READ_SETTING(filename, file::Filename).path().empty()) {
-        const auto name = settings::choose_output_name(source);
+        const auto name = settings::choose_output_name();
         SETTING(filename) = file::Filename(name.path().remove_extension());
     }
     
@@ -510,9 +510,10 @@ void ConvertScene::activate()  {
     }
     
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
-    SETTING(meta_source_path) = source.source();
+    const auto expression = source.expression();
+    SETTING(meta_source_path) = expression ? std::string(*expression) : source.toStr();
     try {
-        if (settings::is_camera_source(source.source()))
+        if (settings::is_camera_source(source))
             open_camera();
         else
             open_video();

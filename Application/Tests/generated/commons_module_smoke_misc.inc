@@ -144,6 +144,7 @@ using ::cmn::file::cd;
 using ::cmn::file::cwd;
 using ::cmn::file::enumerate;
 using ::cmn::file::exec;
+using ::cmn::file::from_launch_dir;
 using ::cmn::file::make_path;
 using ::cmn::file::operator/;
 using ::cmn::file::valid_extension;

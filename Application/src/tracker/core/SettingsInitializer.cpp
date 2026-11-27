@@ -202,10 +202,11 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output)
 }
 
 
+template<typename T>
 struct G {
-    std::string s;
+    T s;
     bool quiet;
-    G(const std::string& name, bool quiet) : s(name), quiet(quiet) {
+    G(T name, bool quiet) : s(std::move(name)), quiet(quiet) {
         if(not quiet)
             DebugHeader("// LOADING FROM ", s);
     }
@@ -310,30 +311,32 @@ void LoadContext::init_filename() {
     auto& cmd_line = output_map ? *output_map->command_line : CommandLine::instance();
     file::Path requested_filename = filename.filename();
     if(requested_filename.empty()
-       && not source.has_source()
+       && source.empty_or_invalid()
        && task == TRexTask_t::convert
        && cmd_line.settings_keys().contains("filename"))
     {
         requested_filename = file::Filename::fromStr(cmd_line.settings_keys().at("filename")).path();
     }
 
-    if(source.has_source()) {
+    if(not source.empty_or_invalid()) {
         /// we did get a source as function parameter,
         /// which means this is to be prioritized. set
         /// it in the target map
-        if(not is_camera_source(source.source()))
-            source = file::DataLocation::parse("input", source, &combined.values);
-        
-        combined.values["source"] = source;
+        const std::string expression(source.expression().value_or(""));
+        const bool camera = is_camera_source(source);
+        auto resolved = camera ? source : file::DataLocation::parse("input", source, &combined.values);
+        const bool has_files = not camera && not resolved.empty();
+
+        // Keep an unmatched expression in settings so the source editor can show it.
+        combined.values["source"] = has_files ? resolved : source;
+        source = std::move(resolved);
         set_config_if_different("source", combined.values);
         
         if(not contains(exclude.toVector(), "meta_source_path")) {
             /// dont accidentally promote .pv files to "source" out of desparation
-            const bool contains_pv = source.empty()
-                ? file::Path(source.source()).has_extension("pv")
-                : source.any_files_are("pv");
+            const bool contains_pv = has_files ? source.any_files_are("pv") : file::Path(expression).has_extension("pv");
             if(not contains_pv) {
-                combined.values["meta_source_path"] = source.source();
+                combined.values["meta_source_path"] = has_files ? source.toStr() : expression;
                 set_config_if_different("meta_source_path", combined.values);
             }
         }
@@ -804,7 +807,7 @@ void LoadContext::load_gui_settings() {
 
 std::optional<VideoInfo> retrieve_video_info(const file::PathArray& source) {
     try {
-        if(is_camera_source(source.source())) {
+        if(is_camera_source(source)) {
             return VideoInfo{
                 .base = source,
                 .resolution = Size2(1920_F, 1080_F), /// TODO: just assuming this for now :(
@@ -867,11 +870,13 @@ void LoadContext::estimate_meta_variables() {
     std::optional<VideoInfo> info;
     {
         auto source = combined.at("source").value<file::PathArray>();
+        const bool camera = is_camera_source(source);
+        if(not camera)
+            source = file::DataLocation::parse("input", source, &combined.values);
         if(video_source_error(source))
             return;
-        if(not source.empty() && not source.has_single_match("pv") && task != TRexTask_t::convert) {
-            const auto name = choose_output_name(combined.values);
-            const auto recording = file::DataLocation::parse("output", name.path(), &combined.values);
+        if((camera || (not source.empty() && not source.has_single_match("pv"))) && task != TRexTask_t::convert) {
+            const auto recording = resolve_recording_path(combined.values, source);
             if(recording.is_regular())
                 source = file::PathArray::from_file(recording);
         }
@@ -881,49 +886,42 @@ void LoadContext::estimate_meta_variables() {
                 Print("Retrieved video info for ", *info);
 #endif
         } else if(not quiet) {
-            if(not source.empty())
+            if(not source.empty_or_invalid())
                 FormatWarning("Cannot retrieve video info for source ", source);
         }
     }
     
     if(auto value = combined.values.at("meta_source_path");
-       value.valid() && not source.empty() && not value.value<std::string>().empty()
+       value.valid() && not source.resolves_to_empty() && not value.value<std::string>().empty()
        && not is_camera_source(value.value<std::string>()))
     {
-        auto meta_source_path = value.value<std::string>();
-        const file::Path path(meta_source_path);
-        const auto output_name = path.is_absolute() ? path.filename() : meta_source_path;
-        std::array tests {
-            meta_source_path,
-            file::DataLocation::parse("input", meta_source_path, &combined.values).str(),
-            file::DataLocation::parse("output", output_name, &combined.values).str()
-        };
+        const auto original = file::PathArray::from_input(value.value<std::string>());
+        const auto expression = original.expression();
+        std::vector tests{original};
+        if(expression || original.has_single_match()) {
+            const file::Path path = expression ? file::Path(*expression) : original[0];
+            const auto output = file::DataLocation::parse("output", path.is_absolute() ? file::Path(path.filename()) : path, &combined.values);
+            tests.push_back(expression ? file::PathArray::from_input(output.str()) : file::PathArray::from_files({output}));
+        }
         
         bool success = [&] {
-            for(auto test : tests) {
-                file::PathArray input(test);
+            for(const auto& test : tests) {
+                const auto input = file::DataLocation::parse("input", test, &combined.values);
                 if(input.any_files_are("pv"))
                     continue;
-                const auto& launch = output_map
-                                        ? output_map->command_line->launch_dir()
-                                        : CommandLine::instance().launch_dir();
-                if(not launch.empty()) {
-                    input = file::DataLocation::parse("input", input, &combined.values);
-                    test = input.source();
-                }
                 auto video_test = VideoSource::TestVideoSource(input);
                 if(not video_test) {
-                    if(not test.empty())
+                    if(not test.empty_or_invalid())
                         FormatWarning("meta_source_path(", test,") cannot be opened (failed test): ", no_quotes(video_test.error()));
                     continue;
                 }
                 
                 try {
                     VideoSource video(input);
-                    combined.values["meta_source_path"] = test;
+                    combined.values["meta_source_path"] = input.toStr();
 
                     if(is_in(task, TRexTask_t::convert, TRexTask_t::none)
-                       && not info && not source.any_files_are("pv")) /// only replace invalid raw input
+                       && not info && (source.needs_resolving() || not source.any_files_are("pv"))) /// only replace invalid raw input
                     {
                         source = input;
                         combined.values["source"] = source;
@@ -944,21 +942,13 @@ void LoadContext::estimate_meta_variables() {
             if(not quiet)
                 Print("// Successfully found meta_source_path at ", combined.values["meta_source_path"].value<std::string>());
 #endif
-        } else if(not quiet) {
-            bool all_empty = true;
-            for(auto test : tests) {
-                if(not test.empty()) {
-                    all_empty = false;
-                    break;
-                }
-            }
-            if(not all_empty)
-                FormatWarning("Was unable to find meta_source_path video, tried ", tests);
+        } else if(not quiet && not original.empty_or_invalid()) {
+            FormatWarning("Was unable to find meta_source_path video, tried ", tests);
         }
     }
     
     const bool meta_video_size_empty = combined.values.value_with_default("meta_video_size", Size2{}).empty();
-    if(source.empty() && meta_video_size_empty) {
+    if(source.resolves_to_empty() && meta_video_size_empty) {
 #ifndef NDEBUG
         if(not quiet)
             Print("// Defaulting to meta_video_size of 1920x1080 for empty source.");
@@ -967,7 +957,7 @@ void LoadContext::estimate_meta_variables() {
         
     } else if(meta_video_size_empty) {
 #ifndef NDEBUG
-        G g{source.source(), quiet};
+        G g{source, quiet};
 #endif
         if(info) {
             combined.values["meta_video_size"] = info->resolution;
@@ -1016,7 +1006,7 @@ void LoadContext::estimate_meta_variables() {
 void LoadContext::finalize() {
     /// --------------------------------------
     auto keys = combined.values.keys();
-    G g("FINAL CONFIG", quiet || not contains(keys, "source") || combined.at("source").value<file::PathArray>().empty());
+    G g("FINAL CONFIG", quiet || not contains(keys, "source") || combined.at("source").value<file::PathArray>().empty_or_invalid());
 
     for(auto &key : keys) {
         try {

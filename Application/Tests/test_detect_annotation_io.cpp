@@ -583,7 +583,7 @@ TEST(DetectAnnotationExporter, RoundTripsObbAndPointDatasetsAndExcludesOtherType
     (void)track::detect::yolo::names::get_map();
     SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
     auto root = make_temp_dataset("new_dataset_roundtrip");
-    std::vector<std::string> source_paths;
+    std::vector<file::Path> source_paths;
     for(size_t i = 0; i < 3; ++i) {
         auto path = root / ("input_" + Meta::toStr(i) + ".png");
         ASSERT_TRUE(cv::imwrite(path.str(), cv::Mat(100, 200, CV_8UC3, cv::Scalar(0, 0, 0))));
@@ -594,7 +594,7 @@ TEST(DetectAnnotationExporter, RoundTripsObbAndPointDatasetsAndExcludesOtherType
             Options options;
             options.format = format;
             options.detect_format = type == AnnotationType::OBB ? ObjectDetectionFormat::obb : ObjectDetectionFormat::points;
-            options.source = file::PathArray(source_paths);
+            options.source = file::PathArray::from_files(source_paths);
             options.source_start = 100_f;
             options.video_source_basename = "input.mp4";
             options.output_directory = root / (options.format.str() + "_" + options.detect_format.str());
@@ -661,7 +661,7 @@ TEST(DetectAnnotationExporter, RoundTripsExplicitEmptyFramesForEveryDatasetTask)
             Options options;
             options.format = format;
             options.detect_format = task;
-            options.source = file::PathArray(source.str());
+            options.source = file::PathArray::from_files({source});
             options.source_start = 100_f;
             options.video_source_basename = "input.mp4";
             options.output_directory = root / (options.format.str() + "_" + options.detect_format.str());
@@ -762,7 +762,7 @@ TEST(DetectAnnotationExporter, PreservesSparseConfiguredKeypointIndices) {
 
 TEST(DetectAnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
     Options options;
-    options.source = file::PathArray("current_video.mp4");
+    options.source = file::PathArray::from_files({"current_video.mp4"});
     options.video_source_basename = "current_video.mp4";
     options.source_start = 100_f;
 
@@ -813,7 +813,7 @@ TEST(DetectAnnotationExporter, BuildsCocoJsonForMixedAnnotationsAndBackgroundIma
 TEST(DetectAnnotationExporter, BuildsCocoJsonForMixedAnnotationsAndBackgroundImagesUsesVideoPrefix) {
     auto annotations = mixed_annotations();
     std::vector<Frame_t> frames{1_f, 2_f, 3_f, 5_f};
-    auto json = build_coco_json(file::PathArray{file::Path("/path/to/videoname.mp4")}, annotations, frames, Size2(100, 100), {"nose", "tail"});
+    auto json = build_coco_json(file::PathArray::from_files({"/path/to/videoname.mp4"}), annotations, frames, Size2(100, 100), {"nose", "tail"});
     auto text = glz::write_json(json).value();
 
     EXPECT_NE(std::string::npos, text.find("\"file_name\":\"videoname_frame_000002.jpg\""));
@@ -933,7 +933,7 @@ TEST(DetectAnnotationExporter, FailsPredictablyForMissingSource) {
     options.detect_format = ObjectDetectionFormat::boxes;
     options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10, true}, {20, 20, true}}));
     options.output_directory = file::Path("annotations");
-    options.source = file::PathArray("/tmp/trex_missing_annotation_source.mp4");
+    options.source = file::PathArray::from_files({"/tmp/trex_missing_annotation_source.mp4"});
 
     EXPECT_THROW((void)export_dataset(options), std::exception);
 }
@@ -1940,7 +1940,7 @@ TEST(DetectAnnotationExporter, MetadataIncludesAnnotationOnlyClassIds) {
     auto image = root / "input.png";
     ASSERT_TRUE(cv::imwrite(image.str(), cv::Mat(100, 200, CV_8UC3, cv::Scalar(0, 0, 0))));
     Options options;
-    options.source = file::PathArray(image.str());
+    options.source = file::PathArray::from_files({image});
     options.output_directory = root / "yolo";
     options.detect_format = ObjectDetectionFormat::boxes;
     options.background_percent = 0.f;

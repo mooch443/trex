@@ -149,12 +149,12 @@ void set_fault_mode(FaultMode mode, size_t succeed_first_n = 0) {
     g_fault_mode = mode;
 }
 
-void configure_conversion_settings(const TempWorkspace& ws, const std::vector<std::string>& source_paths) {
+void configure_conversion_settings(const TempWorkspace& ws, const std::vector<cmn::file::Path>& source_paths) {
     const auto output_dir = ws.root / "output";
 
     SETTING(output_dir) = Path(output_dir.string());
     SETTING(filename) = file::Filename("synthetic_segment");
-    SETTING(source) = PathArray(source_paths);
+    SETTING(source) = PathArray::from_files(source_paths);
     SETTING(detect_type) = ObjectDetectionType_t{ObjectDetectionType::none};
     SETTING(track_background_subtraction) = false;
     SETTING(calculate_posture) = false;

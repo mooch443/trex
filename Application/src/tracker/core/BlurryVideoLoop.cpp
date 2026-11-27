@@ -41,7 +41,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
         
         std::unique_ptr<AbstractBaseVideoSource> tmp;
         try {
-            if(path == file::PathArray{"webcam"}) {
+            const auto expression = path.expression();
+            if(expression == "webcam") {
                 try {
                     fg::Webcam cam;
                     cam.set_color_mode(ImageMode::RGBA);
@@ -62,7 +63,7 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                     }
                 }
                 
-            } else if(path == file::PathArray{"basler"}) {
+            } else if(expression == "basler") {
 #if WITH_PYLON
                 auto created = fg::PylonCamera::create();
                 if(created.has_value()) {
@@ -76,21 +77,23 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                 FormatWarning("[blurry] Basler source requested, but WITH_PYLON is disabled in this build.");
 #endif
                 
-            } else if(path.empty()) {
-                // we cant do anything
-                
-            } else if(path.has_single_match("pv")) {
-                auto video = pv::File::Read(file::DataLocation::parse("input", path.get_paths().front()));
+            } else if(const auto files = file::DataLocation::parse("input", path);
+                      files.empty())
+            {
+                // The preview opens only when the source resolves to at least one file.
+
+            } else if(files.has_single_match("pv")) {
+                auto video = pv::File::Read(files[0]);
                 video.header();
-                
+
                 tmp = std::unique_ptr<AbstractBaseVideoSource>(new PVVideoSource{ std::move(video) });
                 tmp->set_loop(true);
                 _next_frame = 0_f;
-                
+
             } else {
-                auto test = VideoSource::TestVideoSource(path);
+                auto test = VideoSource::TestVideoSource(files);
                 if(test) {
-                    VideoSource video(path);
+                    VideoSource video(files);
                     video.set_colors(ImageMode::RGBA);
                     tmp = std::unique_ptr<AbstractBaseVideoSource>(new VideoSourceVideoSource{ std::move(video) });
                     tmp->set_loop(true);

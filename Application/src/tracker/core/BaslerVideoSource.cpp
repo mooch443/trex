@@ -5,7 +5,7 @@
 #if WITH_PYLON
 
 BaslerVideoSource::BaslerVideoSource(fg::PylonCamera&& src)
-    : AbstractBaseVideoSource({.base = "Basler",
+    : AbstractBaseVideoSource({.base = file::PathArray::from_input("Basler"),
                                 .resolution = src.size(),
                                 .framerate = short(std::max(0, READ_SETTING(cam_framerate, int))),
                                 .finite = false,

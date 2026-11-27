@@ -138,8 +138,8 @@ int main(int argc, char** argv) {
         }
     });
     
-    //SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4"};
-    //SETTING(source) = file::PathArray{"/Users/tristan/Downloads/20230320_115142188_blue_DJI_0357.MP4"};
+    //SETTING(source) = file::PathArray::from_input("/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4");
+    //SETTING(source) = file::PathArray::from_input("/Users/tristan/Downloads/20230320_115142188_blue_DJI_0357.MP4");
     LiveSegmentation live_scene(base);
     DetectAnnotationScene detect_annotation_scene(base);
     manager.register_scene(&detect_annotation_scene);
