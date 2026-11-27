@@ -384,7 +384,7 @@ for MODE in ${MODES}; do
     CMD=(
         "${TREX}"
         -d "${WPWD:?}"
-        -i "${WPWD:?}/${CONVERT_PREFIX:?}/test"
+        -i "${WPWD:?}/${CONVERT_PREFIX:?}/test.pv"
         -s "${WPWD:?}/${CONVERT_PREFIX:?}/test.settings"
         -auto_quit -nowindow -task track -p "${TRACK_PREFIX}"
         -match_mode "${MODE}"
