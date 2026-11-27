@@ -5,10 +5,13 @@
 #include <file/DataFormat.h>
 #include <pv.h>
 #include <tracking/Individual.h>
-#include <tracking/CacheHints.h>
+#include <tracking/Stuffs.h>
 #include <data/MotionRecord.h>
 #include <misc/ThreadPool.h>
+#include <misc/Timer.h>
 #include <misc/Path.h>
+#include <data/FrameRepository.h>
+#include <tracking/TrackingHelper.h>
 
 namespace track {
 class Tracker;
@@ -128,7 +131,10 @@ namespace Output {
             V_38, // writing midline conversion factor
             V_39, // adding AutoAssign
             
-            current = V_39
+            V_40, // meta_encoding added
+            V_41, // settings are stored as a JSON object
+            
+            current = V_41
         };
         
     private:
@@ -143,9 +149,10 @@ namespace Output {
         struct Header {
             Versions version = Versions::current;
             uint64_t gui_frame = 0;
-            std::string settings;
+            std::string settings; // JSON-encoded settings delta
             std::string cmd_line;
             std::vector<Range<Frame_t>> tracklets;
+            meta_encoding_t::Class encoding{meta_encoding_t::gray};
             Size2 video_resolution;
             uint64_t video_length = 0;
             Image average;
@@ -160,26 +167,34 @@ namespace Output {
         
         GETTER_NCONST(Header, header);
         
+        CachedSettings _settings;
+        std::shared_ptr<Tracker> _tracker;
+        std::mutex _progress_mutex;
+        Timer _progress_timer;
+        size_t _progress_spinner = 0;
+        
         //static QueueThreadPool<Individual*> _blob_pool;
         QueueThreadPool<Individual*> _post_pool;
         GenericThreadPool _generic_pool, _load_pool;
-        GETTER_NCONST(std::shared_ptr<CacheHints>, property_cache);
         
-        cmn::atomic<uint64_t> _expected_individuals, _N_written;
+        cmn::atomic<uint64_t> _expected_individuals, _N_written, _N_post_processed;
+        
         
     public:
-        ResultsFormat(const Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress);
+        ResultsFormat(std::shared_ptr<Tracker> tracker, const Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress);
         ~ResultsFormat();
+        
+        static void post_process(const CachedSettings&, Output::ResultsFormat* _self, Individual* obj);
         
         //const char* read_data_fast(uint64_t num_bytes) override;
         uint64_t write_data(uint64_t num_bytes, const char* buffer) override;
         
         static uint64_t estimate_individual_size(const Individual& val);
-        void write_file(const std::vector<track::FrameProperties::Ptr>& frames,
+        void write_file(const data::FrameRepository& frames,
                         const active_individuals_map_t& active_individuals_frame,
                         const individuals_map_t& individuals);
         
-        Individual* read_individual(Data& ref, const CacheHints* cache);
+        Individual* read_individual(const data::FrameRepository&, Data& ref);
         Midline::Ptr read_midline(Data& ref);
         MinimalOutline read_outline(Data& ref, Midline* midline) const;
         void read_blob(Data& ref, pv::CompressedBlob&) const;
@@ -204,10 +219,10 @@ namespace Output {
         };
         
         static void process_frame(
-                           const CachedSettings&,
-                           const CacheHints* cache_ptr,
-                           Individual* fish,
-                           TemporaryData&& data);
+               const data::FrameRepository& frames,
+               const CachedSettings&,
+               Individual* fish,
+               TemporaryData&& data);
         
         void read_single_individual(Individual** out_ptr);
         
@@ -216,12 +231,13 @@ namespace Output {
     };
     
     class TrackingResults {
-        Tracker& _tracker;
+        std::shared_ptr<Tracker> _tracker;
         
     public:
-        TrackingResults(Tracker& tracker) : _tracker(tracker) {}
+        TrackingResults(std::shared_ptr<Tracker> tracker) : _tracker(std::move(tracker)) {}
         
         static Path expected_filename();
+        static Path expected_filename(const cmn::sprite::Map&);
         
         void save(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path(), const std::vector<std::string>& exclude_settings = {}) const;
         ResultsFormat::Header load(std::function<void(const std::string&, float, const std::string&)> = [](auto&, float, auto&){}, Path filename = Path());

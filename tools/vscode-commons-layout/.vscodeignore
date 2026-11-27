@@ -1,0 +1,7 @@
+test/**
+.vscode-test/**
+*.vsix
+.gitignore
+.vscodeignore
+package.py
+*.vsix.tmp

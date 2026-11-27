@@ -28,8 +28,7 @@ detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPaylo
                                                    double full_height,
                                                    double model_width,
                                                    double model_height,
-                                                   const Vec2& offset,
-                                                   const Vec2& scale)
+                                                   const TileGeometry& geometry)
 {
     if(full_width <= 0.0 || full_height <= 0.0
        || model_width <= 0.0 || model_height <= 0.0)
@@ -37,11 +36,13 @@ detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPaylo
         return src;
     }
 
-    const auto map_x = [&](double original_x) {
-        return clamp_unit((original_x / double(scale.x) - double(offset.x)) / model_width);
-    };
-    const auto map_y = [&](double original_y) {
-        return clamp_unit((original_y / double(scale.y) - double(offset.y)) / model_height);
+    const auto map_point = [&](double source_x, double source_y) {
+        const auto tile = geometry.to_tile(SourceCoord(
+            static_cast<float>(source_x),
+            static_cast<float>(source_y)));
+        return Vec2(
+            clamp_unit(double(tile.x) / model_width),
+            clamp_unit(double(tile.y) / model_height));
     };
 
     detect::Sam3PromptPayload normalized = src;
@@ -50,31 +51,26 @@ detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPaylo
         auto& dst_points = normalized.points();
         dst_points.reserve(src.points().size());
         for(const auto& point : src.points()) {
-            const double original_x = is_normalized_point(point) ? double(point.x) * full_width : double(point.x);
-            const double original_y = is_normalized_point(point) ? double(point.y) * full_height : double(point.y);
-            dst_points.emplace_back(
-                map_x(original_x),
-                map_y(original_y)
-            );
+            const double source_x = is_normalized_point(point) ? double(point.x) * full_width : double(point.x);
+            const double source_y = is_normalized_point(point) ? double(point.y) * full_height : double(point.y);
+            dst_points.emplace_back(map_point(source_x, source_y));
         }
     } else if(std::holds_alternative<std::vector<Bounds>>(src.value)) {
         normalized.value = std::vector<Bounds>{};
         auto& dst_boxes = normalized.boxes();
         dst_boxes.reserve(src.boxes().size());
         for(const auto& box : src.boxes()) {
-            const double original_x = is_normalized_box(box) ? double(box.x) * full_width : double(box.x);
-            const double original_y = is_normalized_box(box) ? double(box.y) * full_height : double(box.y);
-            const double original_w = is_normalized_box(box) ? double(box.width) * full_width : double(box.width);
-            const double original_h = is_normalized_box(box) ? double(box.height) * full_height : double(box.height);
-            const double x0 = map_x(original_x);
-            const double y0 = map_y(original_y);
-            const double x1 = map_x(original_x + original_w);
-            const double y1 = map_y(original_y + original_h);
+            const double source_x = is_normalized_box(box) ? double(box.x) * full_width : double(box.x);
+            const double source_y = is_normalized_box(box) ? double(box.y) * full_height : double(box.y);
+            const double source_w = is_normalized_box(box) ? double(box.width) * full_width : double(box.width);
+            const double source_h = is_normalized_box(box) ? double(box.height) * full_height : double(box.height);
+            const auto p0 = map_point(source_x, source_y);
+            const auto p1 = map_point(source_x + source_w, source_y + source_h);
             dst_boxes.emplace_back(
-                x0,
-                y0,
-                std::max(0.0, x1 - x0),
-                std::max(0.0, y1 - y0)
+                p0.x,
+                p0.y,
+                std::max(0.f, p1.x - p0.x),
+                std::max(0.f, p1.y - p0.y)
             );
         }
     }
@@ -88,19 +84,32 @@ void append_normalized_prompt_list(detect::Sam3PromptList& dst,
                                    double full_height,
                                    double model_width,
                                    double model_height,
-                                   const Vec2& offset,
-                                   const Vec2& scale)
+                                   const TileGeometry& geometry)
 {
     dst.reserve(dst.size() + src.size());
     for(const auto& prompt : src) {
-        dst.push_back(normalize_prompt_payload(prompt, full_width, full_height, model_width, model_height, offset, scale));
+        dst.push_back(normalize_prompt_payload(prompt, full_width, full_height, model_width, model_height, geometry));
     }
 }
 
-double estimated_original_extent(double model_extent, double scale, double offset)
+std::pair<double, double> source_extent_for(const std::vector<TileGeometry>& geometries,
+                                            const std::vector<size_t>& orig_id,
+                                            size_t image_idx)
 {
-    const double content_extent = std::max(1.0, model_extent + 2.0 * offset);
-    return std::max(1.0, std::round(content_extent * scale));
+    if(image_idx >= geometries.size())
+        return {1.0, 1.0};
+
+    const auto target_id = image_idx < orig_id.size() ? orig_id[image_idx] : size_t(0);
+    double width = 1.0;
+    double height = 1.0;
+    for(size_t idx = 0; idx < geometries.size(); ++idx) {
+        if(idx < orig_id.size() && orig_id[idx] != target_id)
+            continue;
+        const auto& region = geometries[idx].source_region;
+        width = std::max(width, double(region.x + region.width));
+        height = std::max(height, double(region.y + region.height));
+    }
+    return {width, height};
 }
 
 uint64_t make_prompt_object_id(Frame_t frame, size_t prompt_index, size_t box_index)
@@ -307,16 +316,11 @@ detect::Sam3PromptsPerImage resolve_prompts_for_input(
     for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
         auto& image_prompts = resolved[image_idx];
         const auto& image = input.images().at(image_idx);
-        const auto& offset = input.offsets().at(image_idx);
-        const auto& scale = input.scales().at(image_idx);
+        const auto& geometry = input.tile_geometries().at(image_idx);
         const double model_width = image ? std::max(1.0, double(image->cols)) : 1.0;
         const double model_height = image ? std::max(1.0, double(image->rows)) : 1.0;
-        const double full_width = image
-        ? estimated_original_extent(model_width, double(scale.x), double(offset.x))
-        : 1.0;
-        const double full_height = image
-        ? estimated_original_extent(model_height, double(scale.y), double(offset.y))
-        : 1.0;
+        const auto [full_width, full_height] = source_extent_for(
+            input.tile_geometries(), input.orig_id(), image_idx);
 
         const auto frame_key = Frame_t(static_cast<uint32_t>(input.orig_id().at(image_idx)));
         const auto materialized = materialize_sam3_prompt_state(frame_key, prompts_by_frame);
@@ -328,8 +332,7 @@ detect::Sam3PromptsPerImage resolve_prompts_for_input(
             full_height,
             model_width,
             model_height,
-            offset,
-            scale);
+            geometry);
     }
 
     return resolved;
@@ -347,23 +350,24 @@ detect::Sam3PromptsPerImage resolve_prompts_for_tile(
         ? static_cast<int64_t>(tile.data.original_index().get())
         : int64_t(0);
     const Frame_t frame_key(static_cast<uint32_t>(std::max<int64_t>(0, raw_frame_index)));
-    const auto tile_offsets = tile.offsets();
+    const auto& geometries = tile.tile_geometries();
     const auto materialized = materialize_sam3_prompt_state(frame_key, prompts_by_frame);
     const auto flattened = flatten_sam3_prompt_state(materialized);
 
     for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
         auto& image_prompts = resolved[image_idx];
         const auto& image = tile.images.at(image_idx);
-        const auto offset = image_idx < tile_offsets.size() ? tile_offsets[image_idx] : Vec2(0.f, 0.f);
-        const Vec2 scale = tile.original_size.div(tile.source_size);
+        if(image_idx >= geometries.size())
+            continue;
+        const auto& geometry = geometries[image_idx];
         const double model_width = image ? std::max(1.0, double(image->cols)) : 1.0;
         const double model_height = image ? std::max(1.0, double(image->rows)) : 1.0;
-        const double full_width = image
-            ? estimated_original_extent(model_width, double(scale.x), double(offset.x))
-            : 1.0;
-        const double full_height = image
-            ? estimated_original_extent(model_height, double(scale.y), double(offset.y))
-            : 1.0;
+        double full_width = 1.0;
+        double full_height = 1.0;
+        for(const auto& item : geometries) {
+            full_width = std::max(full_width, double(item.source_region.x + item.source_region.width));
+            full_height = std::max(full_height, double(item.source_region.y + item.source_region.height));
+        }
         append_normalized_prompt_list(
             image_prompts,
             flattened,
@@ -371,8 +375,7 @@ detect::Sam3PromptsPerImage resolve_prompts_for_tile(
             full_height,
             model_width,
             model_height,
-            offset,
-            scale);
+            geometry);
     }
 
     return resolved;

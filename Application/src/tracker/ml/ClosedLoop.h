@@ -25,7 +25,7 @@ private:
     [[nodiscard]] std::future<void> module_proxy(Args&&... args);
     
 public:
-    void update_loop(std::function<glz::json_t()> frame_info);
+    void update_loop(std::function<glz::generic()> frame_info);
 };
 
 }

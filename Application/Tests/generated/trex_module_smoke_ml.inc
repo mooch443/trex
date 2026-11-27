@@ -4,6 +4,7 @@
 // ml/AccumulationRuntime.h
 namespace trex_module_smoke::trex_ml::track {
 using ::track::AccumulationSession;
+using ::track::Tracker;
 }
 
 namespace trex_module_smoke::trex_ml::track::accumulation_runtime {
@@ -22,4 +23,13 @@ using ::Python::VINetwork;
 
 namespace trex_module_smoke::trex_ml::Python::TrainingMode {
 using ::Python::TrainingMode::Class;
+}
+
+namespace trex_module_smoke::trex_ml::cmn::file {
+using ::cmn::file::Path;
+}
+
+namespace trex_module_smoke::trex_ml::track {
+using ::track::BasicStuff;
+using ::track::PostureStuff;
 }

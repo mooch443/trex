@@ -192,7 +192,7 @@ bool LockGuard::init(uint32_t timeout_ms)
         }
         
     } else {
-        constexpr auto duration = std::chrono::milliseconds(10);
+        constexpr auto duration = 10ms;
         Timer timer, print_timer;
         while(true) {
             if((_write && tracker_lock->try_lock_for(duration))

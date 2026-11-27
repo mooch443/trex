@@ -7,8 +7,7 @@
 #include <core/TrackingSettings.h>
 #include <file/CSVReader.h>
 #include <core/indicators.h>
-#include <indicators/indeterminate_progress_bar.hpp>
-#include <indicators/cursor_control.hpp>
+#include <core/TerminalProgress.h>
 #include <file/DataLocation.h>
 #include <misc/ProtectedProperty.h>
 
@@ -31,9 +30,9 @@ struct PrecomputedDetection::Data {
         std::shared_lock guard(_background_mutex);
         return _background.has_value();
     }
-    void set_background(Image::Ptr&& background, meta_encoding_t::Class meta_encoding) {
+    void set_background(Bounds bounds, Image::Ptr&& background, meta_encoding_t::Class meta_encoding) {
         std::unique_lock guard(_background_mutex);
-        _background.emplace(std::move(background), meta_encoding);
+        _background.emplace(bounds, std::move(background), meta_encoding);
     }
     
     std::shared_mutex _data_mutex;
@@ -86,9 +85,13 @@ struct PrecomputedDetection::Data {
 
 
 PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
-  : _cache_path(file::DataLocation::parse("output", csv_path.replace_extension("pdcache"))), _df(_cache_path)
+  : _cache_path(file::DataLocation::parse("output",
+        (csv_path.is_absolute() ? file::Path(csv_path.filename()) : csv_path).replace_extension("pdcache"))),
+    _df(_cache_path)
 {
-    uint64_t csv_hash = computeFileHash(csv_path);
+    const auto input = file::DataLocation::parse("input", csv_path);
+    Print(" * Loading ", input, " precomputed data (", FileSize{input.file_size()}, ")...");
+    uint64_t csv_hash = computeFileHash(input);
 
     bool needs_rebuild = true;
     if (_cache_path.exists()) {
@@ -129,7 +132,9 @@ PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
         }
     }
     if (needs_rebuild) {
-        buildCache(csv_path, _cache_path);
+        if(not _cache_path.remove_filename().create_folder())
+            throw RuntimeError("Cannot create cache directory for ", _cache_path, ".");
+        buildCache(input, _cache_path);
     }
 
     _df.start_reading();
@@ -242,15 +247,13 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         FormatWarning("[precomputed] individual_image_size is not set.");
     }
 
-    ind::show_console_cursor(false);
-    ind::IndeterminateProgressBar prog{
+    cmn::terminal::progress::ConsoleCursorGuard cursor_guard(false);
+    ind::ProgressSpinner prog{
         ind::option::ForegroundColor{ind::Color::white},
         ind::option::PostfixText{"Counting CSV rows..."},
-        indicators::option::Start{"["},
-        indicators::option::Fill{"."},
-        indicators::option::Lead{"<==>"},
-        indicators::option::End{"]"},
-		ind::option::BarWidth{40}
+        ind::option::ShowPercentage{false},
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
 
     // First pass: count objects per frame
@@ -277,7 +280,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         assert(frame.valid());
         counts[frame]++;
         
-        if (timer.elapsed() >= 0.1) {
+        if (timer.elapsed() >= cmn::terminal::progress::interval_seconds()) {
             prog.set_option(ind::option::PostfixText{"Counting CSV rows ("+Meta::toStr(num_rows)+")..."});
             prog.tick();
 			timer.reset();
@@ -287,6 +290,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     {
         prog.set_option(ind::option::ForegroundColor{ind::Color::green});
         prog.set_option(ind::option::PrefixText{"✔"});
+        prog.set_option(ind::option::ShowSpinner{false});
         prog.set_option(ind::option::PostfixText{"Done."});
         prog.mark_as_completed();
     }
@@ -340,26 +344,12 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     ::close(fd);
 #endif
     
-    ind::ProgressBar bar{
-        ind::option::BarWidth{40},
-        ind::option::Start{"["},
-        /*#ifndef _WIN32
-                ind::option::Fill{"█"},
-                ind::option::Lead{"▂"},
-                ind::option::Remainder{"▁"},
-        #else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-        //#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Writing cache..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ShowElapsedTime{true},
-        ind::option::ShowRemainingTime{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    auto bar = cmn::terminal::progress::make_progress_bar({
+        .width = 40,
+        .postfix = "Writing cache...",
+        .show_elapsed_time = true,
+        .show_remaining_time = true
+    });
 
     bar.set_progress(0);
 
@@ -397,6 +387,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     // Remaining objects to write per frame (initialised with the counts)
     auto remaining = counts;          // copy – we will decrement
     size_t i = 0;
+    size_t bar_spinner_index = 0;
 
     while (reader2.hasNext()) {
         row = reader2.nextRow();
@@ -438,6 +429,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         if (--remaining[f] == 0) {
             remaining.erase(f);
             PrecomputedDetection::data()._precompute_percent.set( float(double(i) / double(num_rows) * 100));
+            cmn::terminal::progress::advance_progress_bar_spinner(bar, bar_spinner_index);
             bar.set_progress(double(i) / double(num_rows) * 100);
         }
     }
@@ -445,7 +437,6 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     
     bar.set_progress(100);
     bar.mark_as_completed();
-    ind::show_console_cursor(true);
     PrecomputedDetection::data()._precompute_percent.set(std::optional<float>{});
 }
 
@@ -466,7 +457,7 @@ PrecomputedDetection::PrecomputedDetection(file::PathArray&& path, Image::Ptr&& 
             while(not data().has_background()
                   && not manager().is_terminated())
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(100ms);
 
                 auto elapsed = std::chrono::steady_clock::now() - message_time;
                 if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
@@ -484,7 +475,7 @@ PrecomputedDetection::PrecomputedDetection(file::PathArray&& path, Image::Ptr&& 
                 if(data()._frame_data_loader.has_value()
                    && data()._frame_data_loader->valid())
                 {
-                    if(data()._frame_data_loader->wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+                    if(cmn::is_future_ready<1ms>(*data()._frame_data_loader))
                     {
                         auto result = data()._frame_data_loader->get();
                         if(result.has_value()) {
@@ -536,16 +527,25 @@ std::optional<float> PrecomputedDetection::precomputing() {
 void PrecomputedDetection::Data::set(Image::Ptr&& average, meta_encoding_t::Class meta_encoding) {
     std::scoped_lock guard(_background_mutex, _gpu_mutex);
     Print("Setting background image to ", hex(average.get()));
-    if(average)
-        _background.emplace(std::move(average), meta_encoding);
-    else
+    if(average) {
+        const auto bounds = average->bounds();
+        _background.emplace(bounds,
+                            meta_encoding != meta_encoding_t::binary ? std::move(average) : nullptr,
+                            meta_encoding);
+    } else
         _background.reset();
     
-    if(_background) {
-        _background->image().get().copyTo(_gpu);
+    if(auto bg = _background ? _background->image().get() : nullptr;
+       bg != nullptr)
+    {
+        bg->get().copyTo(_gpu);
         _gpu.convertTo(_float_average, CV_32FC(_gpu.channels()), 1.0 / 255.0);
-        manager().set_paused(false);
+    } else {
+        _gpu.release();
+        _float_average.release();
     }
+    if(_background)
+        manager().set_paused(false);
 }
 
 PrecomputedDetection::Data& PrecomputedDetection::data() {
@@ -556,11 +556,7 @@ PrecomputedDetection::Data& PrecomputedDetection::data() {
 std::future<SegmentationData> PrecomputedDetection::apply(TileImage &&tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Tiled.promise was already set.");
-    tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-    
-    auto f = tiled.promise->get_future();
-    manager().enqueue(std::move(tiled));
-    return f;
+    return std::move(tiled).enqueue(manager());
 }
 
 void PrecomputedDetection::deinit() {
@@ -791,14 +787,13 @@ std::expected<PrecomputedDetectionCache, std::string> PrecomputedDetection::Data
     if(not _filename.has_value())
         throw RuntimeError("No filename has been set for precomputed detection. Please set the `detect_precomputed_file` parameter.");
     
-    for(auto &path : _filename.value()) {
-        Print(" * Loading ", path, " precomputed data (",FileSize{path.file_size()},")...");
-        
+    for(const auto& path : _filename->resolve_if()) {
         if(path.has_extension("csv")) {
             return PrecomputedDetectionCache(path);
         }
         
-        Print("* Done loading ", path,".");
+        const auto input = file::DataLocation::parse("input", path);
+        Print("* Skipping ", input, " (", FileSize{input.file_size()}, "). Precomputed detections require a CSV file.");
     }
     
     return std::unexpected("Was not able to load any detection cache files from "+Meta::toStr(_filename)+".");

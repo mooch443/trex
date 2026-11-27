@@ -66,7 +66,7 @@ Layout::Ptr LabelElement::_create(dyn::LayoutContext& layout) {
     ptr->set_line_length(line_length);
     ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), center);
     auto font = parse_font(layout.obj, layout._defaults.font);
-    ptr->text()->set(font);
+    ptr->text()->set(Font_t{font});
     ptr->text()->set(color);
     ptr->set(FillClr{ fill });
     ptr->set_line_color(line);

@@ -14,6 +14,8 @@ namespace cmn::gui {
 }
 
 namespace track {
+class Tracker;
+
 namespace Categorize {
 #if COMMONS_NO_PYTHON
 
@@ -56,7 +58,7 @@ enum class State {
 };
 
 std::atomic<State>& state();
-void set_state(const std::shared_ptr<pv::File>& video_source, State);
+void set_state(std::shared_ptr<track::Tracker> tracker, std::shared_ptr<pv::File> video_source, State);
 void add_task(LearningTask&&);
 
 /*
@@ -85,9 +87,9 @@ Sample::Ptr front_sample();
 
 }
 
-void show(const std::shared_ptr<pv::File>& video, const std::function<void()>& auto_quit, const std::function<void(std::string, double)>& set_status);
+void show(const std::shared_ptr<track::Tracker>&, const std::shared_ptr<pv::File>& video, const std::function<void()>& auto_quit, const std::function<void(std::string, double)>& set_status);
 void hide();
-void draw(const std::shared_ptr<pv::File>&, gui::IMGUIBase*, gui::DrawStructure&);
+void draw(const std::shared_ptr<track::Tracker>&, const std::shared_ptr<pv::File>&, gui::IMGUIBase*, gui::DrawStructure&);
 void terminate();
 file::Path output_location();
 void clear_labels();

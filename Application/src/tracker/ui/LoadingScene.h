@@ -108,7 +108,7 @@ public:
         std::function<void(const file::Path&, std::string)> callback,
         std::function<void(const file::Path&, std::string)> on_select_callback)
         : Scene(window, "loading-scene", [this](auto&, DrawStructure& graph) { _draw(graph); }),
-        _description(std::make_shared<Text>(Str("Please choose a file in order to continue."), Loc(10, 10), Font(0.75))),
+        _description(std::make_shared<Text>(Str("Please choose a file in order to continue."), Loc(10, 10), Font_t(0.75))),
         _columns(std::make_shared<HorizontalLayout>()),
         _overall(std::make_shared<VerticalLayout>()),
         _path(start),

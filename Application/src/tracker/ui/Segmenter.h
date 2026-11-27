@@ -1,6 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/Image.h>
 #include <misc/frame_t.h>
 #include <core/TaskPipeline.h>
 #include <pv.h>
@@ -84,19 +85,20 @@ class Segmenter {
     //std::condition_variable _cv_messages, _cv_ready_for_tracking;
     mutable std::mutex _mutex_general, _mutex_current, _mutex_video, _mutex_tracker;
     std::atomic<bool> _should_terminate{false};
+    bool _stopped_successfully{false};
     UninterruptableStep _writing_step, _tracking_step;
     GeneratorStep _generating_step; // the only one that can accumulate stuff
     Frame_t _last_generated_frame;
     
     GETTER(Range<Frame_t>, video_conversion_range);
-    file::Path _output_file_name;
+    file::Path _output_file_path;
     
     cmn::CallbackFuture _undistort_callbacks;
     
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<BasicProcessor>, overlayed_video);
     std::atomic<bool> _processor_initializing{false};
-    std::unique_ptr<Tracker> _tracker;
+    std::shared_ptr<Tracker> _tracker;
     
     // File for output
     std::unique_ptr<pv::File> _output_file;
@@ -129,6 +131,8 @@ class Segmenter {
     std::atomic<double> _write_fps{0};
     std::atomic<Frame_t> _current_frame;
     
+    GETTER_NCONST(read_once<bool>, start_over);
+    
 #if WITH_FFMPEG
     std::unique_ptr<FFMPEGQueue> _queue;
     ThreadGroupId _ffmpeg_group;
@@ -149,7 +153,7 @@ public:
     Frame_t video_length() const;
     Size2 size() const;
     bool is_finite() const;
-    file::Path output_file_name() const;
+    file::Path output_file_path() const;
     void force_stop();
     void error_stop(std::string_view);
     std::future<std::optional<std::set<std::string_view>>> video_recovered_error() const;
@@ -160,6 +164,8 @@ public:
     Frame_t current_frame() const;
     
 private:
+    void open_output_file();
+    
     void generator_thread();
     void serialize_thread();
     void perform_tracking(SegmentationData&&);
@@ -171,6 +177,10 @@ private:
     void graceful_end();
     void stop_average_generator(bool blocking);
     
+public:
+    std::shared_ptr<Tracker> tracker() const;
+    
+private:
     Image::Ptr finalize_bg_image(const cv::Mat&);
     std::tuple<bool, cv::Mat> get_preliminary_background(Size2 size);
     void trigger_average_generator(bool regenerate, cv::Mat& bg);

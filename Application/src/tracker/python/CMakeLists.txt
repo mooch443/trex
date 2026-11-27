@@ -43,6 +43,8 @@ if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         CXX_VISIBILITY_PRESET default
         C_VISIBILITY_PRESET default
         VISIBILITY_INLINES_HIDDEN OFF
+        # Post-build dylib aliases do not produce compilation inputs for consumers.
+        XCODE_ATTRIBUTE_EAGER_COMPILATION_ALLOW_SCRIPTS YES
     )
     target_compile_options(trex_python_staging PRIVATE -fvisibility=default)
     # Apple ld already errors on undefined symbols by default.
@@ -94,6 +96,8 @@ if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         CXX_VISIBILITY_PRESET default
         C_VISIBILITY_PRESET default
         VISIBILITY_INLINES_HIDDEN OFF
+        # Post-build dylib aliases do not produce compilation inputs for consumers.
+        XCODE_ATTRIBUTE_EAGER_COMPILATION_ALLOW_SCRIPTS YES
     )
     target_compile_options(trex_python PRIVATE -fvisibility=default)
     # Apple ld already errors on undefined symbols by default.
@@ -128,7 +132,7 @@ else()
 endif()
 
 if(NOT pybind11_external)
-    target_link_libraries(trex_python PUBLIC pybind11::pybind11 pybind11::embed pybind11::module)
+    target_link_libraries(trex_python PUBLIC pybind11::embed)
 else()
     message(STATUS "not internal pybind11")
     target_link_libraries(trex_python PUBLIC ${PYTHON_LIBRARIES})
@@ -139,7 +143,7 @@ add_executable(trex_check_python check_python.cpp)
 target_link_libraries(trex_check_python PUBLIC Commons::All)
 
 if(NOT pybind11_external)
-    target_link_libraries(trex_check_python PUBLIC pybind11::pybind11 pybind11::embed pybind11::module)
+    target_link_libraries(trex_check_python PUBLIC pybind11::embed)
 else()
     target_link_libraries(trex_check_python PUBLIC ${PYTHON_LIBRARIES})
 endif()

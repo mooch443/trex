@@ -1,6 +1,6 @@
 #pragma once
-#include <file/PathArray.h>
 #include <commons.pc.h>
+#include <file/PathArray.h>
 #include <core/default_config.h>
 #include <core/SettingsPaths.h>
 #include <core/DetectionTypes.h>
@@ -14,8 +14,6 @@ namespace pv {
 
 namespace cmn::settings {
 
-void initialize_filename_for_tracking();
-
 struct LoadContext {
     file::PathArray source{};
     file::Path filename{};
@@ -27,17 +25,20 @@ struct LoadContext {
 
     Configuration combined{};
     sprite::Map current_defaults{};
+    std::shared_ptr<GlobalSettings::MutableSnapshot> output_map;
     bool did_set_calculate_posture_to_false{false};
 
     ExtendableVector exclude{}, exclude_from_default{};
-    std::vector<std::string> system_variables = [](){
-        std::vector<std::string> system_variables;
-        for (auto& key : GlobalSettings::keys()) {
-            if (GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM) {
-                system_variables.emplace_back(key);
+    std::vector<std::string> system_variables = [this] {
+        auto collect = [](const Configuration& config) {
+            std::vector<std::string> system_variables;
+            for(auto key : config.values.keys()) {
+                if(config._access_level(key) >= AccessLevelType::SYSTEM)
+                    system_variables.emplace_back(key);
             }
-        }
-        return system_variables;
+            return system_variables;
+        };
+        return output_map ? collect(output_map->config) : GlobalSettings::read(collect);
     }();
     
     static constexpr auto default_excludes = std::array{
@@ -52,21 +53,26 @@ struct LoadContext {
         "source"
     };
 
-    static constexpr auto exclude_from_external = std::array{
+    static constexpr auto exclude_automatic_for_models = std::array{
         "detect_model",
         "region_model",
         "detect_resolution",
         "region_resolution"
     };
-    
+
+    static constexpr auto exclude_external = std::array{
+        "video_conversion_range",
+        "settings_file",
+        "output_dir",
+        "filename",
+        "source"
+    };
+
     bool changed_model_manually{false};
     
     void init();
     bool set_config_if_different(const std::string_view& key, const sprite::Map& from, bool do_print = false);
     void init_filename();
-    void fix_empty_source();
-    void fix_empty_filename();
-    void reset_default_filenames();
     
     void load_settings_from_source();
     void load_task_defaults();

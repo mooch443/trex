@@ -44,6 +44,7 @@ struct VideoFrame {
     useMatPtr_t buffer;
 };
 
+/*
 /// \brief Minimal, move-only alternative to `std::expected`.
 ///
 /// Stores either a value of type `T` or an error message (`std::string`).
@@ -73,8 +74,9 @@ struct Expected {
     }
 
     /// Construct with a success value.
-    Expected(T&& v) noexcept : _has(true) {
-        std::construct_at(&_value.val, std::move(v));
+    template<typename U> requires std::constructible_from<T, U&&>
+    Expected(U&& v) noexcept(std::is_nothrow_constructible_v<T, U&&>) : _has(true) {
+        std::construct_at(&_value.val, std::forward<U>(v));
     }
 
     /// Construct from an unexpected error message.
@@ -168,6 +170,12 @@ struct Expected {
     /// Implicit truthiness reflects presence of a value.
     explicit operator bool() const { return _has; }
 };
+*/
+
+struct ReachedEOF_t {};
+
+template<typename Frame>
+using VideoResult = std::expected<std::variant<ReachedEOF_t, Frame>, UnexpectedError_t>;
 
 class AbstractBaseVideoSource {
 public:
@@ -214,14 +222,13 @@ protected:
     ImageBuffers< useMatPtr_t, MatMaker > mat_buffers;
     ImageBuffers< Image::Ptr, ImageMaker > image_buffers;
 
-    // Result type of the preprocessing step. `true` => ready `PreprocessedFrame`,
-    // `false` => error message explaining why preprocessing failed.
-    using PreprocessResult_t = Expected<PreprocessedFrame>;
+    // Preprocessing yields a frame or EOF on success and a message on failure.
+    using PreprocessResult_t = VideoResult<PreprocessedFrame>;
     // Deferred task that yields the next preprocessed frame when executed.
     using PreprocessFunction = RepeatedDeferral<std::function<PreprocessResult_t()>>;
     
     // Result type of fetching a raw frame from the video source.
-    using VideoFrame_t = Expected<VideoFrame>;
+    using VideoFrame_t = VideoResult<VideoFrame>;
     // Deferred task that yields the next raw frame when executed.
     using VideoFunction = RepeatedDeferral<std::function<VideoFrame_t()>>;
     

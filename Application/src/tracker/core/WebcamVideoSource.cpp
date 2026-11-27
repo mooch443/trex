@@ -1,8 +1,8 @@
 #include "WebcamVideoSource.h"
 
 WebcamVideoSource::WebcamVideoSource(fg::Webcam&& source)
-    : AbstractBaseVideoSource({.base = "Webcam",
-                                .size = source.size(),
+    : AbstractBaseVideoSource({.base = file::PathArray::from_input("Webcam"),
+                                .resolution = source.size(),
                                 .framerate = short(source.frame_rate()),
                                 .finite = false,
                                 .length = Frame_t{}}),
@@ -49,7 +49,7 @@ AbstractBaseVideoSource::VideoFrame_t WebcamVideoSource::fetch_next() {
         while(not (result = this->source.next(*buffer)) && tries++ < 5)
         {
             //if (detection_type() != ObjectDetectionType::yolo) FormatError("Dropping an erroreous frame from the webcam.");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::sleep_for(1ms);
         }
         
         if(not result) {

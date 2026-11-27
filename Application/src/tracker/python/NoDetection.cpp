@@ -6,11 +6,7 @@ namespace track {
 std::future<SegmentationData> NoDetection::apply(TileImage &&tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Tiled.promise was already set.");
-    tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-    
-    auto f = tiled.promise->get_future();
-    Detection::manager().enqueue(std::move(tiled));
-    return f;
+    return std::move(tiled).enqueue(Detection::manager());
 }
 
 void NoDetection::apply(std::vector<TileImage> &&tiled)

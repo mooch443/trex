@@ -1,7 +1,7 @@
 #include <commons.pc.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
+#include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>
-#include <misc/default_config.h>
 
 #include <algorithm>
 #include <cctype>
@@ -37,6 +37,8 @@ std::string normalize_doc(std::string_view input) {
 } // namespace
 
 int main(int argc, char** argv) {
+    cmn::GlobalSettings::create();
+    cmn::file::DataLocation::create();
     SETTING(quiet) = true;
     (void)argc;
     (void)argv;

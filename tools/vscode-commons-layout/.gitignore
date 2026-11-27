@@ -1,0 +1,3 @@
+*.vsix
+*.vsix.tmp
+.vscode-test/

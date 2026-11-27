@@ -19,7 +19,7 @@ GUIVideoAdapter::GUIVideoAdapter(const file::PathArray& array,
     _video_loop.set_callback([this, q = queue](){
         std::unique_lock guard(_future_mutex);
         if(_executed.valid()) {
-            if(_executed.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+            if(cmn::is_future_ready(_executed))
             {
                 _executed.get(); // need to get
             }

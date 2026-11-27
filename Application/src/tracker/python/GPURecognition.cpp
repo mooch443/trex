@@ -23,6 +23,7 @@
 
 #include <misc/default_settings.h>
 #include <core/default_config.h>
+#include <core/TerminalProgress.h>
 #include <core/TileBuffers.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
@@ -30,7 +31,16 @@
 
 #include <core/DetectionTypes.h>
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cstdio>
+#include <memory>
+#include <mutex>
 #include <signal.h>
+#include <thread>
+#include <vector>
 typedef void (*sighandler_t)(int);
 
 //#define TREX_PYTHON_DEBUG true
@@ -48,8 +58,190 @@ pybind11::module numpy, TRex, _main, _json_module;
 pybind11::dict* _locals = nullptr;
 }
 
+class TRexTqdm {
+public:
+    TRexTqdm(py::args args, py::kwargs kwargs) {
+        if (args.size() > 0 && !args[0].is_none()) {
+            _iterable = py::reinterpret_borrow<py::object>(args[0]);
+            _iterator = py::iter(_iterable);
+        }
+
+        if (kwargs) {
+            if (kwargs.contains("total") && !kwargs["total"].is_none()) {
+                _total = py::cast<double>(kwargs["total"]);
+                _has_total = _total > 0.0;
+            }
+            if (kwargs.contains("desc") && !kwargs["desc"].is_none()) {
+                _desc = py::cast<std::string>(kwargs["desc"]);
+            }
+            if (kwargs.contains("unit") && !kwargs["unit"].is_none()) {
+                _unit = py::cast<std::string>(kwargs["unit"]);
+            }
+            if (kwargs.contains("leave") && !kwargs["leave"].is_none()) {
+                _persist = py::cast<bool>(kwargs["leave"]);
+            }
+            if (kwargs.contains("disable") && !kwargs["disable"].is_none()) {
+                _disabled = py::cast<bool>(kwargs["disable"]);
+            }
+        }
+
+        if (!_has_total && !_iterable.is_none()) {
+            try {
+                _total = static_cast<double>(py::len(_iterable));
+                _has_total = _total > 0.0;
+            } catch (py::error_already_set& e) {
+                e.restore();
+                PyErr_Clear();
+            }
+        }
+
+        if (!_disabled) {
+            render();
+            _thread = std::thread([this]() {
+                while (!_stop.wait_for(cmn::terminal::progress::interval())) {
+                    ++_frame_index;
+                    render();
+                }
+            });
+        }
+    }
+
+    ~TRexTqdm() {
+        close();
+    }
+
+    TRexTqdm(const TRexTqdm&) = delete;
+    TRexTqdm& operator=(const TRexTqdm&) = delete;
+
+    TRexTqdm& iter() {
+        return *this;
+    }
+
+    py::object next() {
+        if (_iterator.is_none()) {
+            close();
+            throw py::stop_iteration();
+        }
+
+        try {
+            py::object item = _iterator.attr("__next__")();
+            update(1);
+            return item;
+        } catch (py::error_already_set& e) {
+            if (e.matches(PyExc_StopIteration)) {
+                e.restore();
+                PyErr_Clear();
+                close();
+                throw py::stop_iteration();
+            }
+            throw;
+        }
+    }
+
+    void update(size_t n = 1) {
+        if (_closed) {
+            return;
+        }
+        std::lock_guard guard(_mutex);
+        _current += static_cast<double>(n);
+        if (!_disabled) {
+            render_locked();
+        }
+    }
+
+    void close() {
+        if (_closed.exchange(true)) {
+            return;
+        }
+
+        _stop.notify_all();
+        if (_thread.joinable()) {
+            _thread.join();
+        }
+
+        if (!_disabled) {
+            std::lock_guard guard(_mutex);
+            if (_persist) {
+                _bar.set_postfix(build_postfix());
+                _bar.mark_as_completed();
+            } else {
+                cmn::terminal::progress::finish_progress_bar_line();
+            }
+        }
+    }
+
+private:
+    class StopSignal {
+    public:
+        template<class Rep, class Period>
+        bool wait_for(const std::chrono::duration<Rep, Period>& duration) {
+            std::unique_lock lock(_mutex);
+            return _condition.wait_for(lock, duration, [this]() { return _stop; });
+        }
+
+        void notify_all() {
+            {
+                std::lock_guard lock(_mutex);
+                _stop = true;
+            }
+            _condition.notify_all();
+        }
+
+    private:
+        std::mutex _mutex;
+        std::condition_variable _condition;
+        bool _stop = false;
+    };
+
+    void render() {
+        std::lock_guard guard(_mutex);
+        render_locked();
+    }
+
+    std::string build_postfix() const {
+        std::string postfix;
+        if (!_desc.empty())
+            postfix += cmn::terminal::progress::clean_progress_status(_desc) + " ";
+        const auto unit = cmn::terminal::progress::clean_progress_status(_unit);
+        char buf[64];
+        if (_has_total)
+            std::snprintf(buf, sizeof(buf), "%.0f/%.0f %s", _current, _total, unit.c_str());
+        else
+            std::snprintf(buf, sizeof(buf), "%.0f %s", _current, unit.c_str());
+        postfix += buf;
+        return postfix;
+    }
+
+    void render_locked() {
+        _bar.set_postfix(build_postfix());
+        _bar.set_spinner_index(_frame_index.load());
+        _bar.set_progress(_has_total
+            ? std::min(100.0, std::max(0.0, _current / _total * 100.0))
+            : 0.0);
+    }
+
+    py::object _iterable = py::none();
+    py::object _iterator = py::none();
+    std::string _desc;
+    std::string _unit = "it";
+    double _current = 0.0;
+    double _total = 0.0;
+    bool _has_total = false;
+    bool _persist = true;
+    bool _disabled = false;
+    std::atomic_bool _closed = false;
+    std::atomic_size_t _frame_index = 0;
+    std::mutex _mutex;
+    StopSignal _stop;
+    cmn::terminal::progress::ProgressBar _bar{cmn::terminal::progress::ProgressBarConfig{}};
+    std::thread _thread;
+};
+
 namespace pybind11 {
     namespace detail {
+        template<> struct type_caster<cmn::blob::ObjectClass_t>
+            : map_caster<cmn::blob::ObjectClass_t, uint16_t, std::string> {};
+
         /*template<> struct type_caster<cmn::Image::Ptr>
         {
         public:
@@ -197,6 +389,9 @@ MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
 std::function<void()> _destroy_all_windows = []() {};
+std::function<void(const std::string&)> _display_runtime_warning = [](const std::string& message) {
+    FormatWarning(message);
+};
 
 #include "GPURecognition.h"
 #include <pybind11/stl.h>
@@ -216,21 +411,6 @@ namespace track::detect {
 
     py::list cast_prompt_list(const track::detect::Sam3PromptList& prompt_list) {
         return py::cast(static_cast<const track::detect::Sam3PromptList::base_t&>(prompt_list));
-    }
-
-    template<typename T>
-    std::shared_ptr<T> transfer_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
-        py::buffer_info buf_info = input.request();
-        T* ptr = static_cast<T*>(buf_info.ptr);
-        //std::size_t size = buf_info.size * sizeof(T);
-
-        // Increase reference count to prevent Python from garbage collecting the array
-        Py_INCREF(input.ptr());
-
-        // Create shared_ptr with custom deleter that decreases the Python object's reference count
-        return std::shared_ptr<T>(ptr, [cap = input.ptr()](T*) mutable {
-            Py_DECREF(cap);
-            });
     }
 
     template<typename T>
@@ -261,6 +441,10 @@ namespace track::detect {
     public:
         Mask(py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask) {
             py::buffer_info buf_info = mask.request();
+            if(buf_info.ndim != 2) {
+                throw std::invalid_argument(
+                    "Detection masks must be two-dimensional arrays.");
+            }
             int rows = narrow_cast<int>(buf_info.shape[0]);
             int cols = narrow_cast<int>(buf_info.shape[1]);
             auto ptr = move_array<uint8_t>(mask);
@@ -279,18 +463,23 @@ public:
 public:
     KeypointArray(py::array_t<float, py::array::c_style | py::array::forcecast> keypoint) {
         py::buffer_info buf_info = keypoint.request();
-        size_t points = buf_info.shape[0];
-        if(points == 0)
+        if(buf_info.size == 0)
             return;
-        
-        size_t bones = buf_info.shape[1];
-        size_t dims = buf_info.shape[2];
-        assert(dims == 2u);
-        auto array = transfer_array<float>(keypoint);
-        data = KeypointData{
-            std::vector<float>(array.get(), array.get() + points * bones * dims),
-            bones
-        };
+        if(buf_info.ndim != 3 || (buf_info.shape[2] != 2 && buf_info.shape[2] != Bone::dimensions))
+            throw InvalidArgumentException("Expected keypoints shaped [objects, joints, 2 or 3] with x, y and optional confidence.");
+
+        std::vector<Bone> bones(size_t(buf_info.size / buf_info.shape[2]));
+        if(buf_info.shape[2] == Bone::dimensions) {
+            std::memcpy(bones.data(), buf_info.ptr, bones.size() * sizeof(Bone));
+        } else {
+            const auto* xy = static_cast<const char*>(buf_info.ptr);
+            for(auto& bone : bones) {
+                std::memcpy(&bone, xy, 2u * sizeof(float));
+                bone.conf = bone.valid() ? 1.f : 0.f;
+                xy += 2u * sizeof(float);
+            }
+        }
+        data = KeypointData{std::move(bones), size_t(buf_info.shape[1])};
     }
 };
 
@@ -305,6 +494,28 @@ public:
         return result;
     }
 
+    std::optional<MaskData> transfer_semantic_mask(py::object semantic_mask) {
+        if(CHECK_NONE(semantic_mask))
+            return std::nullopt;
+
+        const auto input = semantic_mask.cast<py::array>();
+        const auto input_info = input.request();
+        if(input_info.ndim != 2) {
+            throw std::invalid_argument(
+                "A semantic mask must be a two-dimensional class-ID array.");
+        }
+        if(input_info.itemsize != sizeof(uint8_t)
+           || input_info.format != py::format_descriptor<uint8_t>::format())
+        {
+            throw std::invalid_argument(
+                "Semantic class IDs must be validated and provided as uint8 values in [0, 255].");
+        }
+
+        auto mask = semantic_mask.cast<
+            py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>();
+        return std::move(Mask(mask).data);
+    }
+
 std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
     std::vector<KeypointData> result;
     result.reserve(keypoints.size());
@@ -316,6 +527,63 @@ std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
     return result;
 }
 
+std::vector<track::TileGeometry> geometries_from_legacy_vectors(
+    const std::vector<cmn::Image::Ptr>& images,
+    const std::vector<cmn::Vec2>& offsets,
+    const std::vector<cmn::Vec2>& scales)
+{
+    if(images.size() != offsets.size() || images.size() != scales.size()) {
+        throw InvalidArgumentException(
+            "YoloInput expects matching images, offsets, and scales lengths, got ",
+            images.size(), " images, ", offsets.size(), " offsets, and ", scales.size(), " scales.");
+    }
+
+    std::vector<track::TileGeometry> geometries;
+    geometries.reserve(images.size());
+    for(size_t i = 0; i < images.size(); ++i) {
+        const auto width = images[i] ? images[i]->cols : 0;
+        const auto height = images[i] ? images[i]->rows : 0;
+        const auto& offset = offsets[i];
+        const auto& scale = scales[i];
+        const auto pad_x = std::max(0.f, -offset.x);
+        const auto pad_y = std::max(0.f, -offset.y);
+        const auto content_width = std::max(0.f, float(width) - 2.f * pad_x);
+        const auto content_height = std::max(0.f, float(height) - 2.f * pad_y);
+        geometries.push_back(track::TileGeometry{
+            .source_region = track::SourceRect(
+                std::max(0.f, offset.x * scale.x),
+                std::max(0.f, offset.y * scale.y),
+                content_width * scale.x,
+                content_height * scale.y),
+            .tile_content = track::TileRect(pad_x, pad_y, content_width, content_height),
+            .tile_size = cmn::Size2(width, height)
+        });
+    }
+    return geometries;
+}
+
+py::tuple tile_affine_arrays(const std::vector<track::TileGeometry>& geometries)
+{
+    const auto affines = track::tile_to_source_affines(geometries);
+    const std::array<py::ssize_t, 2> shape{
+        static_cast<py::ssize_t>(affines.size()),
+        py::ssize_t(2)
+    };
+    py::array_t<float> scales(shape);
+    py::array_t<float> offsets(shape);
+    auto scales_data = scales.mutable_unchecked<2>();
+    auto offsets_data = offsets.mutable_unchecked<2>();
+
+    for(py::ssize_t i = 0; i < static_cast<py::ssize_t>(affines.size()); ++i) {
+        scales_data(i, 0) = affines.at(size_t(i)).scale.x;
+        scales_data(i, 1) = affines.at(size_t(i)).scale.y;
+        offsets_data(i, 0) = affines.at(size_t(i)).tile_offset.x;
+        offsets_data(i, 1) = affines.at(size_t(i)).tile_offset.y;
+    }
+
+    return py::make_tuple(std::move(scales), std::move(offsets));
+}
+
 }
 
 using namespace track::detect;
@@ -323,6 +591,20 @@ using namespace track::detect;
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
     using namespace track::detect;
+
+    py::class_<TRexTqdm>(m, "tqdm")
+        .def(py::init([](py::args args, py::kwargs kwargs) {
+            return std::make_unique<TRexTqdm>(args, kwargs);
+        }))
+        .def("update", &TRexTqdm::update, py::arg("n") = 1)
+        .def("close", &TRexTqdm::close)
+        .def("__iter__", &TRexTqdm::iter, py::return_value_policy::reference_internal)
+        .def("__next__", &TRexTqdm::next)
+        .def("__enter__", &TRexTqdm::iter, py::return_value_policy::reference_internal)
+        .def("__exit__", [](TRexTqdm& self, py::object, py::object, py::object) {
+            self.close();
+            return false;
+        });
 
     py::enum_<track::detect::ModelTaskType>(m, "ModelTaskType")
         .value("detect", track::detect::ModelTaskType::detect)
@@ -363,21 +645,25 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_static("class_name", []() { return std::string(KeypointFormat::class_name()); });
     
     py::class_<ModelConfig>(m, "ModelConfig")
-        .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values, std::optional<KeypointFormat>
+        .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values, std::optional<KeypointFormat>, bool, bool
              >(),
             py::arg("task"),
             py::arg("use_tracking"),
             py::arg("model_path"),
             py::arg("trained_resolution") = DetectResolution{},
             py::arg("output") = ObjectDetectionFormat::data::values::none,
-            py::arg("keypoints") = std::optional<KeypointFormat>{})
+            py::arg("keypoints") = std::optional<KeypointFormat>{},
+            py::arg("requires_exact_input_size") = false,
+            py::arg("try_optimize") = false)
         .def_readwrite("task", &ModelConfig::task)
         .def_readonly("use_tracking", &ModelConfig::use_tracking)
+        .def_readonly("try_optimize", &ModelConfig::try_optimize)
         .def_readonly("model_path", &ModelConfig::model_path)
         .def_readwrite("trained_resolution", &ModelConfig::trained_resolution)
         .def_readwrite("classes", &ModelConfig::classes)
         .def_readwrite("output_format", &ModelConfig::output_format)
         .def_readwrite("keypoint_format", &ModelConfig::keypoint_format)
+        .def_readwrite("requires_exact_input_size", &ModelConfig::requires_exact_input_size)
         .def("__repr__", &ModelConfig::toStr)
         .def("__str__", &ModelConfig::toStr)
         .def_static("class_name", []() { return std::string(ModelConfig::class_name()); });
@@ -405,8 +691,11 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             return v.toStr();
         })
         .def_readonly("x", &Bone::x)
-        .def_readonly("y", &Bone::y);
-        //.def_readonly("conf", &Bone::conf);
+        .def_readonly("y", &Bone::y)
+        .def_readonly("conf", &Bone::conf)
+        .def_property_readonly("visible", [](const Bone& b) {
+            return b.is_visible(READ_SETTING(detect_keypoint_threshold, Float2_t));
+        });
     
     py::class_<Keypoint>(m, "Keypoint")
         .def("__repr__", [](const Keypoint& v) -> std::string {
@@ -461,7 +750,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def(py::init([](int index,
                          track::detect::Boxes boxes_and_scores,
                          py::list masks, track::detect::KeypointData keypoints, track::detect::ObbData obb,
-                             track::detect::PointData points)
+                             track::detect::PointData points, py::object semantic_mask)
                 -> Result
             {
                 auto _masks = transfer_masks(masks);
@@ -471,9 +760,17 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                     std::move(_masks),
                     std::move(keypoints),
                     std::move(obb),
-                    std::move(points)
+                    std::move(points),
+                    transfer_semantic_mask(std::move(semantic_mask))
                 };
-            })
+            }),
+            py::arg("index"),
+            py::arg("boxes_and_scores"),
+            py::arg("masks"),
+            py::arg("keypoints"),
+            py::arg("obb"),
+            py::arg("points"),
+            py::arg("semantic_mask") = py::none()
         )
         .def("__repr__", [](const track::detect::Result& result) -> std::string {
             return result.toStr();
@@ -532,14 +829,54 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def("to_string", &VIWeights::toStr);
 
+    py::class_<track::SourceRect>(m, "SourceRect")
+        .def(py::init<float, float, float, float>())
+        .def_property_readonly("x", [](const track::SourceRect& v) { return v.x; })
+        .def_property_readonly("y", [](const track::SourceRect& v) { return v.y; })
+        .def_property_readonly("width", [](const track::SourceRect& v) { return v.width; })
+        .def_property_readonly("height", [](const track::SourceRect& v) { return v.height; });
+
+    py::class_<track::TileRect>(m, "TileRect")
+        .def(py::init<float, float, float, float>())
+        .def_property_readonly("x", [](const track::TileRect& v) { return v.x; })
+        .def_property_readonly("y", [](const track::TileRect& v) { return v.y; })
+        .def_property_readonly("width", [](const track::TileRect& v) { return v.width; })
+        .def_property_readonly("height", [](const track::TileRect& v) { return v.height; });
+
+    py::class_<track::TileGeometry>(m, "TileGeometry")
+        .def_readonly("source_region", &track::TileGeometry::source_region)
+        .def_readonly("tile_content", &track::TileGeometry::tile_content)
+        .def("scale", &track::TileGeometry::source_scale)
+        .def("offset", &track::TileGeometry::tile_offset_for_affine)
+        .def_property_readonly("source_x", [](const track::TileGeometry& v) { return v.source_region.x; })
+        .def_property_readonly("source_y", [](const track::TileGeometry& v) { return v.source_region.y; })
+        .def_property_readonly("source_width", [](const track::TileGeometry& v) { return v.source_region.width; })
+        .def_property_readonly("source_height", [](const track::TileGeometry& v) { return v.source_region.height; })
+        .def_property_readonly("tile_x", [](const track::TileGeometry& v) { return v.tile_content.x; })
+        .def_property_readonly("tile_y", [](const track::TileGeometry& v) { return v.tile_content.y; })
+        .def_property_readonly("tile_width", [](const track::TileGeometry& v) { return v.tile_content.width; })
+        .def_property_readonly("tile_height", [](const track::TileGeometry& v) { return v.tile_content.height; });
+
+    m.def("tile_affines", &tile_affine_arrays, py::arg("geometries"));
+
     py::class_<track::detect::YoloInput>(m, "YoloInput")
-        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<cmn::Vec2>&&, std::vector<cmn::Vec2>&&, std::vector<size_t>&&>())
+        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<track::TileGeometry>&&, std::vector<size_t>&&>())
+        .def(py::init([](std::vector<cmn::Image::Ptr>&& images,
+                         std::vector<cmn::Vec2>&& offsets,
+                         std::vector<cmn::Vec2>&& scales,
+                         std::vector<size_t>&& orig_id) {
+            auto geometries = geometries_from_legacy_vectors(images, offsets, scales);
+            return track::detect::YoloInput{
+                std::move(images),
+                std::move(geometries),
+                std::move(orig_id)
+            };
+        }))
         .def("__repr__", [](const YoloInput& v) -> std::string {
             return v.toStr();
         })
         .def("images", &track::detect::YoloInput::images)
-        .def("offsets", &track::detect::YoloInput::offsets)
-        .def("scales", &track::detect::YoloInput::scales)
+        .def("tile_geometries", &track::detect::YoloInput::tile_geometries)
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
     py::enum_<track::detect::Sam3PromptType>(m, "Sam3PromptType")
@@ -604,6 +941,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                          std::vector<cmn::Vec2>&& scales,
                          std::vector<size_t>&& orig_id,
                          py::list prompts_per_image) {
+            auto geometries = geometries_from_legacy_vectors(images, offsets, scales);
             track::detect::Sam3PromptsPerImage prompt_lists;
             prompt_lists.reserve(py::len(prompts_per_image));
             for(py::handle item : prompts_per_image) {
@@ -612,8 +950,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             return track::detect::Sam3Input{
                 track::detect::YoloInput{
                     std::move(images),
-                    std::move(offsets),
-                    std::move(scales),
+                    std::move(geometries),
                     std::move(orig_id)
                 },
                 std::move(prompt_lists)
@@ -702,17 +1039,18 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py "), fmt::clr<FormatColor::DARK_YELLOW>(no_quotes(filename)), fmt::clr<FormatColor::DARK_GRAY>(":"), fmt::clr<FormatColor::GREEN>(Meta::toStr(line_no)), fmt::clr<FormatColor::DARK_GRAY>("] "), text.c_str());
     });
 
+    m.def("show_runtime_warning", [](std::string text) {
+        _display_runtime_warning(text);
+    });
+
     m.def("video_size", []() -> pybind11::dict {
         using namespace pybind11::literals;
         
         pybind11::dict d;
         
-        auto size = GlobalSettings::read_value<cmn::Size2>("video_size");
-        auto w = size ? size->width : 1,
-             h = size ? size->height : 1;
-
-        d["width"] = w;
-        d["height"] = h;
+        auto size = GlobalSettings::read_value_with_default("video_size", cmn::Size2{1, 1});
+        d["width"] = size.width;
+        d["height"] = size.height;
         
         return d;
     });
@@ -832,7 +1170,7 @@ std::string& python_gpu_name() {
     return _python_gpu_name;
 }
 
-py::dict json_to_pydict(const glz::json_t& j);
+py::dict json_to_pydict(const glz::generic& j);
 
 std::mutex module_mutex;
 std::map<std::string, std::string> _module_contents;
@@ -847,7 +1185,7 @@ void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* in
     file::DataLocation::set_instance(instance);
     Python::set_instance(python_wrapper);
     buffers::TileBuffers::set(static_cast<buffers::TileBuffers::Buffers_t*>(tile_buffers));
-    thread_print("setting settings instance to ", hex(obj));
+    //thread_print("setting settings instance to ", hex(obj));
 }
 
 template<typename T>
@@ -856,6 +1194,14 @@ void set_function_internal(const char* name_, T&& f, const std::string& m);
 void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn, std::function<void()> destroy_all_windows) {
     _mat_display = fn;
     _destroy_all_windows = destroy_all_windows;
+}
+
+void PythonIntegration::set_runtime_warning_function(
+    std::function<void(const std::string&)> display_runtime_warning
+) {
+    _display_runtime_warning = display_runtime_warning
+        ? std::move(display_runtime_warning)
+        : [](const std::string& message) { FormatWarning(message); };
 }
 
 void PythonIntegration::init() {
@@ -896,17 +1242,8 @@ void PythonIntegration::init() {
     //! set new thread ID. we expect everything to happen from this thread now.
     _saved_id = std::this_thread::get_id();
     
-    if(file::DataLocation::is_registered("app"))
-        file::cd(file::DataLocation::parse("app"));
-    
-    auto trex_init = file::DataLocation::is_registered("app")
-    ? file::DataLocation::parse("app", "trex_init.py")
-    : "trex_init.py";
-    if(not trex_init.exists()) {
-        trex_init = "trex_init.py";
-    }
-    
     try {
+        const auto trex_init = file::DataLocation::parse("app", "trex_init.py");
         using namespace py::literals;
         
 #if defined(WIN32)
@@ -932,6 +1269,7 @@ void PythonIntegration::init() {
 #endif
         
         _main = py::module::import("__main__");
+        py::module_::import("sys").attr("path").attr("insert")(0, trex_init.remove_filename().str());
         _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
             Print("set_version called with ",x," and ",physical_name," - ",has_gpu?"gpu":"no gpu");
@@ -963,7 +1301,7 @@ void PythonIntegration::init() {
             // https://github.com/ultralytics/ultralytics/blame/c20d2654e95d4d8f1a42e106118f21ddb2762115/ultralytics/utils/torch_utils.py#L55
             // and https://github.com/workhorsy/py-cpuinfo/blob/f3f0fec58335b9699b9b294267c15f516045b1fe/cpuinfo/cpuinfo.py#L2753C18-L2753C18
             try {
-                py::exec("import sys; sys.executable = '"+std::string(default_config::conda_environment_path() / "bin" / "python")+"'");
+                py::module_::import("sys").attr("executable") = (default_config::conda_environment_path() / "bin" / "python").str();
             } catch(...) {
                 // catch problems here, but the problem is likely elsewhere so we continue...
             }
@@ -986,7 +1324,7 @@ void PythonIntegration::init() {
         
     } catch(const UtilsException& ex) {
         fail(ex);
-        throw SoftException("Error while executing ", trex_init,". Content: ",ex.what());
+        throw SoftException("Error while initializing Python: ", ex.what());
         
     } catch(py::error_already_set& e) {
         fail(e);
@@ -1035,37 +1373,32 @@ void PythonIntegration::deinit() {
     }
 }
 
-py::module_ import_module_from_file(pybind11::module& main, const file::Path& module_file_path) {
-    // Extract directory path and module name from module_file_path
-    file::Path directory_path = module_file_path.remove_filename();
-    if(directory_path.empty()) {
-        auto mod = main.import(module_file_path.c_str());
-        mod.reload();
-        return mod;
-    }
-    
-    // Remove extension to get module name
-    file::Path module_name_path = module_file_path.has_extension("py")
-            ? module_file_path.remove_extension()
-            : module_file_path;
+static py::module_ import_module_from_file(const std::string& name, const file::Path& path) {
+    auto sys = py::module_::import("sys");
+    auto paths = sys.attr("path");
+    auto directory = py::str(path.remove_filename().str());
+    if(not paths.contains(directory))
+        paths.attr("insert")(1, directory);
 
-    py::module_ sys = main.import("sys");
-    py::list original_sys_path = sys.attr("path").cast<py::list>(); // Save original sys.path
-    sys.attr("path").attr("append")(directory_path.str()); // Temporarily add new path
-
-    py::module_ mod;
+    auto util = py::module_::import("importlib.util");
+    auto spec = util.attr("spec_from_file_location")(name, path.str());
+    auto modules = sys.attr("modules").cast<py::dict>();
+    auto key = py::str(name);
+    py::object previous;
+    if(modules.contains(key))
+        previous = modules[key];
+    auto mod = util.attr("module_from_spec")(spec);
+    modules[key] = mod;
     try {
-        auto filename = module_name_path.filename();
-        mod = main.import(filename.c_str());
-        mod.reload();
-    } catch (py::error_already_set& e) {
-        std::cerr << "Failed to import module: " << e.what() << std::endl;
-        e.restore();
-        mod = py::none(); // Set to None to indicate failure
+        spec.attr("loader").attr("exec_module")(mod);
+        return mod.cast<py::module_>();
+    } catch(...) {
+        if(previous)
+            modules[key] = previous;
+        else
+            modules.attr("pop")(key, py::none());
+        throw;
     }
-
-    sys.attr("path") = original_sys_path; // Restore original sys.path
-    return mod;
 }
 
 bool PythonIntegration::has_loaded_module(const std::string &name) {
@@ -1085,40 +1418,37 @@ bool PythonIntegration::check_module(const std::string& name,
     std::unique_lock guard{module_mutex};
     bool result = false;
     
-    auto cwd = file::cwd().canonical();
-    auto app = file::DataLocation::parse("app").canonical();
-    if(not cwd || not app || *cwd != *app) {
-        FormatWarning("check_module:CWD: ", cwd, " app:", app);
-        if(app)
-            file::cd(*app);
-    }
-        
-    auto filename = app ? (*app / name).add_extension("py") : file::Path(name).add_extension("py");
-    if(not filename.exists())
-        throw U_EXCEPTION("Cannot find the file ", filename, ". Please make sure your TRex installation is not damaged.");
-    
+    const auto module_path = file::Path(name).add_extension("py");
+    const bool from_file = module_path.is_absolute();
+    const auto filename = from_file ? module_path : file::DataLocation::parse("app", module_path);
+
     auto c = filename.read_file();
     if (c != _module_contents[name] || CHECK_NONE(_modules[name])) {
         auto& mod = _modules[name];
 
         try {
-            if (CHECK_NONE(mod)) {
-                mod = import_module_from_file(_main, filename);
-                //mod = _main.import(name.c_str());
+            if(CHECK_NONE(mod)) {
+                mod = from_file ? import_module_from_file(name, filename) : _main.import(name.c_str());
             } else if(unloader) {
                 guard.unlock();
                 unloader();
                 guard.lock();
-                
-                mod.reload();
+                if(from_file)
+                    mod.attr("__spec__").attr("loader").attr("exec_module")(mod);
+                else
+                    mod.reload();
             }
             Print("Reloaded ",filename,".");
             result = true;
         }
         catch (pybind11::error_already_set & e) {
-            FormatExcept("Python runtime exception while reloading ",name,": ", e.what());
-            e.restore();
-            mod.release();
+            if(not CHECK_NONE(mod)) {
+                auto modules = py::module_::import("sys").attr("modules");
+                if(modules.attr("get")(name).is(mod))
+                    modules.attr("pop")(name);
+                mod = py::module_{};
+            }
+            throw SoftException("Python runtime exception while loading ", filename, ": ", e.what());
         }
 
         _module_contents[name] = c;
@@ -1134,13 +1464,13 @@ bool PythonIntegration::check_module(const std::string& name,
     return result;
 }
 
-std::optional<glz::json_t> result_to_json(py::handle&& result) {
+std::optional<glz::generic> result_to_json(py::handle&& result) {
     if(CHECK_NONE(result)) {
         return std::nullopt;
     }
 
-    auto parse_json_string = [](const std::string& str) -> glz::json_t {
-        glz::json_t json;
+    auto parse_json_string = [](const std::string& str) -> glz::generic {
+        glz::generic json;
         auto error = glz::read_json(json, str);
         if(error != glz::error_code::none) {
             std::string descriptive_error = glz::format_error(error, str);
@@ -1169,7 +1499,7 @@ std::optional<glz::json_t> result_to_json(py::handle&& result) {
             try {
                 return parse_json_string(str);
             } catch(...) {
-                glz::json_t json = str;
+                glz::generic json = str;
                 return json;
             }
         }
@@ -1191,7 +1521,7 @@ std::optional<glz::json_t> result_to_json(py::handle&& result) {
     return std::nullopt;
 }
 
-std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function, const std::string& parm) {
+std::optional<glz::generic> PythonIntegration::run(const std::string& module_name, const std::string& function, const std::string& parm) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
     Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
@@ -1240,7 +1570,7 @@ std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name
     return std::nullopt;
 }
 
-std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function) {
+std::optional<glz::generic> PythonIntegration::run(const std::string& module_name, const std::string& function) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
     Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
@@ -1288,7 +1618,7 @@ std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name
     return std::nullopt;
 }
 
-std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function, const glz::json_t& json)
+std::optional<glz::generic> PythonIntegration::run(const std::string& module_name, const std::string& function, const glz::generic& json)
 {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
@@ -1537,9 +1867,9 @@ std::vector<track::detect::Result> PythonIntegration::predict_frame(track::detec
 }
 
 // Forward declaration of the function to handle recursive calls
-py::object json_to_pyobject(const glz::json_t& j);
+py::object json_to_pyobject(const glz::generic& j);
 
-py::dict json_to_pydict(const glz::json_t& j) {
+py::dict json_to_pydict(const glz::generic& j) {
     py::dict dict;
     if(j.is_null())
         return dict;
@@ -1550,7 +1880,7 @@ py::dict json_to_pydict(const glz::json_t& j) {
     return dict;
 }
 
-py::list json_to_pylist(const glz::json_t& j) {
+py::list json_to_pylist(const glz::generic& j) {
     py::list list;
     for (const auto& item : j.get_array()) {
         list.append(json_to_pyobject(item));
@@ -1558,7 +1888,7 @@ py::list json_to_pylist(const glz::json_t& j) {
     return list;
 }
 
-py::object json_to_pyobject(const glz::json_t& j) {
+py::object json_to_pyobject(const glz::generic& j) {
     if (j.is_null()) {
         return py::none();
     } else if (j.is_boolean()) {
@@ -1583,11 +1913,11 @@ py::object json_to_pyobject(const glz::json_t& j) {
 void PythonIntegration::set_function(const char* name_, std::function<bool()> f, const std::string &m) {
     set_function_internal(name_, f, m);
 }
-void PythonIntegration::set_function(const char* name_, std::function<glz::json_t()> f, const std::string &m) {
+void PythonIntegration::set_function(const char* name_, std::function<glz::generic()> f, const std::string &m) {
     set_function_internal(name_, [f = std::move(f)]() -> py::dict {
         //py::dict dict = json_to_pydict(f());
         try {
-            glz::json_t json = f();
+            glz::generic json = f();
             if(json.is_null()) {
                 return py::none();
             }
@@ -1635,11 +1965,11 @@ void PythonIntegration::set_function(const char* name_, std::function<void(const
     auto fn = [f](py::list batch) {
         std::vector<std::vector<cv::Mat>> batch_vector;
         // Each item in the batch is a list of images
-        for (const py::handle& img_list_handle : batch) {
+        for (py::handle img_list_handle : batch) {
             py::list img_list = py::cast<py::list>(img_list_handle);
 
             std::vector<cv::Mat> image_vector;
-            for (const py::handle& np_img_handle : img_list) {
+            for (py::handle np_img_handle : img_list) {
                 py::array_t<uint8_t> np_img = py::cast<py::array_t<uint8_t>>(np_img_handle);
                 py::buffer_info buf_info = np_img.request();
 
@@ -1927,18 +2257,7 @@ void PythonIntegration::execute(const std::string& cmd, bool safety_check)  {
     }
 }
 void PythonIntegration::import_module(const std::string& name) {
-    check_correct_thread_id();
-    
-    std::lock_guard<std::mutex> guard(module_mutex);
-    _module_contents[name] = file::Path(name + ".py").read_file();
-
-    try {
-        _modules[name] = _main.import(name.c_str());
-    }
-    catch (pybind11::error_already_set & e) {
-        _modules[name].release();
-        throw SoftException(e.what());
-    }
+    check_module(name);
 }
 
 void PythonIntegration::unload_module(const std::string& name) {
@@ -1949,10 +2268,8 @@ void PythonIntegration::unload_module(const std::string& name) {
         _module_contents.erase(name);
 
     try {
-        if(_modules.contains(name)) {
-            _modules[name].release();
-            _modules.erase(name);
-        }
+        _modules.erase(name);
+        py::module_::import("sys").attr("modules").attr("pop")(name, py::none());
     }
     catch (pybind11::error_already_set & e) {
         throw SoftException(e.what());

@@ -3,6 +3,10 @@
 #include <misc/frame_t.h>
 #include <pv.h>
 
+namespace track {
+class Tracker;
+}
+
 namespace cmn::gui {
 
 class GUICache;
@@ -12,7 +16,7 @@ class DrawUniqueness: public Entangled {
     std::unique_ptr<Data> _data;
 
 public:
-    DrawUniqueness(GUICache*, std::weak_ptr<pv::File>);
+    DrawUniqueness(GUICache*, std::weak_ptr<track::Tracker>, std::weak_ptr<pv::File>);
 
     /// only exists so i can have a unique_ptr of an undeclared
     /// struct Data:

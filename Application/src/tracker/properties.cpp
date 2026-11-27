@@ -1,6 +1,11 @@
 #include <misc/types.h>
+#include <pv.h>
 #include <gui/IMGUIBase.h>
 #include <data/MotionRecord.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <core/default_config.h>
 #include <ui/GUICache.h>
@@ -97,7 +102,7 @@ void async_main(void*) {
 
 			while (!SETTING(terminate)) {
 				if(SETTING(track_pause)) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					std::this_thread::sleep_for(10ms);
 					continue;
 				}
 
@@ -107,7 +112,7 @@ void async_main(void*) {
 				else if(index + 1_f < file.length())
 					index += 1_f;
 				else {
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					std::this_thread::sleep_for(10ms);
 					continue;
 				}
 
@@ -126,7 +131,9 @@ void async_main(void*) {
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(std::move(single), frame, NULL, track::PPFrame::NeedGrid::NoNeed, file.header().resolution, false);
+				track::Tracker::preprocess_frame(std::move(single), frame, NULL,
+				                                 tracker.frames(), *tracker.background(),
+				                                 track::NeedGrid::NoNeed, track::HistorySplitPolicy::Skip);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();
@@ -354,7 +361,6 @@ int main(int argc, char**argv) {
 	GlobalSettings::map().set_print_by_default(true);
 
 	CommandLine::init(argc, argv);
-    file::cd(file::DataLocation::parse("app"));
 
 	gui::init_errorlog();
 	set_thread_name("main");

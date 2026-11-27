@@ -5,7 +5,7 @@
 __attribute__((constructor))
 static void early_env_setup() {
     cmn::utf8loc::enable_utf8();
-    setenv("KMP_DUPLICATE_LIB_OK", "TRUE", 1);
+    //setenv("KMP_DUPLICATE_LIB_OK", "TRUE", 1);
 }
 #else
 #pragma section(".CRT$XCU", read)
@@ -32,7 +32,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <misc/GlobalSettings.h>
 #include <gui/DynamicGUI.h>
 #include <ui/Scene.h>
-#include <ui/AnnotationScene.h>
+#include <ui/DetectAnnotationScene.h>
 #include <ui/Bowl.h>
 #include <core/TileBuffers.h>
 #include "LiveSegmentation.h"
@@ -56,7 +56,6 @@ int main(int argc, char** argv) {
     
     cmn::CommandLine::init(argc, argv);
     auto& cmd = cmn::CommandLine::instance();
-    cmd.cd_home();
     cmd.load_settings();
 
     SETTING(app_name) = std::string("TRex");
@@ -139,20 +138,18 @@ int main(int argc, char** argv) {
         }
     });
     
-    file::cd(file::DataLocation::parse("app"));
-    
-    //SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4"};
-    //SETTING(source) = file::PathArray{"/Users/tristan/Downloads/20230320_115142188_blue_DJI_0357.MP4"};
+    //SETTING(source) = file::PathArray::from_input("/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4");
+    //SETTING(source) = file::PathArray::from_input("/Users/tristan/Downloads/20230320_115142188_blue_DJI_0357.MP4");
     LiveSegmentation live_scene(base);
-    AnnotationScene annotation_scene(base);
-    manager.register_scene(&annotation_scene);
+    DetectAnnotationScene detect_annotation_scene(base);
+    manager.register_scene(&detect_annotation_scene);
     manager.register_scene(&live_scene);
-    //manager.set_active(&annotation_scene);
+    //manager.set_active(&detect_annotation_scene);
     manager.set_active(&live_scene);
     
     gui::SFLoop loop(*base.graph(), &base, [&](gui::SFLoop&, LoopStatus) {
         if(f.valid()
-           && f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+           && cmn::is_future_ready(f))
         {
             try {
                 f.get();

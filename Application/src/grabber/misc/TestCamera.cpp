@@ -9,7 +9,7 @@ namespace fg {
         _image = cv::Mat::zeros(_size.height, _size.width, CV_8UC1);
         
         if(GlobalSettings::has_value("test_image")) {
-            std::string test_image = SETTING(test_image);
+            auto test_image = SETTING(test_image).value<std::string>();
             if (test_image == "checkerboard") {
                 static cv::Mat checkerboard;
                 checkerboard = cv::Mat::ones(_image.rows, _image.cols, CV_8UC1) * 255;

@@ -61,7 +61,7 @@ BackgroundSubtraction::BackgroundSubtraction(Image::Ptr&& average) {
             while(not data().has_background()
                   && not manager().is_terminated())
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(100ms);
 
                 auto elapsed = std::chrono::steady_clock::now() - message_time;
                 if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
@@ -108,11 +108,7 @@ BackgroundSubtraction::Data& BackgroundSubtraction::data() {
 std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Tiled.promise was already set.");
-    tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-    
-    auto f = tiled.promise->get_future();
-    manager().enqueue(std::move(tiled));
-    return f;
+    return std::move(tiled).enqueue(manager());
 }
 
 void BackgroundSubtraction::deinit() {
@@ -183,7 +179,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                         cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2BGR);
                     else
                         throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
-                    
+
                 } else
                     throw U_EXCEPTION("Invalid image mode ", mode);
                 
@@ -213,7 +209,11 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
             #if defined(TAGS_ENABLE)
                     if(!GRAB_SETTINGS(tags_saved_only))
             #endif
-                        rawblobs = CPULabeling::run(r3, cache, true);
+                        rawblobs = CPULabeling::run(
+                            r3,
+                            cache,
+                            true,
+                            mode != meta_encoding_t::binary);
 
                     const uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
                             | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation)
@@ -223,7 +223,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                     for (auto& blob : tag.tags) {
                         rawblobs.emplace_back(
                             std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
-                            std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()),
+                            (mode != meta_encoding_t::binary) ? std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()) : nullptr,
                             flags);
                     }
 

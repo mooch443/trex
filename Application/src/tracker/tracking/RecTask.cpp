@@ -1,4 +1,5 @@
 #include "RecTask.h"
+#include <misc/Path.h>
 
 #include <commons.pc.h>
 #include <misc/Timer.h>
@@ -122,7 +123,7 @@ void RecTask::thread() {
                 _current_fdx = Idx_t();
             }
 
-            _variable.wait_for(guard, std::chrono::milliseconds(1));
+            _variable.wait_for(guard, 1ms);
         }
         
     } catch(const SoftExceptionImpl&) {
@@ -218,7 +219,7 @@ void RecTask::update(RecTask&& task) {
         static const bool tags_save_predictions = BOOL_SETTING(tags_save_predictions);
         if(tags_save_predictions) {
             static std::atomic<int64_t> saved_index{0};
-            static const auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
+            static const auto filename = READ_SETTING(filename, file::Filename).str();
 
             file::Path output = file::DataLocation::parse("output", "tags_" + filename) / Meta::toStr(max_key);
             if(!output.exists())
@@ -266,7 +267,7 @@ void RecTask::remove(Idx_t fdx) {
 
     while(_current_fdx.valid() && fdx == _current_fdx) {
         // we are currently processing an individual
-        _variable.wait_for(guard, std::chrono::milliseconds(1));
+        _variable.wait_for(guard, 1ms);
     }
 }
 

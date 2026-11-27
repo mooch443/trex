@@ -5,6 +5,8 @@
 #include <misc/frame_t.h>
 #include <core/SizeFilters.h>
 #include <processing/CPULabeling.h>
+#include <tracking/SplitExpectation.h>
+#include <core/TrackingSettings.h>
 
 namespace cmn {
 class Background;
@@ -17,23 +19,6 @@ class PPFrame;
 
 using FilterReason = pv::FilterReason;
 using namespace cmn;
-
-struct split_expectation {
-    size_t number;
-    bool allow_less_than;
-    std::vector<std::vector<Vec2>> centers;
-    
-    split_expectation(size_t number = 0, bool allow_less_than = false)
-        : number(number), allow_less_than(allow_less_than)
-    { }
-    
-    std::string toStr() const {
-        return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
-    }
-    static consteval std::string_view class_name() {
-        return "split_expectation";
-    }
-};
 
 struct PrefilterBlobs {
 private:
@@ -48,7 +33,7 @@ private:
 public:
     CPULabeling::ListCache_t cache;
     
-    Frame_t frame_index;
+    Frame_t frame_index, start_frame, end_frame;
     SizeFilters fish_size;
     const Background* background;
     int threshold;
@@ -59,7 +44,8 @@ public:
     PrefilterBlobs(Frame_t index,
                    int threshold,
                    const SizeFilters& fish_size,
-                   const Background& background);
+                   const Background& background,
+                   Frame_t start, Frame_t end);
     PrefilterBlobs(const PrefilterBlobs&) = delete;
     PrefilterBlobs(PrefilterBlobs&&) noexcept = default;
     PrefilterBlobs& operator=(const PrefilterBlobs&) = delete;
@@ -82,6 +68,7 @@ public:
     void big_blob(std::vector<pv::BlobPtr>&&);
     
     static void split_big(
+        const cmn::Background&,
         Frame_t frame_index,
         std::vector<pv::BlobPtr> && big_blobs,
         const BlobReceiver& noise,
@@ -91,8 +78,8 @@ public:
         std::ostream* out = nullptr,
         GenericThreadPool* pool = nullptr);
     
-    static bool blob_matches_shapes(const pv::Blob&, const std::vector<std::vector<Vec2>>&);
-    static bool rect_overlaps_shapes(const Bounds&, const std::vector<std::vector<Vec2>>&);
+    static bool blob_matches_shapes(const pv::Blob&, const ShapeList&);
+    static bool rect_overlaps_shapes(const Bounds&, const ShapeList&);
     static bool is_blob_ignored(Frame_t frame_index, const pv::Blob&, const std::optional<const std::set<pv::bid>*>& track_ignore_bdx_c);
 };
 

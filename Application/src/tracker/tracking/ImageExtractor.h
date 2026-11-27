@@ -9,16 +9,25 @@
 #include <pv.h>
 #include <misc/PackLambda.h>
 #include <tracking/TrackletInformation.h>
+#include <data/FrameRepository.h>
 
 
 using namespace track;
 
+namespace track {
+class Tracker;
+class Border;
+}
+
 namespace extract {
+
+struct AcceptedQuery {};
 
 struct Task {
     Idx_t fdx;
     pv::bid bdx;
     Range<Frame_t> tracklet;
+    std::unique_ptr<AcceptedQuery> query;
     
     std::string toStr() const {
         return "task<"+Meta::toStr(fdx)+","+Meta::toStr(bdx)+">";
@@ -26,6 +35,7 @@ struct Task {
 };
 
 struct Query {
+    Idx_t fdx;
     const BasicStuff* basic;
     const PostureStuff* posture;
 };
@@ -35,6 +45,7 @@ struct Result {
     Idx_t fdx;
     pv::bid bdx;
     Image::Ptr image;
+    std::unique_ptr<AcceptedQuery> query;
 };
 
 enum class Flag {
@@ -58,22 +69,31 @@ struct Settings {
     uint32_t flags{0u};
     uint64_t max_size_bytes{1000u * 1000u * 1000u};
     Size2 image_size{Float2_t(80), Float2_t(80)};
+    uint8_t channels{1};
     uint8_t num_threads{5u};
     default_config::individual_image_normalization_t::Class normalization{default_config::individual_image_normalization_t::none};
     uint64_t item_step{1u};
     Frame_t tracklet_min_samples{0u};
     std::function<std::unique_ptr<std::shared_lock<std::shared_mutex>>()> query_lock = nullptr;
     
+    Background* background{nullptr};
+    const Border* border{nullptr};
+    const data::FrameRepository* frames{nullptr};
+    
     std::string toStr() const {
         return "settings<flags:"+Meta::toStr(flags)
             +" max:"+FileSize{max_size_bytes}.toStr()
             +" res:"+Meta::toStr(image_size)
+            +" channels:"+Meta::toStr(channels)
             +" threads:"+Meta::toStr(num_threads)
             +" step:"+Meta::toStr(item_step)
             +" min_samples:"+Meta::toStr(tracklet_min_samples)
             +">";
     }
 };
+
+template<typename T, typename K>
+concept explicitly_convertible = std::constructible_from<K, T>;
 
 class ImageExtractor {
 public:
@@ -92,7 +112,7 @@ private:
     
     std::thread _thread;
     
-    using selector_sig = bool(const Query&);
+    using selector_sig = std::unique_ptr<AcceptedQuery>(const Query&);
     using partial_apply_sig = void(std::vector<Result>&&);
     using callback_sig = void(ImageExtractor*, double p, bool finished);
     
@@ -103,15 +123,16 @@ private:
 public:
     template<typename F>
     ImageExtractor(std::shared_ptr<pv::File>&& video,
+                   const Tracker& tracker,
                    F && selector,
                    auto && partial_apply,
                    auto && callback,
                    Settings&& settings = {})
-        requires requires (Query q, F && selector) { { selector(q) } -> std::convertible_to<bool>; }
+        requires requires (Query q, F && selector) { { selector(q) } -> explicitly_convertible<bool>; }
                       && similar_args<decltype(partial_apply), partial_apply_sig>
                       && similar_args<decltype(callback), callback_sig>
                       && similar_args<decltype(selector), selector_sig>
-    :   _settings(std::move(settings)),
+    :   _settings(init_additional(tracker, std::move(settings))),
         _video(video),
         _thread([this,
                  selector = pack<selector_sig>(std::move(selector)),
@@ -129,6 +150,10 @@ public:
     
     ~ImageExtractor();
     
+private:
+    static Settings init_additional(const track::Tracker&, Settings&&);
+    
+public:
     std::future<void>& future();
     
     //! Filter tasks based on properties set in _settings::flags
@@ -149,7 +174,8 @@ public:
     
     //! Retrieve image data from the video file, associated with the
     //! filtered tasks from all previous steps.
-    uint64_t retrieve_image_data(partial_apply_t&& apply, callback_t& callback);
+    uint64_t retrieve_image_data(partial_apply_t&& apply, callback_t& callback,
+                                 /*const Border&,*/ const Background&, const data::FrameRepository&);
 };
 
 }

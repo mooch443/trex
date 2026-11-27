@@ -75,13 +75,18 @@ struct RepeatedDeferral {
                 try {
                     runtime.reset();
                     r = _fn();
-                    e = runtime.elapsed();
+                } catch(const std::exception& ex) {
+                    if constexpr(requires { r = std::unexpected(std::string(ex.what())); })
+                        r = std::unexpected(std::string(ex.what()));
+                    else
+                        FormatExcept(ex.what());
                 }
                 catch (...) {
-                    //throw;
                     FormatExcept("Unknown exception occurred.");
-                    //p.set_exception(std::current_exception());
+                    if constexpr(requires { r = std::unexpected(std::string{}); })
+                        r = std::unexpected(std::string("Unknown exception occurred."));
                 }
+                e = runtime.elapsed();
                 guard.lock();
                 
                 if(_next.size() > _threads) {

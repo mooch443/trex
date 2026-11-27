@@ -3,13 +3,13 @@
 #include <processing/Background.h>
 #include <misc/SpriteMap.h>
 #include <misc/GlobalSettings.h>
-#include <grabber/misc/default_config.h>
 #include <processing/PVBlob.h>
 #include <processing/CPULabeling.h>
 #include <misc/ranges.h>
 #include <file/DataLocation.h>
 #include <processing/DLList.h>
 #include <core/default_config.h>
+#include <core/SizeFilters.h>
 
 using namespace cmn;
 
@@ -38,8 +38,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     file::DataLocation::register_path("merge", [](const sprite::Map& map, file::Path filename) -> file::Path {
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-            if(GlobalSettings::is_runtime_quiet())
-                Print("Returning absolute path ", filename.str(), ". We cannot be sure this is writable.");
+            //if(GlobalSettings::is_runtime_quiet(&map))
+            //    Print("Returning absolute path ", filename.str(), ". We cannot be sure this is writable.");
 #endif
             return filename;
         }
@@ -69,24 +69,24 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             min_length = file->length();
 
         resolution += Size2(file->header().resolution);
-        backgrounds.push_back(std::make_shared<Background>(Image::Make(file->average()), file->header().encoding));
+        backgrounds.push_back(std::make_shared<Background>(Bounds(Size2(file->average())), Image::Make(file->average()), file->header().encoding));
 
-        SETTING(filename) = name.remove_extension();
+        SETTING(filename) = file::Filename(name.remove_extension().filename());
         auto settings_file = file::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
             Print("settings for ", name.str(), " found");
             Configuration config;
-            grab::default_config::get(config);
+            ::default_config::get(config);
 
             GlobalSettings::load_from_file(settings_file.str(), {
                 .access = AccessLevelType::STARTUP,
                 .target = &config.values
             });
             if(file->header().metadata.has_value())
-                sprite::parse_values(sprite::MapSource{file->filename()}, config.values, file->header().metadata.value(), nullptr, {}, default_config::deprecations());
-            if(!config.has("meta_real_width") || config.at("meta_real_width").value<Float2_t>() == 0)
+                sprite::parse_values(sprite::MapSource{file->filename()}, config.values, file->header().metadata.value(), nullptr, {"filename"}, default_config::deprecations());
+            if(config.values.value_with_default("meta_real_width", Float2_t(0)) == 0)
                 config.values["meta_real_width"].value<Float2_t>(30);
-            if(!config.has("cm_per_pixel") || config.at("cm_per_pixel").value<Float2_t>() == 0)
+            if(config.values.value_with_default("cm_per_pixel", Float2_t(0)) == 0)
                 config.values["cm_per_pixel"] = Float2_t(config.at("meta_real_width").value<Float2_t>() / Float2_t(file->average().cols));
 
             cms_per_pixel[file.get()] = config.at("cm_per_pixel").value<Float2_t>();
@@ -143,12 +143,12 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         resolution = Size2(average);
     }
 
-    Background new_background(Image::Make(average), meta_encoding_t::gray);
+    Background new_background(Bounds(Vec2(), Size2(average)), Image::Make(average), meta_encoding_t::gray);
 
     if(READ_SETTING(frame_rate, uint32_t) == 0) {
         if(files.front()->header().metadata.has_value())
             GlobalSettings::write([&](Configuration& config) {
-                sprite::parse_values(sprite::MapSource{files.front()->filename()}, config.values, files.front()->header().metadata.value(), nullptr, {}, default_config::deprecations());
+                sprite::parse_values(sprite::MapSource{files.front()->filename()}, config.values, files.front()->header().metadata.value(), nullptr, {"filename"}, default_config::deprecations());
             });
     }
 
@@ -202,7 +202,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     const bool merge_overlapping_blobs = BOOL_SETTING(merge_overlapping_blobs);
 
     auto timestamp_offset = output.length() == 0_f ? timestamp_t(0) : output.last_frame().timestamp();
-    merge_mode_t::Class merge_mode = SETTING(merge_mode);
+    merge_mode_t::Class merge_mode = SETTING(merge_mode).value<merge_mode_t::Class>();
 
     for(Frame_t frame = 0_f; frame < min_length; ++frame) {
         pv::Frame f, o;
@@ -219,7 +219,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
 
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
             Vec2 scale = merge_mode == merge_mode_t::centered ? Vec2(1) : Vec2(Size2(average).div(Size2(file->average())));
-            auto blob_size_range = configs.at(vdx).at("blob_size_range").value<Rangef>();
+            auto track_size_filter = configs.at(vdx).at("track_size_filter").value<SizeFilters>();
             const int track_threshold = configs.at(vdx).at("track_threshold").value<int>();
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
 
@@ -227,7 +227,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 auto b = f.steal_blob(i);
                 auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
 
-                if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)
+                if(not track_size_filter.in_range_of_one(recount, 0.1, 5.0))
                     continue;
 
                 auto id = b->blob_id();

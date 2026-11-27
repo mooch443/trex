@@ -7,8 +7,21 @@
 #include <gmock/gmock.h>
 #include <misc/Path.h>
 #include <misc/SpriteMap.h>
+#include "test_filesystem.h"
 
 using namespace cmn;
+
+namespace cmn::file {
+std::ostream& operator<<(std::ostream& os, const file::Path& dt)
+{
+    os << dt.str();
+    return os;
+}
+}
+
+void PrintTo(const std::vector<file::Path>& params, std::ostream* os) {
+    *os << Meta::toStr(params);
+}
 
 TEST(SpriteMapTest, Basic) {
     sprite::Map map;
@@ -28,7 +41,7 @@ struct TrivialType {
     std::string toStr() const { throw std::exception(); }
     static TrivialType fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "TrivialType"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct NonTrivialType {
@@ -38,7 +51,7 @@ struct NonTrivialType {
     std::string toStr() const { throw std::exception(); }
     static NonTrivialType fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "NonTrivialType"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct TrivialTypeWithoutNonEquals {
@@ -47,7 +60,7 @@ struct TrivialTypeWithoutNonEquals {
     std::string toStr() const { throw std::exception(); }
     static TrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "TrivialTypeWithoutNonEquals"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 struct NonTrivialTypeWithoutNonEquals {
@@ -56,7 +69,7 @@ struct NonTrivialTypeWithoutNonEquals {
     std::string toStr() const { throw std::exception(); }
     static NonTrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
     static consteval std::string_view class_name() { return "NonTrivialTypeWithoutNonEquals"; }
-    glz::json_t to_json() const { throw std::exception(); }
+    glz::generic to_json() const { throw std::exception(); }
 };
 
 TEST(ValueStoreTest, TrivialTypeWithNotEqualOperator) {
@@ -298,26 +311,21 @@ TEST(NarrowCast, EdgeCases) {
 #endif
 
 TEST(PathArrayTest, AddPath) {
-    file::_PathArray<> pa;
 #if defined(_WIN32)
-    pa.add_path("C:\\path\\to\\file1");
-    pa.add_path("C:\\path\\to\\file2");
+    const auto pa = file::PathArray::from_files({"C:\\path\\to\\file1", "C:\\path\\to\\file2"});
 #else
-    pa.add_path("/path/to/file1");
-    pa.add_path("/path/to/file2");
+    const auto pa = file::PathArray::from_files({"/path/to/file1", "/path/to/file2"});
 #endif
     EXPECT_FALSE(pa.empty());
 }
 
 TEST(PathArrayTest, IteratorBeginAndEnd) {
-    file::_PathArray<> pa;
 #if defined(_WIN32)
-    pa.add_path("C:\\path\\to\\file1");
-    pa.add_path("C:\\path\\to\\file2");
+    const auto pa = file::PathArray::from_files({"C:\\path\\to\\file1", "C:\\path\\to\\file2"});
 #else
-    pa.add_path("/path/to/file1");
-    pa.add_path("/path/to/file2");
+    const auto pa = file::PathArray::from_files({"/path/to/file1", "/path/to/file2"});
 #endif
+    ASSERT_EQ(pa.size(), 2u);
     auto it = pa.begin();
 #if defined(_WIN32)
     EXPECT_EQ(it->str(), "C:\\path\\to\\file1"); // Assuming file::Path has a str() function to return its string representation
@@ -333,14 +341,13 @@ TEST(PathArrayTest, IteratorBeginAndEnd) {
 }
 
 TEST(PathArrayTest, GetPaths) {
-    file::_PathArray<> pa;
 #if defined(_WIN32)
-    pa.add_path("C:\\path\\to\\file1");
+    const auto pa = file::PathArray::from_files({"C:\\path\\to\\file1"});
 #else
-    pa.add_path("/path/to/file1");
+    const auto pa = file::PathArray::from_files({"/path/to/file1"});
 #endif
     const auto& paths = pa.get_paths();
-    EXPECT_EQ(paths.size(), 1);
+    ASSERT_EQ(paths.size(), 1);
 #if defined(_WIN32)
     EXPECT_EQ(paths[0].str(), "C:\\path\\to\\file1"); // Again, assuming file::Path has a str() function
 #else
@@ -369,20 +376,12 @@ TEST(PathArrayTest, ConstructorAndEmpty) {
 
     // Using local mock filesystem
     file::_PathArray<LocalMockFilesystem> pa;
-    EXPECT_TRUE(pa.empty());
+    EXPECT_TRUE(pa.resolves_to_empty());
 }
 
 template<typename FS>
 std::vector<file::Path> resolve_paths_artificially(std::string pattern) {
-    using Defer = file::_PathArray<FS>::DeferredFileCheck;
-
-    std::vector<Defer> checks;
-    std::optional<std::vector<std::string>> to_be_resolved;
-    bool has_to_be_filtered{ false };
-    FS fs{};
-    auto parsed_paths = file::_PathArray<FS>::parse_path(pattern, matched, to_be_resolved, checks, has_to_be_filtered);
-    file::_PathArray<FS>::ensure_loaded_static(parsed_paths, checks, to_be_resolved, has_to_be_filtered, fs);
-    return parsed_paths;
+    return file::_PathArray<FS>::from_input(pattern).resolve_if({}).get_paths();
 }
 
 TEST(PathArrayTest, ParsePath) {
@@ -413,32 +412,40 @@ TEST(PathArrayTest, ParsePath) {
 
 #if defined(_WIN32)
     Print("Parsing path: C:\\path\\to\\file%0.2d => ", mockFs.find_files(""));
-    auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path\\to\\file%0.2d");
+    const auto source = file::_PathArray<LocalMockFilesystem>::from_input("C:\\path\\to\\file%0.2d");
+#else
+    Print("Parsing path: /path/to/file%0.2d => ", mockFs.find_files(""));
+    const auto source = file::_PathArray<LocalMockFilesystem>::from_input("/path/to/file%0.2d");
+#endif
+    ASSERT_TRUE(source.expression().has_value()) << "Pattern input must remain scalar until resolution.";
+    ASSERT_TRUE(source.contains_patterns()) << "The numbered pattern %0.2d must be recognized.";
+    auto parsed_paths = source.resolve_if().get_paths();
+    ASSERT_EQ(parsed_paths.size(), 3u) << Meta::toStr(parsed_paths);
+#if defined(_WIN32)
     EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file00");
     EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file01");
     EXPECT_EQ(parsed_paths[2].str(), "C:\\path\\to\\file02");
 #else
-    Print("Parsing path: /path/to/file%0.2d => ", mockFs.find_files(""));
-    auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path/to/file%0.2d");
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file00");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file01");
     EXPECT_EQ(parsed_paths[2].str(), "/path/to/file02");
 #endif
 
-    EXPECT_EQ(parsed_paths.size(), 3);
-    
 #if defined(_WIN32)
     Print("Parsing path: C:\\path\\to\\file%1.2d => ", mockFs.find_files(""));
     parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path\\to\\file%1.2d");
-    EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file01");
-    EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file02");
 #else
     Print("Parsing path: /path/to/file%1.2d => ", mockFs.find_files(""));
     parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path/to/file%1.2d");
+#endif
+    ASSERT_EQ(parsed_paths.size(), 2u) << Meta::toStr(parsed_paths);
+#if defined(_WIN32)
+    EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file01");
+    EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file02");
+#else
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file01");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file02");
 #endif
-    EXPECT_EQ(parsed_paths.size(), 2);
 }
 
 TEST(PathArrayTest, ParsePath_StarWithSubdirectories) {
@@ -489,20 +496,20 @@ TEST(PathArrayTest, ParsePath_StarWithSubdirectories) {
     // Note: The behavior for whether directories are returned or not depends on code;
     //       if directories should not match '*', filter them out in a real test scenario.
     //       For this test, we assume directories are matched just like files.
-    EXPECT_EQ(parsed_paths.size(), 4);
+    ASSERT_EQ(parsed_paths.size(), 4);
     EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\another_file.txt");
     EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file_a.txt");
     EXPECT_EQ(parsed_paths[2].str(), "C:\\path\\to\\file_b.log");
     EXPECT_EQ(parsed_paths[3].str(), "C:\\path\\to\\subdir");
 #else
     auto parsed_paths = resolve_paths_artificially<StarMockFilesystem>("/path/to/*");
-    EXPECT_EQ(parsed_paths.size(), 4);
+    ASSERT_EQ(parsed_paths.size(), 4);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/another_file.txt");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file_a.txt");
     EXPECT_EQ(parsed_paths[2].str(), "/path/to/file_b.log");
     EXPECT_EQ(parsed_paths[3].str(), "/path/to/subdir");
     
-    file::_PathArray<StarMockFilesystem> array("/path/to/*");
+    const auto array = file::_PathArray<StarMockFilesystem>::from_input("/path/to/*").resolved_at();
     EXPECT_EQ(array.size(), 4u);
     EXPECT_EQ(array.toStr(), Meta::toStr(array.get_paths()));
 #endif
@@ -593,15 +600,15 @@ TEST(PathArrayTest, ParsePath_From10ToEnd) {
 
 #if defined(_WIN32)
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path\\to\\file%10.3d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file010");
     EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file011");
 #else
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path/to/file%10.3d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file010");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file011");
 #endif
-
-    EXPECT_EQ(parsed_paths.size(), 2);
 }
 
 // Custom mock filesystem for this specific test case
@@ -629,14 +636,14 @@ struct RootMockFilesystem : public file::FilesystemInterface {
 };
 
 TEST(PathArrayTest, RootFolderTest) {
-    file::_PathArray<RootMockFilesystem> pa;
 #if defined(_WIN32)
-    pa.add_path("C:\\*");
+    const auto pa = file::_PathArray<RootMockFilesystem>::from_input("C:\\*");
 #else
-    pa.add_path("/*");
+    const auto pa = file::_PathArray<RootMockFilesystem>::from_input("/*");
 #endif
-    const auto& paths = pa.get_paths();
-    EXPECT_EQ(paths.size(), 2);
+    const auto files = pa.resolved_at();
+    const auto& paths = files.get_paths();
+    ASSERT_EQ(paths.size(), 2);
 #if defined(_WIN32)
     EXPECT_EQ(paths[0].str(), "C:\\file1.txt");
     EXPECT_EQ(paths[1].str(), "C:\\folder1");
@@ -666,15 +673,15 @@ TEST(PathArrayTest, ParsePath_3DigitsPadded) {
 
 #if defined(_WIN32)
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path\\to\\file%3d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file000");
     EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file001");
 #else
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path/to/file%3d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file000");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file001");
 #endif
-
-    EXPECT_EQ(parsed_paths.size(), 2);
 }
 
 // Test pattern matching with %03d (should be the same as %3d)
@@ -698,15 +705,15 @@ TEST(PathArrayTest, ParsePath_03DigitsPadded) {
 
 #if defined(_WIN32)
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path\\to\\file%03d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file000");
     EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file001");
 #else
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path/to/file%03d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file000");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file001");
 #endif
-
-    EXPECT_EQ(parsed_paths.size(), 2);
 }
 
 // Test pattern matching with filenames having spaces
@@ -730,15 +737,15 @@ TEST(PathArrayTest, ParsePath_FilenamesWithSpaces) {
 
 #if defined(_WIN32)
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path to\\file %3d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "C:\\path to\\file 000");
     EXPECT_EQ(parsed_paths[1].str(), "C:\\path to\\file 001");
 #else
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path to/file %3d");
+    ASSERT_EQ(parsed_paths.size(), 2);
     EXPECT_EQ(parsed_paths[0].str(), "/path to/file 000");
     EXPECT_EQ(parsed_paths[1].str(), "/path to/file 001");
 #endif
-
-    EXPECT_EQ(parsed_paths.size(), 2);
 }
 
 // Test pattern matching with %[10,20,30]
@@ -781,11 +788,7 @@ TEST(PathArrayTest, ParsePath_Array) {
 TEST(PathArrayTest, ParsePath_ArrayFormat) {
     struct LocalMockFilesystem : public file::FilesystemInterface {
         std::set<file::Path> find_files(const file::Path& ) const override {
-#if defined(_WIN32)
-            return { file::Path("path\\to\\file1"), file::Path("C:\\other\\path") };
-#else
             return { file::Path("path/to/file1"), file::Path("/other/path") };
-#endif
         }
 
         bool is_folder(const file::Path& ) const override {
@@ -796,20 +799,44 @@ TEST(PathArrayTest, ParsePath_ArrayFormat) {
             return find_files("").count(path) > 0;
         }
     };
+    
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::from_input(R"(["path/to/file1","/other/path"])");
+    ASSERT_EQ(parsed_paths.size(), 2);
+    
 #if defined(_WIN32)
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>("[\"path\\to\\file1\",\"C:\\other\\path\"]");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path\to\file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(\other\path)");
 #else
-    auto parsed_paths = file::_PathArray<LocalMockFilesystem>("[\"path/to/file1\",\"/other/path\"]");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path/to/file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(/other/path)");
 #endif
+}
 
-    EXPECT_EQ(parsed_paths.size(), 2);
+// Test pattern matching with array
+TEST(PathArrayTest, ParsePath_ArrayFormatWindows) {
+    struct LocalMockFilesystem : public file::FilesystemInterface {
+        std::set<file::Path> find_files(const file::Path& ) const override {
+            return { file::Path("path\\to\\file1"), file::Path("C:\\other\\path") };
+        }
+
+        bool is_folder(const file::Path& ) const override {
+            return true;
+        }
+
+        bool exists(const file::Path& path) const override {
+            return find_files("").count(path) > 0;
+        }
+    };
+    
+    auto parsed_paths = file::_PathArray<LocalMockFilesystem>::from_input(R"(["path\\to\\file1","C:\\other\\path"])");
+    ASSERT_EQ(parsed_paths.size(), 2);
 
 #if defined(_WIN32)
-    EXPECT_EQ(parsed_paths[0].str(), "path\\to\\file1");
-    EXPECT_EQ(parsed_paths[1].str(), "C:\\other\\path");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path\to\file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(C:\other\path)");
 #else
-    EXPECT_EQ(parsed_paths[0].str(), "path/to/file1");
-    EXPECT_EQ(parsed_paths[1].str(), "/other/path");
+    EXPECT_EQ(parsed_paths[0].str(), R"(path/to/file1)");
+    EXPECT_EQ(parsed_paths[1].str(), R"(C:/other/path)");
 #endif
 }
 
@@ -833,17 +860,17 @@ TEST(PathArrayTest, ParsePath_Star) {
 
 #if defined(_WIN32)
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("C:\\path\\to\\file*");
+    ASSERT_EQ(parsed_paths.size(), 3);
     EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\file1");
     EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file2");
     EXPECT_EQ(parsed_paths[2].str(), "C:\\path\\to\\file3");
 #else
     auto parsed_paths = resolve_paths_artificially<LocalMockFilesystem>("/path/to/file*");
+    ASSERT_EQ(parsed_paths.size(), 3);
     EXPECT_EQ(parsed_paths[0].str(), "/path/to/file1");
     EXPECT_EQ(parsed_paths[1].str(), "/path/to/file2");
     EXPECT_EQ(parsed_paths[2].str(), "/path/to/file3");
 #endif
-
-    EXPECT_EQ(parsed_paths.size(), 3);
 }
 
 TEST(FindBasenameTest, EmptyPathArray) {
@@ -852,30 +879,30 @@ TEST(FindBasenameTest, EmptyPathArray) {
 }
 
 TEST(FindBasenameTest, SingleElement) {
-  file::PathArray singleElement = { "/path/to/file.txt" };
+  auto singleElement = file::PathArray::from_input( "/path/to/file.txt" );
   EXPECT_EQ("file", find_basename(singleElement));
 }
 
 TEST(FindBasenameTest, MultipleElements) {
-    file::PathArray multipleElements{
-        { "/path/to/file.txt", "/path/to/another_file.txt", "/path/to/yet_another.txt" }
-    };
+    auto multipleElements = file::PathArray::from_files({
+        "/path/to/file.txt", "/path/to/another_file.txt", "/path/to/yet_another.txt"
+    });
   // Replace with your expected result
   EXPECT_EQ("to", find_basename(multipleElements));
 }
 
 TEST(FindBasenameTest, MultipleElementsAndSamePrefix) {
-    file::PathArray multipleElements{
-        { "/path/to/file0001.txt", "/path/to/file0002.txt", "/path/to/file0005.txt" }
-    };
+    auto multipleElements = file::PathArray::from_files({
+        "/path/to/file0001.txt", "/path/to/file0002.txt", "/path/to/file0005.txt"
+    });
   // Replace with your expected result
   EXPECT_EQ("to", find_basename(multipleElements));
 }
 
 TEST(FindBasenameTest, DifferentDirectories) {
-    file::PathArray differentDirs{
-        { "/first/path/to/file.txt", "/second/path/to/file.txt" }
-    };
+    auto differentDirs = file::PathArray::from_files({
+        "/first/path/to/file.txt", "/second/path/to/file.txt"
+    });
   // Replace with your expected result
   EXPECT_EQ("file", find_basename(differentDirs));
 }
@@ -925,11 +952,7 @@ TEST(PathConcatenation, AbsoluteRhs) {
 TEST(PathConcatenation, EmptyLhs) {
     Path lhs("");
     Path rhs("relative");
-//#if defined(WIN32)
-//    EXPECT_EQ((lhs / rhs).str(), "relative");  // Empty lhs should result in only rhs
-//#else
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()) + "relative");  // Empty lhs should result in only rhs
-//#endif
+    EXPECT_EQ((lhs / rhs).str(), "relative");
 }
 
 // Test concatenation where the rhs is empty
@@ -943,11 +966,7 @@ TEST(PathConcatenation, EmptyRhs) {
 TEST(PathConcatenation, BothEmpty) {
     Path lhs("");
     Path rhs("");
-//#if defined(WIN32)
-//    EXPECT_EQ((lhs / rhs).str(), "");  // Both paths empty should result in empty
-//#else
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()));
-//#endif
+    EXPECT_EQ((lhs / rhs).str(), "");
 }
 
 // Test concatenation with various special characters in paths
@@ -1078,20 +1097,6 @@ TEST(PathNormalization, RootSlashPreservation) {
     EXPECT_EQ(root.str(), "/");  // Single root slash should be preserved
 }
 
-// Test concatenation with an absolute right-hand side path
-TEST(PathConcatenation, AbsoluteRhsError) {
-    Path lhs("path/to");
-    Path rhs("/absolute/path");
-    EXPECT_THROW(lhs / rhs, std::invalid_argument);  // Should throw due to absolute rhs
-}
-
-// Test concatenation where both paths are empty
-TEST(PathConcatenation, BothEmpty2) {
-    Path lhs("");
-    Path rhs("");
-    EXPECT_EQ((lhs / rhs).str(), std::string(1, file::Path::os_sep()));  // Both paths empty should result in empty
-}
-
 // Test concatenation with empty rhs and lhs having a trailing separator
 TEST(PathConcatenation, EmptyRhsWithTrailingSeparator) {
     Path lhs("path/to/");
@@ -1136,43 +1141,172 @@ struct MockFilesystem : public file::FilesystemInterface {
 
 // Test constructor with empty string
 TEST(PathArrayTest, EmptyConstructor) {
-    file::PathArray paths;
-    EXPECT_TRUE(paths.get_paths().empty());  // Expect no paths
+    const file::PathArray paths;
+    EXPECT_TRUE(paths.empty_or_invalid()) << "A default-constructed array has no source to resolve.";
 }
 
-// Test constructor with a single path
+TEST(PathArrayTest, SinglePvFileMatchesItsExtension) {
+    const auto recording = file::PathArray::from_files({"recording.PV"});
+    EXPECT_FALSE(recording.empty());
+    EXPECT_TRUE(recording.is_single_file());
+    EXPECT_TRUE(recording.is_single_file("pv"));
+    EXPECT_FALSE(recording.is_single_file("mp4"));
+}
+
+TEST(PathArrayTest, EmptyListsHaveNoSourceOrBasename) {
+    const auto parsed = file::PathArray::from_input("[]");
+    EXPECT_TRUE(parsed.empty());
+    EXPECT_TRUE(parsed.get_paths().empty());
+    EXPECT_FALSE(parsed.is_single_file());
+    EXPECT_FALSE(parsed.all_files_are("pv"));
+    EXPECT_TRUE(file::find_basename(parsed).empty());
+
+    const auto from_vector = file::PathArray::from_files({});
+    EXPECT_TRUE(from_vector.empty());
+    EXPECT_TRUE(file::find_basename(from_vector).empty());
+
+    const auto from_file = file::PathArray::from_file(file::Path{});
+    EXPECT_TRUE(from_file.empty());
+    EXPECT_FALSE(from_file.has_single_match());
+}
+
+TEST(PathArrayTest, AllFilesArePvChecksEveryEntry) {
+    const auto recordings = file::PathArray::from_input(R"(["morning.pv","evening.PV"])");
+    const auto mixed = file::PathArray::from_input(R"(["morning.pv","evening.mp4"])");
+    EXPECT_FALSE(recordings.is_single_file());
+    EXPECT_TRUE(recordings.all_files_are("pv"));
+    EXPECT_FALSE(mixed.all_files_are("pv"));
+}
+
+namespace {
+struct RecordingsFilesystem : trex_test::TestFilesystem {
+    RecordingsFilesystem() : TestFilesystem{"morning.pv", "evening.pv", "video.mp4"} {}
+};
+}
+
+TEST(PathArrayTest, PvWildcardChecksAllMatchesOnFirstAccess) {
+    const auto recordings = file::_PathArray<RecordingsFilesystem>::from_input("*.pv").resolved_at({});
+    EXPECT_TRUE(recordings.all_files_are("pv"));
+    EXPECT_FALSE(recordings.has_single_match("pv"));
+
+    const auto missing = file::_PathArray<RecordingsFilesystem>::from_input("missing-*.pv");
+    EXPECT_EQ(missing.expression().value_or(""), "missing-*.pv");
+    EXPECT_FALSE(missing.empty_or_invalid());
+    const auto resolved = missing.resolved_at({});
+    EXPECT_TRUE(resolved.empty_or_invalid());
+    EXPECT_FALSE(resolved.any_files_are("pv"));
+    EXPECT_FALSE(resolved.all_files_are("pv"));
+    EXPECT_FALSE(resolved.has_single_match("pv"));
+}
+
+TEST(PathArrayTest, AssigningWildcardSettingDoesNotReadTheFilesystem) {
+    struct Filesystem : RecordingsFilesystem {
+        bool is_folder(const file::Path&) const override {
+            throw std::logic_error("Assigning the source setting looked up its directory.");
+        }
+    };
+    using Paths = file::_PathArray<Filesystem>;
+    sprite::Property<Paths> source("source");
+    const auto wildcard = Paths::from_input("clips/*.mov");
+
+    ASSERT_NO_THROW(source.assign_if(wildcard));
+    EXPECT_EQ(source.value(), wildcard);
+}
+
+TEST(PathArrayTest, MixedWildcardListChecksFilesFromBothPatterns) {
+    const auto movies = file::_PathArray<RecordingsFilesystem>::from_input("*.mp4").resolved_at({});
+    const auto pv_files = file::_PathArray<RecordingsFilesystem>::from_input("evening*.pv").resolved_at({});
+    auto files = movies.get_paths();
+    files.insert(files.end(), pv_files.begin(), pv_files.end());
+    const auto recordings = file::PathArray::from_files(std::move(files));
+    EXPECT_TRUE(recordings.any_files_are("pv"));
+    EXPECT_TRUE(recordings.any_files_are("mp4"));
+    EXPECT_FALSE(recordings.all_files_are("pv"));
+    EXPECT_EQ(recordings.size(), 2u);
+}
+
+namespace {
+struct SurveyFilesystem : trex_test::TestFilesystem {
+    SurveyFilesystem() : TestFilesystem{"/launch/clips/day01/fish000.pv", "/launch/clips/day01/fish001.pv",
+                                        "/launch/clips/day01/notes.txt", "/launch/calibration.tif"} {}
+};
+}
+
+TEST(PathArrayTest, RelativeWildcardKeepsItsDirectoryWhenExpandedAtLaunch) {
+    const auto source = file::_PathArray<SurveyFilesystem>::from_input(R"(clips\day01\fish*.pv)");
+    ASSERT_TRUE(source.resolves_to_empty({})) << "The process directory contains no matching recordings.";
+
+    const auto recordings = source.resolved_at("/launch");
+    const std::vector<file::Path> expected{"clips/day01/fish000.pv", "clips/day01/fish001.pv"};
+    EXPECT_EQ(recordings.get_paths(), expected) << "Only the lookup uses the absolute launch directory.";
+}
+
+TEST(PathArrayTest, RelativeNumberedSequenceAndAbsoluteLiteralKeepTheirSpelling) {
+    const auto source = file::_PathArray<SurveyFilesystem>::from_input("clips/day01/fish%03d.pv");
+    const auto sequence = source.resolved_at("/launch");
+    std::vector<file::Path> selected{"/launch/calibration.tif"};
+    selected.insert(selected.end(), sequence.begin(), sequence.end());
+    const auto files = file::PathArray::from_files(std::move(selected));
+    const std::vector<file::Path> expected{"/launch/calibration.tif", "clips/day01/fish000.pv", "clips/day01/fish001.pv"};
+    EXPECT_EQ(files.get_paths(), expected);
+}
+
+TEST(PathArrayTest, ResolvedFilesKeepPatternCharactersLiteral) {
+    const std::vector<file::Path> names{"fish%03d.pv", "a*b.mov"};
+    const auto files = file::PathArray::from_files(names);
+    EXPECT_FALSE(files.contains_patterns());
+    EXPECT_EQ(files.resolve_if("/launch").get_paths(), names);
+}
+
+TEST(PathArrayTest, ResolvedPathKeepsPatternCharactersAfterJsonRoundTrip) {
+    struct RecordingFilesystem : trex_test::TestFilesystem {
+        RecordingFilesystem() : TestFilesystem{"clips/fish%03d.pv", "clips/fish000.pv"} {}
+    };
+    using Paths = file::_PathArray<RecordingFilesystem>;
+    const std::vector<file::Path> selected{"clips/fish%03d.pv"};
+    const auto recording = Paths::from_files(selected);
+
+    const auto json = glz::write_json(recording.to_json());
+    ASSERT_TRUE(json.has_value());
+    const auto restored = Meta::fromStr<Paths>(json.value());
+
+    EXPECT_EQ(restored.get_paths(), selected);
+}
+
+TEST(PathArrayTest, ResolvedPathKeepsQuotesAfterJsonRoundTrip) {
+    const std::vector<file::Path> selected{"'survey'"};
+    const auto original = file::PathArray::from_files(selected);
+    const auto json = glz::write_json(original.to_json());
+    ASSERT_TRUE(json.has_value());
+
+    const auto restored = Meta::fromStr<file::PathArray>(*json);
+
+    EXPECT_EQ(restored.get_paths(), selected);
+}
+
+// Test parsing and resolving a single path.
 TEST(PathArrayTest, SinglePathConstructor) {
-    file::_PathArray<MockFilesystem> paths("path/to/file");
-    EXPECT_EQ(paths.get_paths().size(), 1);  // Expect one path
+    const auto paths = file::_PathArray<MockFilesystem>::from_input("path/to/file").resolve_if();
+    ASSERT_EQ(paths.get_paths().size(), 1);  // Expect one path
     EXPECT_EQ(paths.get_paths().front().str(), file::make_path("path", "to", "file"));  // Check the path is correct
 }
 
-// Test constructor with array of paths as string
-TEST(PathArrayTest, ArrayOfStringConstructor) {
-    file::_PathArray<MockFilesystem> paths("[\"path/to/file1\", \"path/to/file2\"]");
-    EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
-    EXPECT_EQ(paths.get_paths()[0].str(), file::make_path("path", "to", "file1"));  // Check the first path
-    EXPECT_EQ(paths.get_paths()[1].str(), file::make_path("path", "to", "file2"));  // Check the second path
-}
-
-// Test constructor with vector of strings
+// Test construction from a vector of literal paths.
 TEST(PathArrayTest, VectorOfStringConstructor) {
-    std::vector<std::string> vec_paths = {"path/to/file1", "path/to/file2"};
-    file::_PathArray<MockFilesystem> paths(vec_paths);
-    EXPECT_EQ(paths.get_paths().size(), 2);  // Expect two paths
+    std::vector<file::Path> vec_paths = {"path/to/file1", "path/to/file2"};
+    auto paths = file::_PathArray<MockFilesystem>::from_files(vec_paths);
+    ASSERT_EQ(paths.get_paths().size(), 2);  // Expect two paths
     EXPECT_EQ(paths.get_paths()[0].str(), file::make_path("path","to","file1"));  // Check the first path
     EXPECT_EQ(paths.get_paths()[1].str(), file::make_path("path","to","file2"));  // Check the second path
 }
 
-// Test copy and move constructors
 TEST(PathArrayTest, CopyAndMoveConstructors) {
-    file::_PathArray<MockFilesystem> original("path/to/file");
-    auto copied = original;  // Copy constructor
-    EXPECT_EQ(copied.get_paths().size(), 1);  // Expect one path in the copied object
+    auto original = file::_PathArray<MockFilesystem>::from_input("path/to/file");
+    auto copied = original;
+    EXPECT_EQ(copied.resolve_if().get_paths().size(), 1);
 
-    file::_PathArray<MockFilesystem> moved = std::move(original);  // Move constructor
-    EXPECT_EQ(moved.get_paths().size(), 1);  // Expect one path in the moved object
-    EXPECT_TRUE(original.get_paths().empty());  // Original should be empty after move
+    file::_PathArray<MockFilesystem> moved = std::move(original);
+    EXPECT_EQ(moved.resolve_if().get_paths().size(), 1);
 }
 
 

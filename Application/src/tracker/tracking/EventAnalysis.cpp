@@ -1,6 +1,7 @@
 #include "EventAnalysis.h"
 #include <misc/Timer.h>
 #include <tracking/Individual.h>
+#include <tracking/Stuffs.h>
 
 namespace track {
 namespace EventAnalysis {

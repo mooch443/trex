@@ -1,7 +1,9 @@
 #include <commons.pc.h>
+#include <pv.h>
 #include <misc/Image.h>
 
 #include <tracking/Individual.h>
+#include <tracking/PPFrame.h>
 #include <tracking/Tracker.h>
 #include <core/default_config.h>
 #include <tracking/Output.h>
@@ -19,8 +21,6 @@ struct Tmp {
 
 int main(int argc, char**argv) {
     CommandLine::init(argc, argv);
-    auto&cmd = CommandLine::instance();
-    cmd.cd_home();
     
     print("Sizeof transform = ", sizeof(gui::Transform));
     
@@ -33,7 +33,7 @@ int main(int argc, char**argv) {
     file::Path path("/Users/tristan/Videos/group_1.pv");
     //file::Path path("/Users/tristan/Videos/tmp/20180505_100700_body.pv");
     //file::Path path("/Users/tristan/Videos/locusts/converted/four_patches_tagged_60_locusts_top_right_high_top_left_low_20220610_142144_body.pv");
-    SETTING(filename) = path.remove_extension("pv");
+    SETTING(filename) = file::Filename(path.remove_extension("pv").filename());
     
     auto video = std::make_shared<pv::File>(path, pv::FileMode::READ);
     video->print_info();
@@ -66,7 +66,9 @@ int main(int argc, char**argv) {
         double s = 0;
         for(Frame_t i=0_f; i<video->length(); ++i) {
             video->read_frame(frame, i);
-            track::Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, video->header().resolution, false);
+            track::Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                                             tracker.frames(), *tracker.background(),
+                                             track::NeedGrid::NoNeed, track::HistorySplitPolicy::Skip);
             tracker.add(pp);
             
             s += timer.elapsed();
@@ -143,7 +145,7 @@ int main(int argc, char**argv) {
         };
         
         
-        while(features.future().wait_for(std::chrono::milliseconds(1)) != std::future_status::ready) {
+        while(not cmn::is_future_ready<1ms>(features.future())) {
             tf::show();
         }
         

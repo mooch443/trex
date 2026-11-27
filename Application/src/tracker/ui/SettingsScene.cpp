@@ -8,22 +8,23 @@
 //#include <gui/types/Checkbox.h>
 #include <gui/dyn/Action.h>
 #include <video/VideoSource.h>
-//#include <core/AbstractVideoSource.h>
-//#include <core/VideoVideoSource.h>
-//#include <core/WebcamVideoSource.h>
+#include <core/SettingsPaths.h>
 #include <gui/DynamicGUI.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsInitializer.h>
 #include <core/BlurryVideoLoop.h>
 #include <ui/GUIVideoAdapterElement.h>
 #include <core/VideoInfo.h>
 #include <ui/GUIVideoAdapter.h>
 #include <ui/WorkProgress.h>
 #include <ui/Coordinates.h>
+#include <core/DetectionTypes.h>
 #include <python/Detection.h>
 #include <tracking/Output.h>
 #include <python/PythonWrapper.h>
+#include <python/BackendRegistry.h>
 
 #include <ui/TrackingScene.h>
+#include <ui/ConvertScene.h>
 
 #include <portable-file-dialogs.h>
 #include <misc/ProtectedProperty.h>
@@ -37,6 +38,13 @@ void SettingsScene::reset_last_opened_tab() {
 }
 
 namespace {
+thread_local bool restoring_settings = false;
+
+struct SettingsRestoreGuard {
+    bool previous = std::exchange(restoring_settings, true);
+    ~SettingsRestoreGuard() { restoring_settings = previous; }
+};
+
 void set_global_setting_from_path_string(const std::string& parm, const std::string& path) {
     auto ref = GlobalSettings::get(parm);
     auto& setting = ref.get();
@@ -46,6 +54,11 @@ void set_global_setting_from_path_string(const std::string& parm, const std::str
         setting.set_value_from_string(path);
     }
 }
+
+void copy_file_locations(sprite::Map& values, const sprite::Map& source) {
+    for(auto key : {"output_dir", "output_prefix", "settings_file"})
+        source.at(key).get().copy_to(values);
+}
 }
 
 struct SettingsScene::Data {
@@ -54,7 +67,12 @@ struct SettingsScene::Data {
     double blur_percentage{0};
     
     std::mutex _video_source_mutex;
-    std::future<void> check_new_video_source;
+    struct SourceSelection {
+        file::PathArray requested, input;
+    };
+    using CheckedSource = std::expected<SourceSelection, std::string>;
+    std::future<CheckedSource> check_new_video_source;
+    std::atomic<bool> _video_source_changed{true};
     
     dyn::DynamicGUI dynGUI;
     cmn::CallbackFuture callback;
@@ -63,27 +81,52 @@ struct SettingsScene::Data {
     std::unordered_map<std::string, std::future<bool>> _scheduled_exist_checks;
     std::unordered_map<std::string, bool> _done_exist_checks;
     
-    Timer output_name_check;
+    Timer source_paths_timer;
     std::optional<file::Path> last_output_name;
+    std::optional<file::Path> existing_pv_path;
+    std::optional<file::PathArray> conversion_input;
 
-    GuardedProperty<file::PathArray> current_path;
-    
-    std::atomic<bool> _selected_source_exists{false};
+    // Only checked input files or a camera token with its settings loaded are available to the preview and conversion.
+    std::optional<file::PathArray> current_path;
     
     std::mutex _task_lock;
     std::vector<std::future<void>> _running_tasks;
     std::atomic<size_t> _are_python_tasks_running{0};
-    std::atomic<bool> _are_video_checks_running{false};
-    
-    std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t, blob::MaybeObjectClass_t>> _cached_resolutions;
-    sprite::Map _defaults;
+    std::mutex _detection_model_task_mutex;
+
+    struct DetectionModelRequest {
+        track::detect::ObjectDetectionType_t type;
+        file::Path detect_model;
+        file::Path region_model;
+
+        bool is_current() const {
+            return type == READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{})
+                && detect_model == detect::yolo::current_detect_model_path()
+                && region_model == detect::yolo::current_region_model_path();
+        }
+    };
+
+    struct DetectionModelResult {
+        uint64_t generation;
+        DetectionModelRequest request;
+        std::vector<track::detect::ModelConfig> models;
+    };
+
+    std::atomic<uint64_t> _model_generation{0};
+    std::atomic<bool> _detection_models_changed{false};
+    ProtectedProperty<std::optional<DetectionModelResult>> _model_configs;
+    std::map<std::pair<std::string, std::string>, std::vector<track::detect::ModelConfig>> _cached_model_configs;
+    track::detect::TemporaryClassNames _model_class_names{[this] {
+        if(auto config = model_config(track::detect::ModelTaskType::detect))
+            return config->classes;
+        return track::detect::yolo::names::owner_map_t{};
+    }};
     std::stack<std::string> _last_layouts;
     
     IMGUIBase *_window{nullptr};
     
-    file::PathArray _initial_source;
-    std::atomic<Size2> _next_video_size;
-    Size2 _video_size;
+    file::PathArray _loaded_source;
+    std::atomic<Size2> _video_size;
     std::unordered_map<std::string, Layout::Ptr> _video_adapters;
     
     ~Data() {
@@ -93,30 +136,43 @@ struct SettingsScene::Data {
             GlobalSettings::unregister_callbacks(std::move(callback));
         dynGUI.clear();
         
-        if(std::unique_lock guard{_video_source_mutex};
-           check_new_video_source.valid())
-        {
-            check_new_video_source.get();
-        }
+        if(check_new_video_source.valid())
+            check_new_video_source.wait();
     }
     
-    file::Path target_file(std::string_view ext = "pv") {
-        if(ext == "results") {
-            auto filename = Output::TrackingResults::expected_filename();
-            return filename;
-        }
-        
-        auto filename = READ_SETTING(filename, file::Path);
-        if(filename.empty())
-            filename = GlobalSettings::read([](const Configuration& config){
-                return settings::find_output_name(config.values);
-            });
-        if(not filename.has_extension() || filename.extension() != ext)
-            filename = filename.add_extension(ext);
-        return filename;
+    CheckedSource check_video_source(file::PathArray source);
+
+    void invalidate_source_paths() {
+        last_output_name.reset();
+        existing_pv_path.reset();
+        conversion_input.reset();
+        source_paths_timer.reset();
     }
-    
-    void check_video_source(file::PathArray source);
+
+    bool checks_running() const {
+        return _are_python_tasks_running.load() > 0 || _video_source_changed.load()
+            || check_new_video_source.valid()
+            || (dynGUI.current_object_handler
+                && dynGUI.current_object_handler->has_pending_global_path_lookup("source"));
+    }
+
+    bool source_ready() const {
+        return current_path.has_value() && not checks_running();
+    }
+
+    file::Path existing_pv_file() {
+        if(checks_running())
+            return {};
+        if(not existing_pv_path) {
+            try {
+                const auto path = settings::resolve_recording_path();
+                existing_pv_path = path.is_regular() ? path : file::Path{};
+            } catch(const std::exception&) {
+                existing_pv_path = file::Path{};
+            }
+        }
+        return *existing_pv_path;
+    }
     
     void update_running_tasks(bool wait = false) {
 #ifndef NDEBUG
@@ -124,7 +180,7 @@ struct SettingsScene::Data {
 #endif
         std::unique_lock guard(_task_lock);
         for(auto it = _running_tasks.begin(); it != _running_tasks.end();) {
-            if(wait || it->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            if(wait || cmn::is_future_ready(*it)) {
                 try {
                     it->get();
                 } catch(...) {
@@ -141,115 +197,164 @@ struct SettingsScene::Data {
         
         if(_running_tasks.empty()) {
             _are_python_tasks_running = 0;
-            Print("// Setting python tasks = 0");
+            //Print("// Setting python tasks = 0");
         }
     }
-    
+
+    std::optional<track::detect::ModelConfig> model_config(track::detect::ModelTaskType task) const {
+        auto result = _model_configs.get();
+        if(result
+           && result->generation == _model_generation.load()
+           && result->request.is_current())
+        {
+            for(const auto& config : result->models) {
+                if(config.task == task)
+                    return config;
+            }
+        }
+        return std::nullopt;
+    }
+
+    bool detection_model_ready() const {
+        auto detect_type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
+        if(detect_type == track::detect::ObjectDetectionType::precomputed)
+            return not READ_SETTING(detect_precomputed_file, file::PathArray).resolves_to_empty();
+        if(detect_type != track::detect::ObjectDetectionType::yolo)
+            return true;
+
+        const auto config = model_config(track::detect::ModelTaskType::detect);
+        return config
+            && config->output_format != track::detect::ObjectDetectionFormat::none
+            && detect::yolo::valid_model(detect::yolo::current_detect_model_path());
+    }
+
+    file::PathArray current_conversion_source(const sprite::Map* values = nullptr) const {
+        try {
+            if(not values) {
+                return GlobalSettings::read([&](const Configuration& config) {
+                    return current_conversion_source(&config.values);
+                });
+            }
+            const auto usable = [&](const file::PathArray& requested) -> file::PathArray {
+                if(settings::is_camera_source(requested))
+                    return requested;
+                auto input = file::DataLocation::parse("input", requested, values);
+                const auto& paths = input.get_paths();
+                if(not paths.empty() && std::ranges::all_of(paths, [](const auto& path) {
+                    return not path.has_extension("pv") && path.is_regular();
+                }))
+                    return input;
+                return {};
+            };
+            const auto requested = values->at("source").value<file::PathArray>();
+            if(settings::is_camera_source(requested))
+                return requested;
+            const auto selected = requested.resolve_if();
+            if(selected.empty() || settings::video_source_error(selected))
+                return {};
+            auto input = usable(selected);
+            if(not input.empty_or_invalid())
+                return input;
+
+            const auto original = file::PathArray::from_input(values->value_with_default("meta_source_path", std::string{}));
+            input = usable(original);
+            if(not input.empty_or_invalid())
+                return input;
+            const auto expression = original.expression();
+            if(not expression && not original.has_single_match())
+                return {};
+            const file::Path path = expression ? file::Path(*expression) : original[0];
+            if(path.empty() || path.is_absolute())
+                return {};
+            const auto fallback = file::DataLocation::parse("output", path, values);
+            return usable(expression ? file::PathArray::from_input(fallback.str())
+                                     : file::PathArray::from_files({fallback}));
+        } catch(const std::exception&) {
+            return {};
+        }
+    }
+
     void detection_models_updated() {
         update_running_tasks();
+
+        const auto generation = _model_generation.load();
+        const auto type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
+        if(type != track::detect::ObjectDetectionType::yolo) {
+            return;
+        }
+
+        const DetectionModelRequest request{
+            .type = type,
+            .detect_model = detect::yolo::current_detect_model_path(),
+            .region_model = detect::yolo::current_region_model_path()
+        };
+
+        // Text fields may briefly publish incomplete paths while they are
+        // edited. Do not start Python, or accept an arbitrary regular file,
+        // until the detector path is a supported model.
+        if(not track::detect::yolo::valid_model(request.detect_model))
+            return;
         
         std::unique_lock guard(_task_lock);
         ++_are_python_tasks_running;
-        Print("// Python tasks running = ", _are_python_tasks_running.load());
+        //Print("// Python tasks running = ", _are_python_tasks_running.load());
         
         _running_tasks.emplace_back(Python::schedule(Python::PackagedTask{
             ._network = nullptr,
-            ._task = [this,
-                      detect_model = READ_SETTING(detect_model, file::Path),
-                      region_model = READ_SETTING(region_model, file::Path)]()
+            ._task = [this, request, generation]()
             {
+                std::unique_lock model_guard(_detection_model_task_mutex);
+
                 try {
-                    auto original_detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
-                    
-                    if(not detect_model.empty()
-                       && (track::detect::yolo::is_valid_default_model(detect_model.str())
-                           || detect_model.is_regular()))
+                    if(generation == _model_generation.load() && request.is_current())
                     {
-                        /// check whether we either 1. have no *region_model* active,
-                        /// or both region model and detect model exit and are
-                        /// also in the map:
-                        if(_cached_resolutions.contains(detect_model.str())
-                           && (region_model.empty() || (region_model.is_regular() && _cached_resolutions.contains(region_model.str()))))
+                        const auto key = std::pair{request.detect_model.str(), request.region_model.str()};
+                        const bool cacheable = request.region_model.empty() || request.region_model.is_regular();
+                        if(cacheable && _cached_model_configs.contains(key))
                         {
-                            auto [resolution, format, classes] = _cached_resolutions.at(detect_model.str());
-                            SETTING(detect_resolution) = resolution;
-                            SETTING(detect_format) = format;
-                            SETTING(detect_classes) = classes;
-                            if(format != track::detect::ObjectDetectionFormat::poses)
-                                SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};
-                            
-                            if(region_model.is_regular()) {
-                                SETTING(region_resolution) = std::get<0>(_cached_resolutions.at(region_model.str()));
-                            } else
-                                SETTING(region_resolution) = track::detect::DetectResolution{};
+                            _model_configs.set(DetectionModelResult{
+                                generation, request, _cached_model_configs.at(key)
+                            });
                             
                         } else {
                             /// for no cache, reinit:
                             try {
-                                /// have to clear this before running init, so it will be populated
-                                SETTING(detect_classes) = blob::MaybeObjectClass_t{};
-                                
-                                /// populate the settings fields we need
+                                std::vector<track::detect::ModelConfig> models;
                                 if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo); hooks && hooks->init) {
-                                    hooks->init();
+                                    models = hooks->init();
                                 } else {
                                     throw U_EXCEPTION("YOLO backend is unavailable.");
-                                }
-                                /// -----
-                                
-                                auto detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
-                                auto format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
-                                
-                                _cached_resolutions[detect_model.str()] = {
-                                    READ_SETTING(detect_resolution, track::detect::DetectResolution),
-                                    format,
-                                    detect_classes
-                                };
-                                
-                                if(format != track::detect::ObjectDetectionFormat::poses)
-                                    SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};
-                                
-                                if(region_model.is_regular()) {
-                                    if(not _cached_resolutions.contains(region_model.str())) {
-                                        _cached_resolutions[region_model.str()] = {
-                                            READ_SETTING(region_resolution, track::detect::DetectResolution),
-                                            track::detect::ObjectDetectionFormat::none,
-                                            blob::MaybeObjectClass_t{}
-                                        };
-                                    }
                                 }
                                 
                                 /// dont need to keep it
                                 if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo); hooks && hooks->deinit) {
                                     hooks->deinit();
                                 }
+
+                                if(generation == _model_generation.load() && request.is_current()) {
+                                    if(cacheable)
+                                        _cached_model_configs[key] = models;
+                                    _model_configs.set(DetectionModelResult{generation, request, std::move(models)});
+                                }
                                 
                             } catch(...) {
-                                SETTING(detect_resolution) = track::detect::DetectResolution{};
-                                SETTING(region_resolution) = track::detect::DetectResolution{};
-                                SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
-                                SETTING(detect_classes) = blob::MaybeObjectClass_t{};
-                                
-                                FormatWarning("Failed to initialize ", READ_SETTING(detect_model, file::Path));
+                                try {
+                                    if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo);
+                                       hooks && hooks->deinit)
+                                    {
+                                        hooks->deinit();
+                                    }
+                                } catch(const std::exception& ex) {
+                                    FormatWarning("Failed to clean up the detection model after initialization failed: ", ex.what());
+                                } catch(...) {
+                                    FormatWarning("Failed to clean up the detection model after initialization failed.");
+                                }
+
+                                FormatWarning("Failed to initialize ", request.detect_model);
                             }
                         }
-                    } else {
-                        SETTING(detect_resolution) = track::detect::DetectResolution{};
-                        SETTING(region_resolution) = track::detect::DetectResolution{};
-                        SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
-                        SETTING(detect_classes) = blob::MaybeObjectClass_t{};
                     }
-                    
-                    if(auto detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
-                       original_detect_classes.has_value()
-                       && (not detect_classes.has_value()
-                           || (extract_keys(detect_classes.value()) == extract_keys(original_detect_classes.value())
-                               && detect_classes.value() != original_detect_classes.value())))
-                    {
-                        Print("// Replacing models original classes ", detect_classes, " with custom classes ", original_detect_classes);
-                        SETTING(detect_classes) = original_detect_classes;
-                    }
-                    
+
                     --_are_python_tasks_running;
                     Print("// Python tasks running(normal end) = ", _are_python_tasks_running.load());
                     
@@ -268,47 +373,29 @@ struct SettingsScene::Data {
             GlobalSettings::unregister_callbacks(std::move(callback));
         
         auto fn = [this](std::string_view name) {
-            if(name == "filename") {
-                auto path = GlobalSettings::read_value<file::Path>("filename");
-                if(path && not path->empty() && not path->remove_filename().empty()) {
-                    if(path->has_extension("pv"))
-                        path = path->remove_extension();
-                    path = path->filename();
-                    SETTING(filename) = *path;
-                }
+            if(is_in(name, "detect_type", "detect_model", "region_model", "output_dir", "output_prefix"))
+                ++_model_generation;
+
+            if(restoring_settings && is_in(name, "detect_type", "filename", "source")) {
+                if(name == "detect_type")
+                    _detection_models_changed = true;
+                return;
+            }
+
+            if(name == "averaging_method") {
+                SETTING(reset_average) = true;
+                
             } else if(name == "source") {
                 //SETTING(filename) = file::Path();
-
-                auto source = GlobalSettings::read_value<file::PathArray>("source");
-                
-                std::unique_lock guard{_video_source_mutex};
-                if(check_new_video_source.valid()) {
-                    check_new_video_source.get();
-                }
-                
-                Print("// Video check running...");
-                _are_video_checks_running = true;
-                check_new_video_source = std::async(std::launch::async, [source, this](){
-                    try {
-                        update_running_tasks(true);
-                        if(source)
-                            check_video_source(*source);
-                        _are_video_checks_running = false;
-                        Print("// Video check stopped.");
-                    
-                    } catch(...) {
-                        _are_video_checks_running = false;
-                        Print("// Video check crashed.");
-                        throw;
-                    }
-                });
+                _video_source_changed = true;
                 
             } else if(name == "detect_type") {
                 auto detect_type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
                 
                 ExtendableVector exclude;
-                if(not READ_SETTING(detect_model, file::Path).empty()
-                   && READ_SETTING(detect_model, file::Path) != file::Path(track::detect::yolo::default_model()).remove_extension())
+                if(auto detect_model = detect::yolo::current_detect_model_path();
+                   not detect_model.empty()
+                   && detect_model != file::Path(track::detect::yolo::default_model()).remove_extension())
                 {
                     exclude = {
                         "detect_model"
@@ -323,9 +410,18 @@ struct SettingsScene::Data {
                 GlobalSettings::write([&](Configuration& config){
                     settings::set_defaults_for(detect_type, config.values, exclude, config.values.at("cm_per_pixel").value<track::Settings::cm_per_pixel_t>());
                 });
+
+                if(detect_type == track::detect::ObjectDetectionType::yolo)
+                    _detection_models_changed = true;
+                else {
+                    if(is_in(detect_type, track::detect::ObjectDetectionType::background_subtraction, track::detect::ObjectDetectionType::precomputed, track::detect::ObjectDetectionType::none)) {
+                        SETTING(detect_model) = file::Path{};
+                        SETTING(region_model) = file::Path{};
+                    }
+                }
                 
-            } else if(name == "detect_model" || name == "region_model") {
-                detection_models_updated();
+            } else if(is_in(name, "detect_model", "region_model", "output_dir", "output_prefix")) {
+                _detection_models_changed = true;
             }
         };
         
@@ -334,48 +430,47 @@ struct SettingsScene::Data {
             "source",
             "detect_type",
             "detect_model",
-            "region_model"
-            
+            "region_model",
+            "averaging_method",
+            "output_dir",
+            "output_prefix"
+
         }, fn);
         
-        fn("source");
-        
-        if(not READ_SETTING(source, file::PathArray).empty())
+        if(not READ_SETTING(source, file::PathArray).empty_or_invalid())
             fn("detect_model");
     }
     
-    sprite::Map get_changed_props() const {
-        auto [copy, defaults] = GlobalSettings::read([](const Configuration& config){
-            return std::make_tuple(config.values, config.defaults);
-        });
-        auto _defaults = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
-            return with_config;
-        });
+    sprite::Map get_changed_props(const GlobalSettings::MutableSnapshot& snapshot) const {
+        auto copy = snapshot.config.values;
+        const auto& defaults = snapshot.config.defaults;
+        const auto& _defaults = snapshot.current_defaults_with_config;
         //const auto &defaults = GlobalSettings::defaults();
         //const auto &_defaults = GlobalSettings::current_defaults_with_config();
         
 #ifndef NDEBUG
-        Print("current video_conversion_range = ", _defaults.at("video_conversion_range"));
+        /*Print("current video_conversion_range = ", _defaults.at("video_conversion_range"));
         Print("current video_conversion_range = ", copy.at("video_conversion_range"));
         Print("keys = ", copy.keys());
-        Print("_defaults keys = ", _defaults.keys());
+        Print("_defaults keys = ", _defaults.keys());*/
 #endif
         
         for(auto &key : copy.keys()) {
+            if(is_in(key, "output_dir", "output_prefix", "settings_file"))
+                continue;
             if(  ( (_defaults.has(key)
                      && copy.at(key).get() != _defaults.at(key).get())
                    || not defaults.has(key)
                    || defaults.at(key) != copy.at(key)
                   )
-                //|| (this->_defaults.has(key) && copy.at(key).get() != this->_defaults.at(key).get()))
-               && (GlobalSettings::access_level(key) < AccessLevelType::INIT
-                   || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range", "detect_type", "detect_format")))
+               && (snapshot.config._access_level(key) < AccessLevelType::INIT
+                   || is_in(key, "video_conversion_range", "detect_type", "detect_format")))
             {
 #ifndef NDEBUG
-                if(_defaults.has(key))
+                /*if(_defaults.has(key))
                     Print("Keeping ", key, "::",GlobalSettings::access_level(key),": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
                 else
-                    Print("Keeping ", key, "::",GlobalSettings::access_level(key),": ", copy.at(key).get());
+                    Print("Keeping ", key, "::",GlobalSettings::access_level(key),": ", copy.at(key).get());*/
 #endif
                 
                 continue;
@@ -389,10 +484,69 @@ struct SettingsScene::Data {
         return copy;
     }
     
-    void load_video_settings(const file::PathArray& source);
+    bool load_video_settings(const file::PathArray& source, bool keep_selected_source = true);
     
+    void update_video_source() {
+        std::unique_lock guard{_video_source_mutex, std::try_to_lock};
+        if(not guard)
+            return;
+        if(not check_new_video_source.valid()) {
+            if(not _video_source_changed.exchange(false))
+                return;
+
+            current_path.reset();
+            auto source = READ_SETTING(source, file::PathArray);
+            check_new_video_source = std::async(std::launch::async, &Data::check_video_source,
+                                                this, std::move(source));
+            return;
+        }
+        if(not cmn::is_future_ready(check_new_video_source))
+            return;
+
+        invalidate_source_paths();
+        try {
+            auto checked = check_new_video_source.get();
+            // The selection can change while the worker is opening the video.
+            // in this case just wait for next iteration to restart the update.
+            if(_video_source_changed)
+                return;
+            if(not checked) {
+                SceneManager::set_switching_error(checked.error());
+                return;
+            }
+            auto& [source, input] = *checked;
+            if(source != READ_SETTING(source, file::PathArray))
+                return;
+
+            // otherwise we can go on committing the results...
+            // unless we received empty?
+            if(source.empty_or_invalid())
+                return;
+            
+            if(source != _loaded_source) {
+                if(not load_video_settings(source))
+                    return;
+            }
+            
+            current_path = std::move(input);
+            
+        } catch(const std::exception& e) {
+            if(not callback)
+                register_callbacks();
+            
+            FormatWarning("Cannot load the selected video source: ", e.what());
+        }
+    }
+
     void draw(DrawStructure& graph) {
         using namespace dyn;
+        update_video_source();
+        if(source_paths_timer.elapsed() > 1)
+            invalidate_source_paths();
+        // Model inspection may initialize Python and must run outside settings callbacks.
+        if(_detection_models_changed.exchange(false))
+            detection_models_updated();
+
         if(not dynGUI) {
             dynGUI = DynamicGUI{
                 .gui = SceneManager::getInstance().gui_task_queue(),
@@ -406,21 +560,26 @@ struct SettingsScene::Data {
                             throw InvalidArgumentException("No parameter ",parm," in global settings.");
                         
                         auto value = action.last();
-                        GlobalSettings::get(parm).get().set_value_from_string(value);
+                        GlobalSettings::write([&](Configuration& config) {
+                            config.values[parm].get().set_value_from_string(value);
+                        });
                     }),
                     ActionFunc("reset_settings", [](auto){
                         SceneManager::enqueue([](auto, DrawStructure& graph) {
                             graph.dialog([](Dialog::Result result) mutable {
                                 if(result == Dialog::Result::OKAY) {
+                                    track::detect::TemporaryClassNames loading;
                                     /// resets settings that come from the recentitems
                                     /// config array:
                                     sprite::Map cleared;
                                     
-                                    SETTING(filename).get().copy_to(cleared);
-                                    SETTING(source).get().copy_to(cleared);
-                                    SETTING(output_prefix).get().copy_to(cleared);
-                                    SETTING(output_dir).get().copy_to(cleared);
-                                    SETTING(detect_type).get().copy_to(cleared);
+                                    SETTING(filename).copy_to(cleared);
+                                    SETTING(source).copy_to(cleared);
+                                    SETTING(output_prefix).copy_to(cleared);
+                                    SETTING(output_dir).copy_to(cleared);
+                                    SETTING(settings_file).copy_to(cleared);
+                                    SETTING(meta_source_path).copy_to(cleared);
+                                    SETTING(detect_type).copy_to(cleared);
                                     
                                     settings::reset(cleared);
                                     
@@ -448,71 +607,65 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("convert", [this](auto){
-                        DebugHeader("Converting ", utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 100));
+                        std::unique_lock guard{_video_source_mutex, std::try_to_lock};
+                        if(not guard || not source_ready() || not detection_model_ready())
+                        {
+                            FormatWarning("Ignoring conversion request while the selected detection model is not ready.");
+                            return;
+                        }
+
+                        auto output_map = GlobalSettings::mutable_snapshot();
+                        auto input = current_conversion_source(&output_map->config.values);
+                        if(input.empty_or_invalid()) {
+                            FormatWarning("Cannot convert because the original input video could not be found.");
+                            return;
+                        }
+
+                        DebugHeader("Converting ", utils::ShortenText(current_path->toStr(), 100));
                         
-                        auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
-                            Print("changed props = ", copy.keys());
+                        auto f = WorkProgress::add_queue("", [this, source = _loaded_source, input = std::move(input), output_map = std::move(output_map)]() mutable {
+                            if(_video_source_changed || source != READ_SETTING(source, file::PathArray))
+                                return;
+                            auto copy = get_changed_props(*output_map);
                             
-                            auto [before, defaults] = GlobalSettings::read([](const Configuration& config){
-                                return std::make_tuple(config.values, config.defaults);
-                            });
-                            auto defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
-                                return with_config;
-                            });
+                            auto filename = output_map->config.at("filename").value<file::Filename>();
 
                             /// if we determine that we are actually reconverting a pv file
                             /// we need to load the source settings from the pv file, since we
                             /// cant use the pv file and convert it to itself:
-                            auto source = READ_SETTING(source, file::PathArray);
-                            if (source.size() == 1
-                                && source.get_paths().front().has_extension("pv"))
-                            {
-                                auto meta_source_path = READ_SETTING(meta_source_path, std::string);
-                                if (not meta_source_path.empty()) {
-                                    file::PathArray array(meta_source_path);
-                                    auto parent = file::find_parent(source);
-                                    auto basename = file::find_basename(source);
+                            if(input != source && input != file::DataLocation::parse("input", source, &output_map->config.values)) {
+                                auto parent = file::find_parent(source);
 
-                                    if (parent && parent->exists()) {
-                                        if(READ_SETTING(output_dir, file::Path).empty())
-											SETTING(output_dir) = parent.value();
-                                    }
+                                if(parent && copy.at("output_dir").value<file::Path>().empty()) {
+                                    auto path = file::DataLocation::parse("input", *parent, &output_map->config.values);
+                                    if(path.is_folder())
+                                        copy["output_dir"] = path;
+                                }
 
-                                    if(READ_SETTING(filename, file::Path).empty())
-										SETTING(filename) = file::Path(basename);
-                                    SETTING(source) = array;
+                                if(filename.path().empty()) {
+                                    const auto name = settings::choose_output_name(output_map->config.values);
+                                    filename = file::Filename(name.path().remove_extension());
                                 }
                             }
+                            source = std::move(input);
                             
-                            auto filename = READ_SETTING(filename, file::Path);
-                            if (not filename.empty()) {
-                                filename = GlobalSettings::read([](const Configuration& config) {
-                                    return settings::find_output_name(config.values);
-                                });
-                            }
                             settings::load(settings::LoadContext{
-                                .source = SETTING(source),
-                                .filename = filename,
+                                .source = source,
+                                .filename = filename.path(),
                                 .task = default_config::TRexTask_t::convert,
-                                .type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>(),
-                                .source_map = copy
+                                .type = output_map->config.at("detect_type").value<track::detect::ObjectDetectionType_t>(),
+                                .source_map = std::move(copy),
+                                .output_map = output_map
                             });
                             
-                            SceneManager::enqueue([this,
-                                before = std::move(before),
-                                defaults = std::move(defaults),
-                                defaults_with_config = std::move(defaults_with_config)
-                            ] (auto,DrawStructure& graph) {
+                            SceneManager::enqueue([this, output_map] (auto,DrawStructure& graph) {
                                 using namespace track;
-                                if (auto detect_type = READ_SETTING(detect_type, detect::ObjectDetectionType_t);
-                                    detect_type && *detect_type == detect::ObjectDetectionType::yolo)
+                                const auto& config = output_map->config;
+                                if(auto detect_type = config.at("detect_type").value<detect::ObjectDetectionType_t>();
+                                   detect_type && *detect_type == detect::ObjectDetectionType::yolo)
                                 {
-                                    auto path = READ_SETTING(detect_model, file::Path);
-                                    if (track::detect::yolo::valid_model(path))
-                                    {
-                                        /// we have a valid model
-                                    }
-                                    else {
+                                    auto path = detect::yolo::current_detect_model_path(&config.values);
+                                    if(not detect::yolo::valid_model(path)) {
                                         graph.dialog([this](Dialog::Result) {
                                             if (layout_name != "settings_layout.json") {
                                                 _last_layouts.push(layout_name);
@@ -524,42 +677,44 @@ struct SettingsScene::Data {
                                                     dynGUI = {};
                                                 });
                                             }
-                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default Yolo model name. Please choose a valid model file (a Yolo saved model <c><cyan>.pt</cyan></c>).", "Invalid model", "Okay");
+                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default YOLO model name. Please choose a valid saved model (<c><cyan>.pt</cyan></c> or <c><cyan>.pth</cyan></c>).", "Invalid model", "Okay");
                                         return;
                                     }
                                 }
 
-                                auto filename = GlobalSettings::read([](const Configuration& config) {
-                                    return settings::find_output_name(config.values);
-                                });
-                                if(not filename.has_extension() || filename.extension() != "pv")
-                                    filename = filename.add_extension("pv");
+                                auto open_file = [](const std::shared_ptr<GlobalSettings::MutableSnapshot>& output_map, bool start_over) {
+                                    auto rollback = GlobalSettings::read([](const Configuration& config) {
+                                        return std::shared_ptr<GlobalSettings::Snapshot>(
+                                            new GlobalSettings::Snapshot(config),
+                                            [](GlobalSettings::Snapshot* snapshot) {
+                                                const SettingsRestoreGuard guard;
+                                                delete snapshot;
+                                            });
+                                    });
+                                    SceneManager::getInstance().set_active("convert-scene", [output_map, start_over]() {
+                                        output_map->apply();
+                                        if(start_over)
+                                            ConvertScene::force_start_over.set(true);
+                                    }, [rollback]() {
+                                        rollback->commit();
+                                    });
+                                };
+                                const auto name = settings::choose_output_name(config.values);
+                                const auto filename = file::DataLocation::parse("output", name.path(), &config.values);
                                 
                                 if(filename.exists()) {
-                                    graph.dialog([
-                                        before = std::move(before),
-                                        defaults = std::move(defaults),
-                                        defaults_with_config = std::move(defaults_with_config)
-                                    ](Dialog::Result result) mutable {
-                                        if(result == Dialog::Result::OKAY) {
-                                            /// continue on to converting!
-                                            SceneManager::getInstance().set_active("convert-scene");
-                                            
-                                        } else {
-                                            /// we have to reset settings:
-                                            GlobalSettings::write([&](Configuration& config){
-                                                config.values = before;
-                                                config.defaults = std::move(defaults);
-                                            });
-                                            GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
-                                        }
-                                        
-                                    }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Overwrite", "Cancel");
-                                } else
-                                    SceneManager::getInstance().set_active("convert-scene");
+                                    graph.dialog([open_file, pending_map = output_map](Dialog::Result result) mutable {
+                                        auto pending = std::move(pending_map);
+                                        if(pending && (result == Dialog::Result::OKAY || result == Dialog::Result::SECOND))
+                                            open_file(pending, result == Dialog::Result::OKAY);
+                                    }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Start over (overwrite)", "Cancel", "Continue (if possible)");
+                                } else {
+                                    open_file(output_map, false);
+                                }
                             });
                         });
-                        if(f.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) {
+                        guard.unlock();
+                        if(cmn::is_future_ready<100ms>(f)) {
                             f.get();
                         } else {
                             WorkProgress::set_item("loading...");
@@ -578,18 +733,22 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("track", [this](auto){
-                        DebugHeader("Tracking ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
-                        
-                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() mutable
+                        std::unique_lock guard{_video_source_mutex, std::try_to_lock};
+                        if(not guard || checks_running())
+                            return;
+                        auto output_map = GlobalSettings::mutable_snapshot();
+                        const auto& config = output_map->config;
+                        auto array = config.at("source").value<file::PathArray>();
+                        existing_pv_path.reset();
+                        if(existing_pv_file().empty())
+                            return;
+                        WorkProgress::add_queue("loading...", [this, array = std::move(array), output_map = std::move(output_map)]() mutable
                         {
-                            auto [before, defaults] = GlobalSettings::read([](const Configuration& config){
-                                return std::make_tuple(config.values, config.defaults);
-                            });
-                            auto defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
-                                return with_config;
-                            });
+                            if(_video_source_changed || array != READ_SETTING(source, file::PathArray))
+                                return;
+                            auto copy = get_changed_props(*output_map);
                             
-                            copy.register_callbacks({
+                            /*copy.register_callbacks({
                                 "detect_format",
                                 "detect_skeleton"
                             }, [](auto key){
@@ -597,7 +756,7 @@ struct SettingsScene::Data {
                                     Print("Changed detect_format");
                                 else if(key == "detect_skeleton")
                                     Print("Changed detect_skeleton");
-                            });
+                            });*/
                             
                             if(copy.has("detect_type")) {
                                 /// we do not allow changing the detect type when tracking
@@ -606,55 +765,41 @@ struct SettingsScene::Data {
                                 copy.erase("detect_type");
                             }
                             
-                            Print("changed props = ", copy.keys());
-                            auto array = READ_SETTING(source, file::PathArray);
-                            //auto front = file::Path(file::find_basename(array));
-                            
-                            auto output_file = settings::find_output_name(before);
-                            if(not output_file.has_extension() || output_file.extension() != "pv")
-                            {
-                                output_file = output_file.add_extension("pv");
-                            }
-                            /*auto output_file = (not front.has_extension() || front.extension() != "pv") ?
-                            file::DataLocation::parse("output", front.add_extension("pv")) :
-                            file::DataLocation::parse("output", front.replace_extension("pv"));*/
-                            //if (output_file.exists())
-                            {
-                                SETTING(filename) = file::Path(output_file);
-                            }
+                            //Print("changed props = ", copy.keys());
                             
                             settings::load(settings::LoadContext{
                                 .source = array,
-                                .filename = SETTING(filename),
+                                .filename = output_map->config.at("filename").value<file::Filename>().path(),
                                 .task = default_config::TRexTask_t::track,
                                 .type = {},
-                                .source_map = copy,
-                                .quiet = true
+                                .source_map = std::move(copy),
+                                .quiet = true,
+                                .output_map = output_map
                             });
                             
-                            auto open_file = [](){
-                                SceneManager::enqueue(SceneManager::AlwaysAsync{}, [](){
-                                    SceneManager::getInstance().set_active("tracking-scene");
+                            output_map->config.values["source"] = array;
+                            auto open_file = [output_map](){
+                                SceneManager::enqueue(SceneManager::AlwaysAsync{}, [output_map](){
+                                    SceneManager::getInstance().set_active("tracking-scene", [output_map]() {
+                                        output_map->apply();
+                                    });
                                 });
                             };
                             
-                            auto fname = target_file("results");
+                            auto fname = Output::TrackingResults::expected_filename(output_map->config.values);
                             if(fname.exists()) {
-                                SceneManager::enqueue([open_file, fname, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](auto,DrawStructure& graph)
-                                                                    {
-                                    graph.dialog([open_file, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](Dialog::Result result) mutable {
+                                SceneManager::enqueue([open_file, fname, output_map](auto,DrawStructure& graph) {
+                                    graph.dialog([open_file, output_map](Dialog::Result result) mutable {
+                                        if(is_in(result, Dialog::Result::OKAY, Dialog::Result::SECOND)) {
+                                            const auto source = output_map->config.at("source").value<file::PathArray>();
+                                            DebugHeader("Tracking ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
+                                        }
                                         if(result == Dialog::Result::OKAY) {
                                             /// load results
                                             TrackingScene::request_load();
                                             open_file();
                                         } else if(result == Dialog::Result::SECOND) {
                                             open_file();
-                                        } else {
-                                            GlobalSettings::write([&](Configuration& config){
-                                                config.values = before;
-                                                config.defaults = std::move(defaults);
-                                            });
-                                            GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
                                         }
                                         
                                     }, "Would you like to load <cyan><c>"+fname.str()+"</c></cyan>, which already exists?", "Results exist", "Load Results", "Cancel", "Track Again");
@@ -693,7 +838,7 @@ struct SettingsScene::Data {
                         REQUIRE_AT_LEAST(1, action);
                         WorkProgress::add_queue("Selecting folder", [action](){
                             auto parm = action.parameters.front();
-                            auto folder = action.parameters.size() == 1 ? action.parameters.back() : file::cwd().str();
+                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -702,11 +847,11 @@ struct SettingsScene::Data {
                             std::cout << "Selected "<< parm <<": " << dir << "\n";
                         });
                     }),
-                    ActionFunc("choose-file", [](const Action& action) {
+                    ActionFunc("choose-file", [this](const Action& action) {
                         REQUIRE_AT_LEAST(1, action);
-                        WorkProgress::add_queue("Selecting file", [action](){
+                        WorkProgress::add_queue("Selecting file", [this, action](){
                             auto parm = action.parameters.front();
-                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : file::cwd().str();
+                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -715,13 +860,21 @@ struct SettingsScene::Data {
                                 filters.insert(filters.end(), action.parameters.begin() + 2, action.parameters.end());
                             }
                             
-                            auto flags = GlobalSettings::get(parm).is_type<file::PathArray>() ? pfd::opt::multiselect : pfd::opt::none;
+                            auto flags = GlobalSettings::get(parm).is_type<file::PathArray>()
+                                && parm != "detect_precomputed_file" ? pfd::opt::multiselect : pfd::opt::none;
                             auto dir = pfd::open_file("Select a file", folder, filters, flags).result();
                             
                             if(GlobalSettings::get(parm).is_type<file::PathArray>())
                             {
-                                if(not dir.empty())
-                                    GlobalSettings::get(parm).get().set_value_from_string(Meta::toStr(dir));
+                                if(not dir.empty()) {
+                                    std::unique_lock guard{_video_source_mutex};
+                                    GlobalSettings::write([&](Configuration& config) {
+                                        auto& property = config.values[parm].toProperty<file::PathArray>();
+                                        // Selecting the current file also supersedes a draft in its editor.
+                                        property.assign_if(file::PathArray::from_files(std::vector<file::Path>(dir.begin(), dir.end())));
+                                        property.triggerCallbacks();
+                                    });
+                                }
                             } else {
                                 if(not dir.empty()) {
                                     set_global_setting_from_path_string(parm, dir.front());
@@ -731,7 +884,7 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("choose-settings", [this](const Action& action) {
                         WorkProgress::add_queue("Selecting file", [this, action](){
-                            auto folder = action.parameters.size() > 0 ? action.parameters.at(0) : file::cwd().str();
+                            auto folder = action.parameters.size() > 0 ? action.parameters.at(0) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -745,10 +898,13 @@ struct SettingsScene::Data {
                             
                             if(not dir.empty()) {
                                 file::Path path(dir.front());
+                                std::unique_lock guard{_video_source_mutex};
                                 if(path.has_extension() && utils::lowercase(path.extension()) == "pv") {
-                                    load_video_settings(file::PathArray{path});
+                                    _video_source_changed = true;
+                                    load_video_settings(file::PathArray::from_files({path}), false);
                                     
                                 } else {
+                                    path = file::DataLocation::parse("input", path);
                                     GlobalSettings::load_from_file(path.str(), {
                                         .deprecations = default_config::deprecations(),
                                         .access = AccessLevelType::LOAD
@@ -760,19 +916,30 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("reload_selected_source", [this](auto){
                         auto source = GlobalSettings::read_value<file::PathArray>("source");
-                        if(source)
-                            load_video_settings(*source);
-                        else
+                        if(source) {
+                            WorkProgress::add_queue("loading...", [this, source = *source] {
+                                std::unique_lock guard{_video_source_mutex};
+                                if(source == READ_SETTING(source, file::PathArray)) {
+                                    _video_source_changed = true;
+                                    load_video_settings(source);
+                                }
+                            });
+                        } else
                             FormatWarning("No source selected for reload_selected_source.");
                     }),
                     ActionFunc("toggle-background-subtraction", [](auto){
                         SETTING(track_background_subtraction) = not BOOL_SETTING(track_background_subtraction);
                     }),
                     VarFunc("video_file", [this](const VarProps&) -> file::PathArray {
-                        return current_path.get();
+                        return current_path.value_or(file::PathArray{});
+                    }),
+                    VarFunc("current_conversion_source", [this](const VarProps&) -> file::PathArray {
+                        if(not conversion_input)
+                            conversion_input = current_conversion_source();
+                        return *conversion_input;
                     }),
                     VarFunc("selected_source_exists", [this](const VarProps&) -> bool {
-                        return _selected_source_exists.load();
+                        return current_path && not settings::is_camera_source(*current_path) && current_path->has_single_match("pv");
                     }),
                     VarFunc("basler_support_compiled", [](const VarProps&) -> bool {
 #if WITH_PYLON
@@ -809,6 +976,9 @@ struct SettingsScene::Data {
                         
                         return last_update_text;
                     }),
+                    VarFunc("model_search_path", [](const VarProps&) -> std::vector<file::Path> {
+                        return detect::yolo::detect_model_candidates(READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
+                    }),
                     VarFunc("window_size", [](const VarProps&) -> Vec2 {
                         return FindCoord::get().screen_size();
                     }),
@@ -816,9 +986,8 @@ struct SettingsScene::Data {
                         return _last_layouts.size();
                     }),
                     VarFunc("video_size", [this](const VarProps&) -> Vec2 {
-                        if(_video_size.empty())
-                            return Size2(1);
-                        return _video_size;
+                        auto size = _video_size.load();
+                        return size.empty() ? Size2(1) : size;
                     }),
                     VarFunc("file_exists", [this](const VarProps& props) -> bool {
                         REQUIRE_EXACTLY(1, props);
@@ -837,7 +1006,7 @@ struct SettingsScene::Data {
                             }, path);
                         }
                         
-                        if(_scheduled_exist_checks.at(path).wait_for(std::chrono::milliseconds(15)) == std::future_status::ready) 
+                        if(cmn::is_future_ready<15ms>(_scheduled_exist_checks.at(path)))
                         {
                             /// limit size of the map
                             while(_done_exist_checks.size() > 25) {
@@ -849,21 +1018,51 @@ struct SettingsScene::Data {
                             return _done_exist_checks.at(path);
                         }
                         
-                        throw std::runtime_error("Still checking status...");
+                        return false;
                     }),
                     VarFunc("resulting_path", [this](const VarProps&) -> file::Path {
-                        if(not last_output_name
-                           || output_name_check.elapsed() > 1)
-                        {
+                        if(not last_output_name) {
                             last_output_name = GlobalSettings::read([](const Configuration& config) {
-                                return settings::find_output_name(config.values);
+                                const auto name = settings::choose_output_name(config.values);
+                                if(name.path().empty())
+                                    return file::Path{};
+                                return file::DataLocation::parse("output", name.path(), &config.values).remove_extension();
                             });
-                            output_name_check.reset();
                         }
                         return last_output_name.value();
                     }),
                     VarFunc("checks_running", [this](const VarProps&) -> bool {
-                        return _are_python_tasks_running.load() > 0 || _are_video_checks_running;
+                        return checks_running();
+                    }),
+                    VarFunc("valid_detection_model", [this](const VarProps&) -> bool {
+                        return detection_model_ready();
+                    }),
+                    VarFunc("valid_conversion_source", [this](const VarProps&) -> bool {
+                        if(not source_ready())
+                            return false;
+                        if(not conversion_input)
+                            conversion_input = current_conversion_source();
+                        return not conversion_input->empty_or_invalid();
+                    }),
+                    VarFunc("valid_pv_file", [this](const VarProps&) -> bool {
+                        return not existing_pv_file().empty();
+                    }),
+                    VarFunc("existing_pv_file", [this](const VarProps&) -> file::Path {
+                        return existing_pv_file();
+                    }),
+                    VarFunc("model_detect_format", [this](const VarProps&) {
+                        const auto config = model_config(track::detect::ModelTaskType::detect);
+                        return track::detect::ObjectDetectionFormat_t{
+                            config ? config->output_format : track::detect::ObjectDetectionFormat_t::none
+                        };
+                    }),
+                    VarFunc("model_detect_resolution", [this](const VarProps&) {
+                        const auto config = model_config(track::detect::ModelTaskType::detect);
+                        return config ? config->trained_resolution : track::detect::DetectResolution{};
+                    }),
+                    VarFunc("model_region_resolution", [this](const VarProps&) {
+                        const auto config = model_config(track::detect::ModelTaskType::region);
+                        return config ? config->trained_resolution : track::detect::DetectResolution{};
                     }),
                     VarFunc("season", [](const VarProps&) {
                         return GlobalSettings::currentSeason().toStr();
@@ -875,18 +1074,19 @@ struct SettingsScene::Data {
                 new GUIVideoAdapterElement(_window, []() {
                     return FindCoord::get().screen_size();
                 }, [this](VideoInfo info) {
-                    _next_video_size = info.size;
+                    _video_size = info.resolution;
                 }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) {
-                    if(_video_adapters.contains(path.source())) {
-                        return _video_adapters[path.source()];
+                    const auto key = path.toStr();
+                    if(_video_adapters.contains(key)) {
+                        return _video_adapters[key];
                     } else {
-                        Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);
+                        Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>{path, window, callback};
                         //Print("Making new video adapter for ", path);
                         if(_video_adapters.size() >= 2) {
                             Print("Clearing video adapter history...");
                             _video_adapters.clear();
                         }
-                        _video_adapters[path.source()] = ptr;
+                        _video_adapters[key] = ptr;
                         return ptr;
                     }
                 })
@@ -921,7 +1121,6 @@ struct SettingsScene::Data {
         dynGUI.update(graph, nullptr/*, [this](auto &objs){
             objs.push_back(Layout::Ptr(_preview_image));
         }*/);
-        _video_size = _next_video_size.load();
     }
 };
 
@@ -936,162 +1135,92 @@ SettingsScene::~SettingsScene() {
     
 }
 
-void SettingsScene::Data::check_video_source(file::PathArray source) {
-    ExtendableVector exclude{
-        "output_prefix",
-        "filename",
-        "source",
-        "output_dir"
-    };
+SettingsScene::Data::CheckedSource SettingsScene::Data::check_video_source(file::PathArray source) {
+    update_running_tasks(true);
+    if(source.empty_or_invalid() || settings::is_camera_source(source))
+        return SourceSelection{source, std::move(source)};
 
-    _selected_source_exists = false;
-    
-    try {
-        if (source != _initial_source
-            && source.get_paths().size() == 1
-            && source.get_paths().front().has_extension("pv"))
+    auto lookup = GlobalSettings::read([](const Configuration& config) { return config.values; });
+    auto input = file::DataLocation::parse("input", source, &lookup);
+    lookup["source"] = input;
+    if(auto error = settings::video_source_error(input))
+        return std::unexpected(*error);
+
+    if(input.has_single_match("pv")) {
+        pv::File video(input[0]);
+        video.header();
+    } else {
+        // An existing PV can still be tracked when its original video has been moved.
+        if(input.has_single_match() && not input[0].is_regular())
         {
-            //auto output = settings::find_output_name(GlobalSettings::map());
-            auto output = source.get_paths().front();
-            pv::File video(output);
-            video.header();
-            
-            _selected_source_exists = true;
-            
-            /// escape!
-            //return;
-
-            /*if (metadata.has("meta_source_path")) {
-                auto source_path = file::PathArray(metadata.at("meta_source_path").value<std::string>());
-                if (not source_path.empty()
-                    && source_path.get_paths().front().exists())
-                {
-                    try {
-                        //WorkProgress::add_queue("loading...", [source_path, output]() {
-                            //SETTING(output_dir) = output.remove_filename();
-                            file::Path filename = output.remove_extension();
-                            //source = source_path;
-
-                            try {
-                                //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, {});
-
-                            }
-                            catch (const std::exception& ex) {
-                                FormatWarning("Ex = ", ex.what());
-                            }
-                        //});
-                        
-                        return;
-                    }
-                    catch (...) {
-                        /// do nothing
-                    }
-                }
-            }*/
-            
-        } else if(source == file::PathArray("webcam")
-                  || source == file::PathArray("basler")) {
-            /// should be okay
-            
-        } else if(source != _initial_source) {
-            VideoSource v(source);
-            Print("VideoSource for ",no_quotes(utils::ShortenText(source.toStr(), 1000))," of size ", v.size(),".");
+            const auto name = settings::choose_output_name(lookup);
+            if(file::DataLocation::parse("output", name.path(), &lookup).is_regular())
+                return SourceSelection{std::move(source), std::move(input)};
         }
         
-        SceneManager::enqueue([this, source](){
-            try {
-                if(_initial_source.empty()
-                   && not source.empty())
-                {
-                    load_video_settings(source);
-                    
-                    // set initial source for the first time
-                    _initial_source = source;
-                }
-                
-                (void)source.size(); // load files
-                current_path.set(std::move(source));
-                
-            } catch(...) {
-                /// do nothing
-            }
-        });
-    }
-    catch (...) {
-        /// do nothing
-#ifndef NDEBUG
-        FormatExcept("Caught an exception when checking video source.");
-#endif
+        if(input.empty())
+            return {};
+        
+        VideoSource v(input);
+        Print("VideoSource for ", no_quotes(utils::ShortenText(source.toStr(), 1000)), " of size ", v.size(), ".");
     }
     
-    /// some stuff regarding reloading settings when the source changes:
-    /// *currently disabled since it feels bad*
-    //if (source == initial_source) {
-    //    return;
-    //}
+    return SourceSelection{std::move(source), std::move(input)};
 }
 
-void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
-    ExtendableVector exclude{
-        "filename",
-        "source",
-        "load",
-        "task"
-    };
-    
+bool SettingsScene::Data::load_video_settings(const file::PathArray& source, bool keep_selected_source) {
+    bool loaded = true;
+    track::detect::TemporaryClassNames loading;
+
     if(callback)
         GlobalSettings::unregister_callbacks(std::move(callback));
     
-    auto source_path = source.empty()
-                        ? file::Path{}
-                        : file::DataLocation::parse("input", source.get_paths().front());
-    
-    if (not source.empty()
-        && source_path.is_regular()
-        && not source_path.has_extension("pv"))
-    {
-        auto filename = GlobalSettings::read_value<file::Path>("filename");
-        try {
+    try {
+        const auto snapshot = GlobalSettings::mutable_snapshot();
+        auto output_map = keep_selected_source ? snapshot : nullptr;
+        const auto& config = snapshot->config;
+        // A new source selection derives its filename from the selected input.
+        const auto filename = not keep_selected_source || source == _loaded_source
+            ? config.at("filename").value<file::Filename>().path()
+            : file::Path{};
+        sprite::Map promote;
+        copy_file_locations(promote, config.values);
+        
+        const bool camera = settings::is_camera_source(source);
+        const auto selected = camera ? source : file::DataLocation::parse("input", source, &config.values);
+        const bool has_selection = not source.empty_or_invalid();
+        file::Path source_path;
+        if(not camera && selected.has_single_match("pv")) {
+            source_path = selected[0];
+        }
+
+        if(camera || (not selected.empty() && not selected.all_files_are("pv"))) {
             settings::load(settings::LoadContext{
                 .source = source,
-                .filename = *filename,
+                .filename = filename,
                 .task = default_config::TRexTask_t::convert,
                 .type = {},
-                .exclude_parameters = exclude
+                .source_map = std::move(promote),
+                .output_map = output_map
             });
-        }
-        catch (const std::exception& ex) {
-            FormatWarning("Ex = ", ex.what());
-        }
-        
-    } else if (source_path.is_regular()) {
-        try {
-            pv::File file(source_path.remove_extension());
+            
+        } else if(source_path.is_regular()) {
+            pv::File file(source_path);
             auto& str = file.header().metadata;
             
             sprite::Map map;
             try {
                 if(str.has_value()) {
-                    GlobalSettings::read([&](const Configuration& config){
-                        sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &config.defaults, {}, default_config::deprecations());
-                    });
+                    sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &config.defaults, {"filename"}, default_config::deprecations());
                 }
             }
             catch (...) {
                 /// do nothing
             }
             
-            auto filename = READ_SETTING(filename, file::Path);
-            auto csource = READ_SETTING(source, file::PathArray);
-            
-            sprite::Map promote;
-            if(map.has("source")) {
+            if(map.has("source"))
                 map.at("source").get().copy_to(promote);
-            } else {
-                /// no source :(
-            }
             
-            promote["filename"] = source_path;
             track::detect::ObjectDetectionType_t detect_type;
             if(map.has("detect_type")) {
                 map.at("detect_type").get().copy_to(promote);
@@ -1101,22 +1230,40 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             
             settings::load(settings::LoadContext{
                 .source = source,
-                .filename = promote["filename"],
+                .filename = filename,
                 .task = default_config::TRexTask_t::none,
                 .type = detect_type,
-                .exclude_parameters = exclude,
-                .source_map = promote
+                .source_map = promote,
+                .output_map = output_map
             });
             
-            //SETTING(source) = csource;
-            //SETTING(filename) = filename;
+        } else if(has_selection)
+            loaded = false;
+
+        if(output_map && loaded && has_selection) {
+            GlobalSettings::write([&](Configuration& config) {
+                if(config.at("source").value<file::PathArray>() == source) {
+                    output_map->config.values["source"] = source;
+                    output_map->apply();
+                }
+            });
         }
-        catch (const std::exception& ex) {
-            FormatWarning("Ex = ", ex.what());
-        }
+        
+    } catch(const std::exception& ex) {
+        FormatWarning("Cannot load video settings: ", ex.what());
+        loaded = false;
+    }
+
+    register_callbacks();
+    if(source != READ_SETTING(source, file::PathArray)) {
+        _video_source_changed = true;
+        return false;
     }
     
-    register_callbacks();
+    if(loaded) {
+        _loaded_source = source;
+    }
+    return loaded;
 }
 
 void SettingsScene::activate() {
@@ -1125,9 +1272,8 @@ void SettingsScene::activate() {
     _data = std::make_unique<Data>();
     _data->_window = (IMGUIBase*)window();
 
-    _data->_initial_source = READ_SETTING(source, file::PathArray);
+    _data->_loaded_source = READ_SETTING(source, file::PathArray);
     _data->register_callbacks();
-    _data->_defaults = GlobalSettings::read([](const Configuration& config) { return config.values; });
     _data->layout_name = last_opened_tab.get();
 }
 
@@ -1145,14 +1291,6 @@ void SettingsScene::deactivate() {
         //Print("Clearing _data->dynGUI");
         _data->dynGUI.clear();
 
-        //Print("_checking new video source: ", _data->check_new_video_source.valid());
-        if(std::unique_lock guard{_data->_video_source_mutex};
-           _data->check_new_video_source.valid())
-        {
-            _data->check_new_video_source.get();
-        }
-
-        /// need to clear queue in case we got something pushed in the check_new_video_source
         SceneManager::getInstance().update_queue();
         
         //Print("Deleting _data...");

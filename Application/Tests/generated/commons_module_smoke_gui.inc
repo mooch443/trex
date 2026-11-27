@@ -18,10 +18,14 @@ using ::cmn::gui::attr::Clickable;
 using ::cmn::gui::attr::ClickableTag;
 using ::cmn::gui::attr::CornerFlags_t;
 using ::cmn::gui::attr::CornerFlags_tTag;
+using ::cmn::gui::attr::Disabled_t;
+using ::cmn::gui::attr::Disabled_tTag;
 using ::cmn::gui::attr::FillClr;
 using ::cmn::gui::attr::FillClrTag;
 using ::cmn::gui::attr::Folded_t;
 using ::cmn::gui::attr::Folded_tTag;
+using ::cmn::gui::attr::Font_t;
+using ::cmn::gui::attr::Font_tTag;
 using ::cmn::gui::attr::HighlightClr;
 using ::cmn::gui::attr::HighlightClrTag;
 using ::cmn::gui::attr::HorizontalClr;
@@ -34,12 +38,15 @@ using ::cmn::gui::attr::Margins;
 using ::cmn::gui::attr::MarginsTag;
 using ::cmn::gui::attr::Name;
 using ::cmn::gui::attr::NameTag;
+using ::cmn::gui::attr::NumberAlias;
 using ::cmn::gui::attr::Origin;
 using ::cmn::gui::attr::OriginTag;
 using ::cmn::gui::attr::ParmName;
 using ::cmn::gui::attr::ParmNameTag;
 using ::cmn::gui::attr::Placeholder_t;
 using ::cmn::gui::attr::Placeholder_tTag;
+using ::cmn::gui::attr::PointerEvents;
+using ::cmn::gui::attr::PointerEventsTag;
 using ::cmn::gui::attr::Postfix;
 using ::cmn::gui::attr::PostfixTag;
 using ::cmn::gui::attr::Prefix;
@@ -50,6 +57,12 @@ using ::cmn::gui::attr::Rotation;
 using ::cmn::gui::attr::RotationTag;
 using ::cmn::gui::attr::Scale;
 using ::cmn::gui::attr::ScaleTag;
+using ::cmn::gui::attr::ScrollLimits;
+using ::cmn::gui::attr::ScrollLimitsTag;
+using ::cmn::gui::attr::ScrollOffset;
+using ::cmn::gui::attr::ScrollOffsetTag;
+using ::cmn::gui::attr::Scrollable_t;
+using ::cmn::gui::attr::Scrollable_tTag;
 using ::cmn::gui::attr::Size;
 using ::cmn::gui::attr::SizeLimit;
 using ::cmn::gui::attr::SizeLimitTag;
@@ -176,6 +189,10 @@ namespace commons_module_smoke::commons_gui::cmn::gui::Keyboard {
 using ::cmn::gui::Keyboard::Codes;
 }
 
+namespace commons_module_smoke::commons_gui::cmn::gui::pointer {
+using ::cmn::gui::pointer::Events;
+}
+
 // gui/FileChooser.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::FileChooser;
@@ -205,6 +222,8 @@ namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Circle;
 using ::cmn::gui::ExternalImage;
 using ::cmn::gui::Line;
+using ::cmn::gui::LineClosed;
+using ::cmn::gui::LineClosedTag;
 using ::cmn::gui::Polygon;
 using ::cmn::gui::PrimitiveType;
 using ::cmn::gui::Rect;
@@ -230,6 +249,11 @@ using cmn_gui_Text_Shadow_tTag = ::cmn::gui::Text::Shadow_tTag;
 }
 
 // gui/IMGUIBase.h
+namespace commons_module_smoke::commons_gui::cmn::gui {
+using ::cmn::gui::IMGUIBase;
+using ::cmn::gui::SectionInterface;
+}
+
 namespace commons_module_smoke::commons_gui::cmn::gui::Effects {
 using ::cmn::gui::Effects::Class;
 }
@@ -245,20 +269,26 @@ using ::cmn::gui::dyn::has_set;
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Alternating_t;
 using ::cmn::gui::Alternating_tTag;
+using ::cmn::gui::AlwaysOpen_t;
+using ::cmn::gui::AlwaysOpen_tTag;
 using ::cmn::gui::DetailColor_t;
 using ::cmn::gui::DetailColor_tTag;
 using ::cmn::gui::DetailFont_t;
 using ::cmn::gui::DetailFont_tTag;
 using ::cmn::gui::Foldable_t;
 using ::cmn::gui::Foldable_tTag;
-using ::cmn::gui::ItemBorderColor_t;
-using ::cmn::gui::ItemBorderColor_tTag;
-using ::cmn::gui::ItemColor_t;
-using ::cmn::gui::ItemColor_tTag;
+using ::cmn::gui::ItemCornerFlags;
+using ::cmn::gui::ItemCornerFlagsTag;
+using ::cmn::gui::ItemFillClr_t;
+using ::cmn::gui::ItemFillClr_tTag;
 using ::cmn::gui::ItemFont_t;
 using ::cmn::gui::ItemFont_tTag;
+using ::cmn::gui::ItemLineColor_t;
+using ::cmn::gui::ItemLineColor_tTag;
 using ::cmn::gui::ItemPadding_t;
 using ::cmn::gui::ItemPadding_tTag;
+using ::cmn::gui::ItemTextClr_t;
+using ::cmn::gui::ItemTextClr_tTag;
 using ::cmn::gui::LabelAutoSize_t;
 using ::cmn::gui::LabelAutoSize_tTag;
 using ::cmn::gui::LabelColor_t;
@@ -273,6 +303,8 @@ using ::cmn::gui::LabelFont_t;
 using ::cmn::gui::LabelFont_tTag;
 using ::cmn::gui::LabelLineColor_t;
 using ::cmn::gui::LabelLineColor_tTag;
+using ::cmn::gui::ListCornerFlags;
+using ::cmn::gui::ListCornerFlagsTag;
 using ::cmn::gui::ListDims_t;
 using ::cmn::gui::ListDims_tTag;
 using ::cmn::gui::ListFillClr_t;
@@ -379,6 +411,7 @@ using ::cmn::gui::DrawableCollection;
 using ::cmn::gui::SectionInterface;
 using ::cmn::gui::TopLeft;
 using ::cmn::gui::TopRight;
+using ::cmn::gui::interface_scale;
 }
 
 namespace commons_module_smoke::commons_gui::cmn::gui::Type {
@@ -398,6 +431,7 @@ using ::cmn::gui::Dropdown;
 // gui/types/Entangled.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Margin;
+using ::cmn::gui::ScrollAxis;
 }
 
 // gui/types/ErrorElement.h
@@ -417,6 +451,7 @@ using ::cmn::gui::Hist::Options;
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::CellFillInterval;
 using ::cmn::gui::CellFillIntervalTag;
+using ::cmn::gui::FloatingLayout;
 using ::cmn::gui::GridInfo;
 using ::cmn::gui::GridLayout;
 using ::cmn::gui::HorizontalLayout;
@@ -425,6 +460,8 @@ using ::cmn::gui::MinCellSize;
 using ::cmn::gui::MinCellSizeTag;
 using ::cmn::gui::MinSize;
 using ::cmn::gui::MinSizeTag;
+using ::cmn::gui::OuterPadding;
+using ::cmn::gui::OuterPaddingTag;
 using ::cmn::gui::PlaceinLayout;
 using ::cmn::gui::VerticalLayout;
 }
@@ -493,6 +530,18 @@ using ::cmn::utils::find_splitting_point;
 // gui/types/Table.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Table;
+}
+
+// gui/types/TagList.h
+namespace commons_module_smoke::commons_gui::cmn::gui {
+using ::cmn::gui::TagList;
+}
+
+namespace commons_module_smoke::commons_gui {
+using cmn_gui_TagList_AllowNew_t = ::cmn::gui::TagList::AllowNew_t;
+using cmn_gui_TagList_AllowNew_tTag = ::cmn::gui::TagList::AllowNew_tTag;
+using cmn_gui_TagList_MatchThreshold_t = ::cmn::gui::TagList::MatchThreshold_t;
+using cmn_gui_TagList_MatchThreshold_tTag = ::cmn::gui::TagList::MatchThreshold_tTag;
 }
 
 // gui/types/Textfield.h

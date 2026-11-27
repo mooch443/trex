@@ -47,8 +47,10 @@ using ::cmn::file::to_png;
 namespace commons_module_smoke::commons_file::cmn::file {
 using ::cmn::file::PathArray;
 using ::cmn::file::_PathArray;
+using ::cmn::file::filename_prefix_candidates;
 using ::cmn::file::find_basename;
 using ::cmn::file::find_parent;
+using ::cmn::file::normalized_filename_key;
 using ::cmn::file::sanitize_filename;
 }
 

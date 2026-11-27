@@ -4,7 +4,8 @@
 #include <core/default_config.h>
 #include <ui/Scene.h>
 
-namespace cmn::gui::terminal {
+namespace cmn::terminal {
+using namespace gui;
 
 void open_terminal() {
     std::string cmd;
@@ -81,7 +82,7 @@ void open_terminal() {
             }
             else {
                 std::set<std::string> matches;
-                for(auto key : GlobalSettings::keys()) {
+                for(auto&& key : GlobalSettings::keys()) {
                     if(utils::contains(utils::lowercase(key), utils::lowercase(command))) {
                         matches.insert(key);
                     }
@@ -99,12 +100,12 @@ void open_terminal() {
         }
         
         if(!executed) {
-            default_config::warn_deprecated("input", GlobalSettings::load_from_string(cmd, {
+            const auto loaded = GlobalSettings::load_from_string(cmd, {
                 .source = sprite::MapSource::CMD,
                 .deprecations = default_config::deprecations(),
                 .access = AccessLevelType::PUBLIC
-            }));
-            //default_config::warn_deprecated("input", GlobalSettings::load_from_string(sprite::MapSource::CMD, default_config::deprecations(), GlobalSettings::map(), cmd, AccessLevelType::PUBLIC));
+            });
+            default_config::deprecations().warn_deprecated("input", cmn::extract_keys(loaded));
         }
     }//);
 }

@@ -15,3 +15,13 @@ using ::track::MotionRecord;
 using ::track::PairDistance;
 using ::track::Units;
 }
+
+// data/FrameRepository.h
+namespace trex_module_smoke::trex_data::cmn::data {
+using ::cmn::data::FrameRepository;
+}
+
+// data/CacheHints.h
+namespace trex_module_smoke::trex_data::track {
+using ::track::CacheHints;
+}

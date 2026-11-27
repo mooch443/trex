@@ -14,6 +14,7 @@
 #include <dlfcn.h>
 #endif
 #ifdef WIN32
+#include <process.h>
 #include <algorithm>
 #include <cctype>
 #include <set>
@@ -278,9 +279,6 @@ void prepare_python_environment() {
 #endif
 
     std::call_once(python_environment_once(), []() {
-        if(file::DataLocation::is_registered("app"))
-            file::cd(file::DataLocation::parse("app"));
-
 #ifdef COMMONS_PYTHON_EXECUTABLE
         auto home = ::default_config::conda_environment_path().str();
         if (home.empty())
@@ -387,6 +385,8 @@ std::vector<file::Path> python_library_names() {
 std::vector<file::Path> python_library_candidates() {
     std::vector<file::Path> candidates;
     auto wd = READ_SETTING(wd, file::Path);
+    const auto app = file::DataLocation::instance_if_set() && file::DataLocation::is_registered("app")
+        ? file::DataLocation::parse("app") : file::Path{};
     for (const auto& library_name : python_library_names()) {
         if (!wd.empty()) {
             candidates.emplace_back((wd / library_name).absolute());
@@ -394,6 +394,8 @@ std::vector<file::Path> python_library_candidates() {
             candidates.emplace_back((wd / ".." / "Frameworks" / library_name).absolute());
 #endif
         }
+        if(not app.empty() && app != wd)
+            candidates.emplace_back(app / library_name);
         candidates.emplace_back(library_name);
     }
     return candidates;
@@ -577,7 +579,8 @@ void configure_runtime(
     void* instance,
     void* tile_buffers,
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
-    std::function<void()> close_fn
+    std::function<void()> close_fn,
+    std::function<void(const std::string&)> warning_fn
 ) {
     GlobalSettings::instance(settings);
     file::DataLocation::set_instance(data_location);
@@ -591,8 +594,16 @@ void configure_runtime(
         throw SoftException("trex_python did not register runtime configuration callbacks.");
     impl.set_settings(settings, data_location, instance, tile_buffers);
     impl.set_display_function(std::move(show_fn), std::move(close_fn));
+    if (impl.set_runtime_warning_function) {
+        if (!warning_fn) {
+            warning_fn = [](const std::string& message) {
+                FormatWarning(message);
+            };
+        }
+        impl.set_runtime_warning_function(std::move(warning_fn));
+    }
 
-    Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
+    //Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
 }
 
 void check_correct_thread_id() {
@@ -637,21 +648,21 @@ bool valid(const std::string& name, const std::string& m) {
     return impl.valid(name, m);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function) {
     auto& impl = active_python_impl();
     if (!impl.run_no_args)
         throw SoftException("trex_python did not register run(module, function).");
     return impl.run_no_args(module_name, function);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const std::string& parm) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const std::string& parm) {
     auto& impl = active_python_impl();
     if (!impl.run_string_arg)
         throw SoftException("trex_python did not register run(module, function, string).");
     return impl.run_string_arg(module_name, function, parm);
 }
 
-std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const glz::json_t& parm) {
+std::optional<glz::generic> run(const std::string& module_name, const std::string& function, const glz::generic& parm) {
     auto& impl = active_python_impl();
     if (!impl.run_json_arg)
         throw SoftException("trex_python did not register run(module, function, json).");
@@ -1375,7 +1386,7 @@ std::future<void> deinit() {
             }
         };
         
-        if(init_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+        if(cmn::is_future_ready(init_future))
         {
             fn(std::move(task), std::move(init_future));
             
@@ -1390,67 +1401,57 @@ std::future<void> deinit() {
 #if !COMMONS_NO_PYTHON
 bool can_initialize_python() {
 #ifdef WIN32
-    SetErrorMode(SEM_FAILCRITICALERRORS);
-#endif
-#define CHECK_PYTHON_EXECUTABLE_NAME std::string("trex_check_python")
-    std::string exec;
-#ifdef WIN32
-    exec = file::Path(CHECK_PYTHON_EXECUTABLE_NAME).add_extension("exe").str();
-#elif __APPLE__
-    exec = "../MacOS/"+CHECK_PYTHON_EXECUTABLE_NAME;
+    const file::Path name("trex_check_python.exe");
 #else
-    exec = "./"+CHECK_PYTHON_EXECUTABLE_NAME;
+    const file::Path name("trex_check_python");
 #endif
-    if ((READ_SETTING(wd, file::Path) / exec).exists()) {
-        exec = (READ_SETTING(wd, file::Path) / exec).str();
-        Print("Exists in working dir: ", exec);
-#ifndef WIN32
-        exec += " 2> /dev/null";
+    std::vector<file::Path> candidates;
+    const auto wd = READ_SETTING(wd, file::Path);
+    if(not wd.empty()) {
+#ifdef __APPLE__
+        candidates.push_back(wd / ".." / "MacOS" / name);
+        candidates.push_back(wd / ".." / ".." / ".." / name);
 #endif
-    } else {
-        //FormatWarning("Does not exist in working dir: ",exec);
-#if __APPLE__
-        auto p = READ_SETTING(wd, file::Path);
-        p = (p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
-        
-        if(p.exists()) {
-            Print(p," exists.");
-            exec = p.str()+" 2> /dev/null";
-        } else {
-            p = (READ_SETTING(wd, file::Path) / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
-            if(p.exists()) {
-                //Print("Pure ",p," exists.");
-                exec = p.str()+" 2> /dev/null";
-            } else {
-                // search conda
-                auto conda_prefix = (const char*)getenv("CONDA_PREFIX");
-                if(conda_prefix) {
-                    const bool quiet = GlobalSettings::is_runtime_quiet();
-                    if(!quiet)
-                        Print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
-                    p = (file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
-                    if(!quiet)
-                        Print("Full path: ", p);
-                    if(p.exists()) {
-                        if(!quiet)
-                            Print("Found in conda environment ",std::string(conda_prefix)," at ",p);
-                        exec = p.str()+" 2> /dev/null";
-                    } else {
-                        FormatWarning("Not found in conda environment ",std::string(conda_prefix)," at ",p,".");
-                    }
-                } else
-                    FormatWarning("No conda prefix.");
-            }
-        }
-#endif
+        candidates.push_back(wd / name);
     }
-    
-    auto ret = system(exec.c_str()) == 0;
-#if WIN32
-    SetErrorMode(0);
+    if(file::DataLocation::instance_if_set() && file::DataLocation::is_registered("app"))
+        candidates.push_back(file::DataLocation::parse("app", name));
+#ifdef __APPLE__
+    if(const auto* prefix = std::getenv("CONDA_PREFIX"))
+        candidates.push_back(file::Path(prefix) / "usr" / "share" / "trex" / name);
 #endif
-    Data::last_python_try(ret ? 1 : -1);
-    return ret;
+#ifdef WIN32
+    if(const auto* search = _wgetenv(L"PATH")) {
+        for(const auto& directory : utils::split(std::wstring(search), ';', true))
+            candidates.push_back(file::Path(WStringToString(directory)) / name);
+    }
+#else
+    if(const auto* search = std::getenv("PATH")) {
+        for(auto directory : utils::split(std::string_view(search), ':', true))
+            candidates.push_back(file::Path(directory) / name);
+    }
+#endif
+
+    bool available = false;
+    for(const auto& path : candidates) {
+        const auto executable = std::filesystem::u8path(path.str());
+        std::error_code error;
+        if(not executable.is_absolute() || not std::filesystem::is_regular_file(executable, error))
+            continue;
+#ifdef WIN32
+        const auto previous = SetErrorMode(SEM_FAILCRITICALERRORS);
+        available = _wspawnl(_P_WAIT, executable.c_str(), L"trex_check_python", static_cast<const wchar_t*>(nullptr)) == 0;
+        SetErrorMode(previous);
+#else
+        if(::access(executable.c_str(), X_OK) != 0)
+            continue;
+        const auto command = "'" + utils::find_replace(path.str(), "'", "'\\''") + "' 2> /dev/null";
+        available = std::system(command.c_str()) == 0;
+#endif
+        break;
+    }
+    Data::last_python_try(available ? 1 : -1);
+    return available;
 }
 
 bool python_available() {

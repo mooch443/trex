@@ -106,9 +106,12 @@ namespace pv {
             offset input videos.
          */
         V_15,
+
+        /** Metadata stores native JSON values instead of quoted valueString() payloads. */
+        V_16,
         
         //! current
-        current = V_15
+        current = V_16
     };
     
     class Frame {
@@ -406,7 +409,7 @@ namespace pv {
         
     public:
         File(File&&) noexcept;
-        ~File();
+        ~File() noexcept;
         
         void close() override;
         const pv::Frame& last_frame();
@@ -416,7 +419,7 @@ namespace pv {
         std::vector<float> calculate_percentiles(const std::initializer_list<float>& percent);
         std::string get_info(bool full = true);
         std::string get_info_rich_text(bool full = true);
-        void print_info() { Print(get_info().c_str()); }
+        void print_info() { NoNLPrint(get_info().c_str(),"\n"); }
         
         virtual CropOffsets crop_offsets() const override {
             std::unique_lock lock(_lock);
@@ -552,7 +555,14 @@ namespace pv {
     
     //! Tries to find irregular frames (timestamp smaller than timestamp from previous frame)
     //  and removes them from the file.
-    void fix_file(File& file);
+    void fix_file(File& file, cmn::file::Path destination = {});
+
+    enum class SettingsFormat { Json, LegacyResults };
+    void load_metadata_settings(sprite::Map& map, const file::Path& source,
+                                const std::string& text, SettingsFormat format = SettingsFormat::Json,
+                                const Deprecations* deprecations = nullptr);
+    void migrate_filename(sprite::Map& map);
+    std::string settings_to_json(const sprite::Map& settings);
     
     //! prefixes the given path so that it points to either
     //  the output folder, or the input folder.

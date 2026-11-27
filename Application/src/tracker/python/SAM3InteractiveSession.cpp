@@ -27,7 +27,7 @@ constexpr uint32_t kPromptSnapshotKeyframeInterval = 10;
 constexpr std::string_view kSam3InteractiveLogPrefix = "[sam3-session]";
 
 template <typename Response>
-Response parse_json_response(const std::optional<glz::json_t>& response, std::string_view function_name)
+Response parse_json_response(const std::optional<glz::generic>& response, std::string_view function_name)
 {
     if(not response.has_value()) {
         throw U_EXCEPTION("Python function ", function_name, " did not return a response.");
@@ -73,7 +73,7 @@ public:
         namespace py = Python;
         py::schedule([index = max_frame_index]() {
             ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
-            const auto response = proxy.run("reset_runtime", glz::json_t{
+            const auto response = proxy.run("reset_runtime", glz::generic{
                 {"max_frame_index", index.valid() ? static_cast<int64_t>(index.get()) : int64_t(0)}
             });
             (void)parse_json_response<GenericOkResponse>(response, "reset_runtime");
@@ -85,7 +85,7 @@ public:
         namespace py = Python;
         py::schedule([start_frame, target_frame, total_steps]() {
             ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
-            const auto response = proxy.run("begin_replay_progress", glz::json_t{
+            const auto response = proxy.run("begin_replay_progress", glz::generic{
                 {"start_frame", start_frame.valid() ? static_cast<int64_t>(start_frame.get()) : int64_t(0)},
                 {"target_frame", target_frame.valid() ? static_cast<int64_t>(target_frame.get()) : int64_t(0)},
                 {"total_steps", static_cast<int64_t>(total_steps)}
@@ -99,7 +99,7 @@ public:
         namespace py = Python;
         py::schedule([steps]() {
             ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
-            const auto response = proxy.run("advance_replay_progress", glz::json_t{
+            const auto response = proxy.run("advance_replay_progress", glz::generic{
                 {"steps", static_cast<int64_t>(steps)}
             });
             (void)parse_json_response<GenericOkResponse>(response, "advance_replay_progress");
@@ -111,7 +111,7 @@ public:
         namespace py = Python;
         py::schedule([]() {
             ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
-            const auto response = proxy.run("finish_replay_progress", glz::json_t::object_t{});
+            const auto response = proxy.run("finish_replay_progress", glz::generic::object_t{});
             (void)parse_json_response<GenericOkResponse>(response, "finish_replay_progress");
         }).get();
     }
@@ -135,24 +135,16 @@ public:
                     : int64_t(0);
                 const int64_t frame_index = raw_frame_index < 0 ? 0 : raw_frame_index;
                 const auto tile_image_count = tile.images.size();
-                std::vector<Vec2> offsets;
-                std::vector<Vec2> scales;
                 std::vector<size_t> orig_id;
-                offsets.reserve(tile_image_count);
-                scales.reserve(tile_image_count);
                 orig_id.reserve(tile_image_count);
 
-                const auto tile_offsets = tile.offsets();
                 for(size_t k = 0; k < tile_image_count; ++k) {
-                    offsets.emplace_back(k < tile_offsets.size() ? tile_offsets[k] : Vec2(0.f, 0.f));
-                    scales.push_back(tile.original_size.div(tile.source_size));
                     orig_id.emplace_back(static_cast<size_t>(uint64_t(frame_index)));
                 }
 
                 detect::YoloInput input{
                     std::move(tile.images),
-                    std::move(offsets),
-                    std::move(scales),
+                    tile.tile_geometries(),
                     std::move(orig_id),
                     [](std::vector<Image::Ptr>&& images) {
                         for(auto&& image : images) {

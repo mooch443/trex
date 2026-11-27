@@ -23,7 +23,7 @@ using parsed_field_t = std::conditional_t<
     clean_t<ExpectedT>>;
 
 template<typename T, cmn::StringLike Key>
-validation_result_t read_typed_field(const glz::json_t& response,
+validation_result_t read_typed_field(const glz::generic& response,
                                      Key&& key,
                                      T& out_value)
 {
@@ -76,7 +76,7 @@ template<cmn::StringLike ModuleName,
          typename ExtraValidation = std::nullptr_t>
 bool validate_setter_response(ModuleName&& module_name,
                               SetterName&& setter_name,
-                              const std::optional<glz::json_t>& result,
+                              const std::optional<glz::generic>& result,
                               ExtraValidation&& extra_validation = nullptr)
 {
     const auto module_name_sv = cmn::utils::string_like_view(module_name);
@@ -99,9 +99,9 @@ bool validate_setter_response(ModuleName&& module_name,
     }
 
     if constexpr(not std::same_as<clean_t<ExtraValidation>, std::nullptr_t>) {
-        static_assert(std::invocable<ExtraValidation, const glz::json_t&>,
-                      "extra_validation must be callable with (const glz::json_t&).");
-        using extra_result_t = std::invoke_result_t<ExtraValidation, const glz::json_t&>;
+        static_assert(std::invocable<ExtraValidation, const glz::generic&>,
+                      "extra_validation must be callable with (const glz::generic&).");
+        using extra_result_t = std::invoke_result_t<ExtraValidation, const glz::generic&>;
         static_assert(std::same_as<clean_t<extra_result_t>, validation_result_t>,
                       "extra_validation must return std::expected<void, std::string>.");
 
@@ -123,7 +123,7 @@ template<typename T,
          cmn::StringLike Key>
 bool validate_setter_response_with_value(ModuleName&& module_name,
                                          SetterName&& setter_name,
-                                         const std::optional<glz::json_t>& result,
+                                         const std::optional<glz::generic>& result,
                                          Key&& key,
                                          const T& expected_value,
                                          float epsilon = 1e-6f)
@@ -141,7 +141,7 @@ bool validate_setter_response_with_value(ModuleName&& module_name,
         std::forward<ModuleName>(module_name),
         std::forward<SetterName>(setter_name),
         result,
-        [key_str, expected_stored, epsilon](const glz::json_t& response) -> validation_result_t {
+        [key_str, expected_stored, epsilon](const glz::generic& response) -> validation_result_t {
             parsed_field_t<T> returned_value{};
             if(auto maybe_error = read_typed_field(response, key_str, returned_value);
                not maybe_error.has_value())

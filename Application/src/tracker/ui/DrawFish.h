@@ -9,6 +9,7 @@
 #include <tracking/OutputLibrary.h>
 #include <ui/Coordinates.h>
 #include <tracking/Outline.h>
+#include <tracking/Stuffs.h>
 #include <gui/Graph.h>
 #include <data/IndividualCache.h>
 #include <tracking/TrackletInformation.h>
@@ -22,6 +23,7 @@ struct CompressedBlob;
 }
 
 namespace track {
+class Tracker;
 class Individual;
 }
 
@@ -57,11 +59,26 @@ struct UpdateSettings {
     float gui_max_path_time;
     track::PoseMidlineIndexes pose_midline_indexes;
     Float2_t track_max_speed;
+    uint8_t outline_approximate;
+    uint8_t outline_holes_approximate;
 };
 
     class Fish {
         GETTER_NCONST(Entangled, view);
         Label* _label { nullptr };
+        
+        /// front-buffer
+        derived_ptr<Entangled> _outline_container;
+        derived_ptr<Line> _draw_outline;
+        std::vector<derived_ptr<Line>> _draw_holes;
+        
+        /// back-buffer for vertex lines
+        bool needs_swap{false};
+        derived_ptr<Line> _buffer_draw_outline;
+        std::vector<derived_ptr<Line>> _buffer_draw_holes;
+        
+        Line::Vertices_t oline;
+        //std::vector<Line::Vertices_t> glines;
 
         GETTER(Frame_t, frame);
         Frame_t _safe_frame;
@@ -162,7 +179,7 @@ struct UpdateSettings {
         ~Fish();
         void update(const FindCoord&, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
-        void set_data(const UpdateSettings& settings, track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
+        void set_data(const track::Tracker&, const UpdateSettings& settings, track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
         void set_label_text(const pattern::UnresolvedStringPattern&);
         
     private:

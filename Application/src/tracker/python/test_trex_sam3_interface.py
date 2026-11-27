@@ -9,9 +9,11 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import torch
+from ultralytics.cfg import DEFAULT_CFG_DICT, get_cfg
 
 import trex_sam3_interface as sam3
 
@@ -261,12 +263,25 @@ class FakeOffset:
     y: float = 0.0
 
 
+class FakeTileGeometry:
+    def __init__(self, offset=None, scale=None, **values):
+        self._offset = offset or FakeOffset()
+        self._scale = scale or FakeScale()
+        for name, value in values.items():
+            setattr(self, name, value)
+
+    def offset(self):
+        return self._offset
+
+    def scale(self):
+        return self._scale
+
+
 class FakeBaseInput:
-    def __init__(self, images, orig_ids, offsets, scales):
+    def __init__(self, images, orig_ids, geometries):
         self._images = images
         self._orig_ids = orig_ids
-        self._offsets = offsets
-        self._scales = scales
+        self._geometries = geometries
 
     def images(self):
         return self._images
@@ -274,16 +289,16 @@ class FakeBaseInput:
     def orig_id(self):
         return self._orig_ids
 
-    def offsets(self):
-        return self._offsets
-
-    def scales(self):
-        return self._scales
+    def tile_geometries(self):
+        return self._geometries
 
 
 class FakeSam3Input:
     def __init__(self, images, orig_ids, offsets, scales, prompts_per_image):
-        self._base = FakeBaseInput(images, orig_ids, offsets, scales)
+        self._base = FakeBaseInput(
+            images,
+            orig_ids,
+            [FakeTileGeometry(offset, scale) for offset, scale in zip(offsets, scales)])
         self._prompts_per_image = prompts_per_image
 
     def base(self):
@@ -422,6 +437,24 @@ class Sam3InterfaceTest(unittest.TestCase):
 
         self.assertEqual(current.predictor.imgsz, (96, 64))
 
+    def test_create_session_uses_supported_full_precision_option_on_mps(self):
+        def configure_predictor(overrides):
+            """Validate the fake predictor's options with Ultralytics' config parser."""
+            predictor = FakePredictor(overrides)
+            predictor.args = get_cfg(overrides=overrides)
+            return predictor
+
+        with patch.object(FakeTRex, "choose_device", return_value="mps"), \
+             patch.object(sam3, "SAM3VideoSemanticPredictor", configure_predictor):
+            self.create_session(half=True)
+
+        overrides = sam3._require_session().predictor.overrides
+        if "quantize" in DEFAULT_CFG_DICT:
+            self.assertNotIn("half", overrides)
+            self.assertEqual(overrides["quantize"], 32)
+        else:
+            self.assertIs(overrides["half"], False)
+
     def test_session_applies_keep_alive_directly_to_predictor_and_survives_frame30(self):
         self.create_session()
 
@@ -504,28 +537,35 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertEqual(masks_np.shape[0], 2)
         self.assertEqual(FakePredictor.non_overlap_calls, 1)
 
-    def test_build_result_inverse_maps_letterboxed_masks(self):
+    def test_build_result_emits_integer_xyxy_with_exact_local_mask_size(self):
+        geometry = FakeTileGeometry(
+            offset=FakeOffset(5.0, 7.0),
+            scale=FakeScale(2.0, 3.0),
+            source_x=10.0,
+            source_y=20.0,
+            source_width=20.0,
+            source_height=30.0,
+            tile_x=0.0,
+            tile_y=0.0,
+            tile_width=8.0,
+            tile_height=8.0,
+        )
         result = sam3._build_result(
             frame_index=0,
-            scale=FakeScale(2.0, 2.0),
-            offset=FakeOffset(-2.0, 0.0),
-            image_shape=(6, 8),
-            masks_np=np.asarray(
-                [[[0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0]]],
-                dtype=np.uint8,
-            ),
+            geometry=geometry,
+            image_shape=(8, 8),
+            masks_np=np.ones((1, 8, 8), dtype=np.uint8),
             conf_np=np.asarray([0.9], dtype=np.float32),
             cls_np=np.asarray([3.0], dtype=np.float32),
+            pred_boxes_np=np.asarray([[1.2, 1.4, 4.1, 5.2]], dtype=np.float32),
         )
 
         self.assertEqual(result.boxes.shape, (1, 6))
-        self.assertAlmostEqual(float(result.boxes[0, 0]), 0.0, places=5)
-        self.assertAlmostEqual(float(result.boxes[0, 2]), 7.0, places=5)
+        np.testing.assert_array_equal(
+            result.boxes[0, :4],
+            np.asarray([12.0, 25.0, 19.0, 37.0], dtype=np.float32),
+        )
+        self.assertEqual(result.masks[0].shape, (12, 7))
 
     def test_predict_frame_uses_live_thresholds_from_trex_settings(self):
         FakePredictor.box_detection_score_overrides[(0, 0)] = 0.6
@@ -572,10 +612,10 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertTrue(predictor.shutdown_called)
         self.assertIsNone(sam3._SESSION)
 
-    def test_predict_frame_rejects_mismatched_offsets_length(self):
+    def test_predict_frame_rejects_mismatched_geometry_length(self):
         self.create_session()
 
-        with self.assertRaisesRegex(ValueError, "offsets"):
+        with self.assertRaisesRegex(ValueError, "tile_geometries"):
             sam3.predict_frame(FakeSam3Input(
                 [np.zeros((8, 8, 3), dtype=np.uint8)],
                 [0],

@@ -37,7 +37,7 @@ Layout::Ptr TimingStatsElement::_create(dyn::LayoutContext& context) {
                     std::chrono::duration<double>(timeWindowSeconds));
     
     // Create the TimingStatsWidget with the shared collector.
-    auto widget = Layout::Make<TimingStatsWidget>(collector, window, rowHeight);
+    auto widget = Layout::Make<TimingStatsWidget>{collector, window, rowHeight}();
     
     return widget;
 }

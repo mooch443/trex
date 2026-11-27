@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A practical reference for dynamic text in commons and TRex layouts: expressions, literal strings, collections, escaping and actions.">
+  <title>Dynamic text syntax · Commons</title>
+  <style>
+    :root { color-scheme: light; --paper: #f6f5ef; --white: #fffefa; --ink: #20332e; --muted: #54675f; --line: #d9dfd6; --accent: #0b6255; --tint: #e9f2eb; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 28px; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    a { color: var(--accent); text-underline-offset: 4px; }
+    a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .skip { position: absolute; left: 24px; top: -100px; z-index: 10; padding: 10px 16px; background: var(--white); }
+    .skip:focus { top: 16px; }
+    .masthead { max-width: 1200px; margin: auto; padding: 28px 40px; display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .brand { font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .masthead span:last-child { color: var(--muted); }
+    .shell { max-width: 1200px; margin: auto; padding: 54px 40px 80px; display: grid; grid-template-columns: 188px minmax(0, 1fr); gap: 64px; }
+    aside { align-self: start; position: sticky; top: 32px; }
+    .eyebrow { margin: 0 0 15px; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
+    nav a { display: block; padding: 7px 0; color: var(--muted); text-decoration: none; font-size: 14px; }
+    nav a:hover { color: var(--accent); }
+    nav a span { display: inline-block; width: 25px; color: #78877d; font: 11px var(--mono); }
+    .aside-note { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+    main { min-width: 0; }
+    h1 { margin: 0; font-size: clamp(36px, 5vw, 56px); line-height: 1.08; letter-spacing: -.045em; font-weight: 750; }
+    .intro { max-width: 640px; margin: 24px 0 28px; color: var(--muted); font-size: 18px; line-height: 1.65; }
+    .principle { border-left: 3px solid var(--accent); padding: 15px 20px; background: var(--tint); font-size: 17px; }
+    .principle p { margin: 0; }
+    .principle p + p { margin-top: 4px; }
+    code { font: .88em/1.6 var(--mono); overflow-wrap: anywhere; }
+    .token-name { color: #0b6255; }
+    .token-call { color: #743b96; }
+    .token-string { color: #875019; }
+    .token-escape { color: #a02f4a; font-weight: 650; }
+    .token-value { color: #175f9d; }
+    .token-punctuation { color: #52616a; }
+    .token-key { color: #175f9d; }
+    p code, li code, td code, .principle code { background: #eaf0e9; border-radius: 3px; padding: 2px 5px; }
+    .toolbar { margin-top: 28px; padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .toolbar[hidden] { display: none; }
+    .toolbar strong { display: block; font-size: 13px; }
+    .toolbar small { color: var(--muted); font-size: 12px; }
+    .modes { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--white); }
+    button { font: inherit; cursor: pointer; }
+    .modes button { border: 0; border-radius: 4px; padding: 7px 12px; color: var(--muted); background: transparent; font-size: 13px; }
+    .modes button[aria-pressed="true"] { color: white; background: var(--accent); }
+    .context { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+    section { margin-top: 52px; scroll-margin-top: 28px; }
+    h2 { display: flex; align-items: baseline; gap: 14px; margin: 0 0 17px; font-size: 25px; line-height: 1.3; letter-spacing: -.02em; }
+    h2 .number { flex: none; color: var(--accent); font: 12px var(--mono); }
+    h3 { margin: 27px 0 10px; font-size: 17px; }
+    p { margin: 12px 0; }
+    .example { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); margin: 12px 0; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--white); }
+    .example > div { min-width: 0; padding: 13px 16px; }
+    .example .output { border-left: 1px solid var(--line); background: #eff4ed; }
+    .label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; }
+    .example code { display: block; white-space: pre-wrap; }
+    .note { margin-top: 16px; color: var(--muted); font-size: 14px; }
+    .table-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: 7px; }
+    table { width: 100%; border-collapse: collapse; background: var(--white); text-align: left; font-size: 14px; }
+    th { background: #edf1e9; color: var(--muted); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+    th, td { padding: 12px 15px; vertical-align: top; border-bottom: 1px solid var(--line); }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { width: 29%; }
+    pre { margin: 14px 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 7px; background: var(--white); overflow-x: auto; font: 13px/1.75 var(--mono); }
+    pre code { font: inherit; overflow-wrap: normal; }
+    .steps { margin: 20px 0; border-left: 1px solid var(--line); padding-left: 20px; }
+    .steps > div { margin: 16px 0; }
+    .steps code { display: block; white-space: pre-wrap; }
+    ul { padding-left: 22px; }
+    li { margin: 7px 0; }
+    footer { margin-top: 48px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-top: 35px; }
+      aside { position: static; }
+      aside .eyebrow, .aside-note { display: none; }
+      nav { display: flex; flex-wrap: wrap; gap: 2px 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+      nav a { padding: 3px 0; font-size: 12px; }
+      nav a span { width: 21px; }
+    }
+    @media (max-width: 560px) {
+      .masthead { padding: 20px 22px; }
+      .shell { padding: 25px 22px 48px; }
+      .intro { font-size: 16px; }
+      h2 { font-size: 22px; }
+      .example { grid-template-columns: minmax(0, 1fr); }
+      .example .output { border-left: 0; border-top: 1px solid var(--line); }
+      .toolbar { align-items: flex-start; flex-direction: column; }
+      th, td { padding: 10px; }
+    }
+    @media print {
+      body { background: white; font-size: 11pt; }
+      .masthead { max-width: none; padding: 0 0 15px; }
+      .shell { display: block; max-width: none; padding: 25px 0 0; }
+      aside, .toolbar, .skip { display: none; }
+      h1 { font-size: 32pt; }
+      section { margin-top: 28px; }
+      h2 { break-after: avoid; }
+      .example, pre, tr { break-inside: avoid; }
+      a { color: inherit; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the reference</a>
+  <header class="masthead"><span class="brand">Commons</span><span>Layout reference · TRex</span></header>
+  <div class="shell">
+    <aside>
+      <p class="eyebrow">On this page</p>
+      <nav aria-label="Reference sections">
+        <a href="#expressions"><span>01</span>Values &amp; expressions</a>
+        <a href="#quotes"><span>02</span>Literal strings</a>
+        <a href="#escaping"><span>03</span>Separators &amp; escapes</a>
+        <a href="#collections"><span>04</span>Arrays &amp; maps</a>
+        <a href="#conditions"><span>05</span>Conditions &amp; loops</a>
+        <a href="#json"><span>06</span>Writing JSON</a>
+        <a href="#actions"><span>07</span>Actions</a>
+        <a href="#names"><span>08</span>Names &amp; valid syntax</a>
+      </nav>
+      <p class="aside-note">Use these rules wherever a layout field accepts dynamic text.</p>
+    </aside>
+    <main id="main">
+      <p class="eyebrow">Syntax guide</p>
+      <h1>Dynamic text syntax</h1>
+      <p class="intro">Combine ordinary text with values and expressions. The same syntax is used for text evaluated directly and for prepared text patterns.</p>
+      <div class="principle">
+        <p><strong>Braces evaluate.</strong> <code>{name}</code> inserts a value.</p>
+        <p><strong>Single quotes keep text literal.</strong> <code>'{name}'</code> produces <code>{name}</code>.</p>
+      </div>
+      <div class="toolbar" hidden id="toolbar">
+        <div><strong>Example inputs</strong><small>Switch between template text and its JSON encoding.</small></div>
+        <div class="modes" role="group" aria-label="Example input format">
+          <button type="button" data-mode="text" aria-pressed="true">Template text</button>
+          <button type="button" data-mode="json" aria-pressed="false">JSON value</button>
+        </div>
+      </div>
+      <p class="context">Examples assume <code>name = Ada</code> and <code>ready = true</code>, unless stated otherwise.</p>
+
+      <section id="expressions">
+        <h2><span class="number">01</span>Values and expressions</h2>
+        <p>Write ordinary text directly. Surround a variable or a function call with <code>{…}</code>. Use dots to access fields: <code>{person.name}</code>, <code>{window_size.w}</code> or <code>{object.array.0}</code>. Array indexes start at zero. Global settings use paths such as <code>{global.gui_run}</code>.</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>Hello {name}</code></div><div class="output"><span class="label">Result</span><code>Hello Ada</code></div></div>
+        <p>Functions use <code>{function:argument:argument}</code>. The function comes first; colons separate its arguments. Nest another expression inside an argument when you need its result.</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{+:1:{*:2:3}}</code></div><div class="output"><span class="label">Result</span><code>7</code></div></div>
+        <p>A bare argument is text: <code>name</code> means the word “name”; <code>{name}</code> means its value. Text returned by a variable is inserted without evaluating it again. If <code>label</code> contains <code>{name}</code>, then <code>{label}</code> inserts those literal braces and that name.</p>
+      </section>
+
+      <section id="quotes">
+        <h2><span class="number">02</span>Single quotes make literal strings</h2>
+        <p>Inside paired single quotes, braces and colons are literal text. Expressions inside that span do not expand. Outside a collection, the surrounding quote marks are removed.</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>Hello '{name}'</code></div><div class="output"><span class="label">Result</span><code>Hello {name}</code></div></div>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{if:{ready}:Hello {name}:'Please wait'}</code></div><div class="output"><span class="label">Result</span><code>Hello Ada</code></div></div>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{if:{ready}:'Hello {name}':'Please wait'}</code></div><div class="output"><span class="label">Result</span><code>Hello {name}</code></div></div>
+        <p>Use <code>''</code> for an empty string. When a quoted literal is decoded, <code>\n</code>, <code>\t</code>, <code>\r</code>, <code>\b</code>, <code>\f</code> and <code>\uXXXX</code> decode as JSON escapes. Use <code>\\</code> for a literal backslash and <code>\'</code> for an apostrophe. For example, <code>'path\\name'</code> produces <code>path\name</code>; <code>'path\name'</code> contains a newline. An unknown escape such as <code>\q</code> produces <code>q</code>.</p>
+        <p class="note">Use single quotes for template literals. The double quotes around a JSON string belong to JSON; they do not disable expression expansion.</p>
+      </section>
+
+      <section id="escaping">
+        <h2><span class="number">03</span>Separators and escapes</h2>
+        <p>A colon separates arguments at the current expression level. Colons inside a single-quoted argument, a nested expression or an array do not split the surrounding call. Spaces in ordinary text remain part of that text.</p>
+        <p>Use single-quoted spans for literal punctuation, and place expressions outside those spans:</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th scope="col">Template text</th><th scope="col">Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>'{name}'</code></td><td>Literal <code>{name}</code>, without expanding the expression.</td></tr>
+            <tr><td><code>':'</code></td><td>A literal colon within an argument.</td></tr>
+            <tr><td><code>'It\'s ready.'</code></td><td>An apostrophe inside a quoted literal.</td></tr>
+            <tr><td><code>'\\'</code></td><td>A single literal backslash.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>'{name}': {name}</code></div><div class="output"><span class="label">Result</span><code>{name}: Ada</code></div></div>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{if:{ready}:Name':' {name}:'Waiting'}</code></div><div class="output"><span class="label">Result</span><code>Name: Ada</code></div></div>
+        <p class="note">Unquoted backslashes remain in the output; they do not make braces literal. A colon in ordinary text outside an expression is already literal. JSON adds its own escaping layer; see <a href="#json">Writing JSON</a>.</p>
+      </section>
+
+      <section id="collections">
+        <h2><span class="number">04</span>Arrays and maps</h2>
+        <p>Arrays use square brackets and comma-separated items. Quote a string item when it contains a comma. Quotes within a collection are retained so the item boundaries survive evaluation.</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>['a,b','c']</code></div><div class="output"><span class="label">Result</span><code>['a,b','c']</code></div></div>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{array_length:['a,b','c']}</code></div><div class="output"><span class="label">Result</span><code>2</code></div></div>
+        <p>The same literal-string rule applies inside arrays: <code>['{name}','other']</code> keeps <code>{name}</code> literal. Collection helpers may return serialized items with their quotes still attached:</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{at:0:['a,b','c']}</code></div><div class="output"><span class="label">Result, including quotes</span><code>'a,b'</code></div></div>
+        <p>Map data also uses braces. Quote the whole map when passing a literal map to a function, so its braces and colons are treated as data:</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{at:key:'{key:value,other:ignored}'}</code></div><div class="output"><span class="label">Result</span><code>value</code></div></div>
+        <p class="note">Single quotes protect text from expression expansion. A function can still interpret the resulting text as a number, a condition or a collection.</p>
+      </section>
+
+      <section id="conditions">
+        <h2><span class="number">05</span>Conditions and loops</h2>
+        <p>Use <code>{if:condition:then:else}</code> to choose text. The <code>else</code> argument is optional; without it, a false condition produces an empty result. Only the selected branch is evaluated.</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{if:false:{missing}:'OK'}</code></div><div class="output"><span class="label">Result</span><code>OK</code></div></div>
+        <p>Write boolean values as <code>true</code> and <code>false</code>. Quoting <code>false</code> does not turn it into a true condition: <code>{if:'false':yes:no}</code> produces <code>no</code>.</p>
+        <p><code>{&amp;&amp;:a:b}</code> means “and”; <code>{||:a:b}</code> means “or”; <code>{not:a}</code> negates a condition. “And” and “or” evaluate arguments from left to right and stop as soon as the result is decided.</p>
+        <h3>Produce an array with <code>for</code></h3>
+        <p>Use <code>{for:item:array:expression}</code>. Within the expression, <code>{item}</code> is the current element. Each result becomes an element of the output array.</p>
+        <div class="example"><div><span class="label input-label">Template text</span><code data-template>{for:n:[1,2,3]:{*:2:{n}}}</code></div><div class="output"><span class="label">Result</span><code>[2,4,6]</code></div></div>
+      </section>
+
+      <section id="json">
+        <h2><span class="number">06</span>Writing a template in JSON</h2>
+        <p>JSON is decoded first. The resulting string is then evaluated as a template. JSON's outer double quotes never make the template literal.</p>
+        <pre><code data-syntax="json">{
+  "type": "text",
+  "text": "Hello {name}"
+}</code></pre>
+        <p>This displays <code>Hello Ada</code>. Changing the text value to <code data-syntax="json">"Hello '{name}'"</code> displays <code>Hello {name}</code>.</p>
+        <p>Double each backslash required by the template when writing it inside JSON:</p>
+        <div class="steps">
+          <div><span class="label">1 · JSON field</span><code data-syntax="json">"text": "Say '{name}', then {name}. 'It\\'s ready.' C:\\data"</code></div>
+          <div><span class="label">2 · Decoded template</span><code data-syntax="template">Say '{name}', then {name}. 'It\'s ready.' C:\data</code></div>
+          <div><span class="label">3 · Result</span><code>Say {name}, then Ada. It's ready. C:\data</code></div>
+        </div>
+        <p class="note">The “JSON value” switch above shows the JSON encoding of each example input. It changes how the example is written, not what the template produces.</p>
+      </section>
+
+      <section id="actions">
+        <h2><span class="number">07</span>Action strings</h2>
+        <p>An ordinary action is written as <code>name:argument:argument</code>. The application supplies the action names. Arguments use the same expressions as text and are resolved before the action is called.</p>
+        <pre><code data-syntax="json">"action": "select:{name}"</code></pre>
+        <p>With a <code>select</code> action available, this passes <code>Ada</code> as its argument. The quoting and escaping rules are the same as for text:</p>
+        <pre><code data-syntax="json">"action": "notify:'Saved: {name}'"
+"action": "notify:'Saved: '{name}"</code></pre>
+        <p>The first passes the literal argument <code>Saved: {name}</code>. The second passes <code>Saved: Ada</code>.</p>
+        <p>A whole action enclosed in braces is an expression that produces a complete command. For example, <code>{if:{ready}:start:stop}</code> chooses the <code>start</code> or <code>stop</code> action. A generated command is split into its name and arguments without expanding its resolved text a second time.</p>
+      </section>
+
+      <section id="names">
+        <h2><span class="number">08</span>Names and valid syntax</h2>
+        <ul>
+          <li>A required variable or function must exist. An unknown required name is an error.</li>
+          <li>Use a leading dot for an optional lookup: <code>{.missing}</code> produces an empty result when the name is absent.</li>
+          <li>Use <code>{#value}</code> to format a value for rich-text display, including escaping angle brackets.</li>
+          <li>Use paired braces and paired single quotes. An empty expression <code>{}</code>, a mismatched brace or an unterminated quoted literal is invalid. A trailing backslash in ordinary template text is preserved.</li>
+          <li>Keep intended expressions outside literal quotes, and use prefix calls such as <code>{+:2:3}</code> for calculations.</li>
+        </ul>
+      </section>
+      <footer>Examples show template results. The receiving layout property or action may interpret that text as a value of its own type.</footer>
+    </main>
+  </div>
+  <script>
+    (() => {
+      const templateTokens = text => {
+        const tokens = [];
+        const add = (kind, value) => {
+          if (tokens.length && tokens[tokens.length - 1].kind === kind) tokens[tokens.length - 1].text += value;
+          else tokens.push({ kind, text: value });
+        };
+        for (let i = 0; i < text.length;) {
+          const start = i;
+          if (text[i] === '\\') {
+            i = Math.min(i + 2, text.length);
+            add('escape', text.slice(start, i));
+          } else if (text[i] === "'") {
+            ++i;
+            while (i < text.length) {
+              if (text[i] === '\\') i = Math.min(i + 2, text.length);
+              else if (text[i++] === "'") break;
+            }
+            add('string', text.slice(start, i));
+          } else if (text[i] === '{') {
+            add('punctuation', text[i++]);
+            const name = text.slice(i).match(/^[^{}:[\]'\\\s]+/);
+            if (name) {
+              i += name[0].length;
+              add(text[i] === ':' ? 'call' : 'name', name[0]);
+            }
+          } else if ('}[]:,'.includes(text[i])) {
+            add('punctuation', text[i++]);
+          } else {
+            const value = (i === 0 || /[\s{[:,]/.test(text[i - 1]))
+              && text.slice(i).match(/^(?:true|false|null|-?\d+(?:\.\d+)?)(?=$|[\s}\]:,])/);
+            if (value) {
+              add('value', value[0]);
+              i += value[0].length;
+            } else add('', text[i++]);
+          }
+        }
+        return tokens;
+      };
+      const highlight = (node, text, syntax = 'template') => {
+        node.replaceChildren();
+        const append = (kind, value) => {
+          if (!kind) { node.append(document.createTextNode(value)); return; }
+          const span = document.createElement('span');
+          span.className = 'token-' + kind;
+          span.textContent = value;
+          node.append(span);
+        };
+        const template = (value, encoded = false) => {
+          templateTokens(value).forEach(token => append(token.kind || (encoded ? 'string' : ''),
+            encoded ? JSON.stringify(token.text).slice(1, -1) : token.text));
+        };
+        if (syntax === 'template') template(text);
+        else if (syntax === 'encoded') {
+          append('punctuation', '"');
+          template(text, true);
+          append('punctuation', '"');
+        } else {
+          let end = 0;
+          for (const match of text.matchAll(/"(?:\\[\s\S]|[^"\\])*"|[{}\[\]:,]|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g)) {
+            append('', text.slice(end, match.index));
+            end = match.index + match[0].length;
+            if (match[0][0] === '"') {
+              if (text.slice(end).trimStart().startsWith(':')) append('key', match[0]);
+              else {
+                append('punctuation', '"');
+                template(JSON.parse(match[0]), true);
+                append('punctuation', '"');
+              }
+            } else append(/^[{}\[\]:,]$/.test(match[0]) ? 'punctuation' : 'value', match[0]);
+          }
+          append('', text.slice(end));
+        }
+      };
+      const inputs = [...document.querySelectorAll('[data-template]')];
+      const originals = inputs.map(node => node.textContent);
+      const buttons = [...document.querySelectorAll('[data-mode]')];
+      document.querySelector('#toolbar').hidden = false;
+      const show = mode => {
+        inputs.forEach((node, i) => highlight(node, originals[i], mode === 'json' ? 'encoded' : 'template'));
+        document.querySelectorAll('.input-label').forEach(node => { node.textContent = mode === 'json' ? 'JSON string value' : 'Template text'; });
+        buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === mode)));
+      };
+      document.querySelectorAll('[data-syntax]').forEach(node => highlight(node, node.textContent, node.dataset.syntax));
+      show('text');
+      buttons.forEach(button => button.addEventListener('click', () => show(button.dataset.mode)));
+    })();
+  </script>
+</body>
+</html>

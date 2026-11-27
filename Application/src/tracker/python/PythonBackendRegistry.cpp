@@ -23,8 +23,14 @@ void init_tracking_recognition() {
         using py = track::PythonIntegration;
 
         py::import_module(tagwork);
-        auto path = READ_SETTING(tags_model_path, file::Path);
-        if(path.empty() || !path.exists()) {
+        auto path = GlobalSettings::read([](const Configuration& config) {
+            const auto requested = config.at("tags_model_path").value<file::Path>();
+            const auto input = file::DataLocation::parse("input", requested, &config.values);
+            if(requested.empty() || requested.is_absolute() || input.is_regular())
+                return input;
+            return file::DataLocation::parse("output", requested, &config.values);
+        });
+        if(not path.is_regular()) {
             throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_trex.html#tags_model_path` for more information.");
         }
         py::set_variable("model_path", path.str(), tagwork);

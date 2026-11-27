@@ -1,8 +1,13 @@
 #include "VisualIdentification.h"
 #include <ml/AccumulationRuntime.h>
 #include <python/PythonWrapper.h>
+#include <misc/Image.h>
+#include <misc/Path.h>
 #include <misc/frame_t.h>
+#include <processing/Background.h>
 #include <processing/PVBlob.h>
+#include <tracking/Stuffs.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
@@ -72,12 +77,11 @@ VINetwork::Status VINetwork::status(){
 }
 
 file::Path VINetwork::network_path() {
-    file::Path filename = READ_SETTING(filename, file::Path).filename();
+    file::Path filename = READ_SETTING(filename, file::Filename).path();
     filename = filename.has_extension("pv")
                     ? filename.remove_extension()
                     : filename;
-    filename = file::DataLocation::parse("output", filename.str() + "_weights");
-    return filename;
+    return file::DataLocation::parse("output", filename.str() + "_weights");
 }
 
 void VINetwork::set_status(Status status) {
@@ -128,7 +132,7 @@ void VINetwork::setup(bool force) {
         py::set_variable("learning_rate", READ_SETTING(gpu_learning_rate, float), module_name);
         py::set_variable("batch_size", (long_t)batch_size, module_name);
         py::set_variable("video_length", narrow_cast<long_t>(READ_SETTING(video_length, uint64_t)), module_name);
-        py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()));
+        py::set_variable("verbosity", uint32_t(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class)));
         
         auto filename = VINetwork::network_path();
         try {
@@ -145,8 +149,8 @@ void VINetwork::setup(bool force) {
         auto image_mode = Background::meta_encoding();
         py::set_variable("image_channels", (long_t)required_image_channels(image_mode), module_name);
         py::set_variable("output_path", filename.str(), module_name);
-        py::set_variable("output_prefix", READ_SETTING(output_prefix, std::string), module_name);
-        py::set_variable("filename", (std::string)READ_SETTING(filename, file::Path).filename(), module_name);
+        py::set_variable("output_prefix", READ_SETTING(output_prefix, file::RelativePath).str(), module_name);
+        py::set_variable("filename", READ_SETTING(filename, file::Filename).str(), module_name);
         
         if(!py::valid("model", module_name)) {
             FormatWarning("No model set in ", module_name,".");
@@ -267,20 +271,47 @@ void VINetwork::reinitialize_internal() {
     _status.busy = false;
 }
 
+static bool weights_available_at(const file::Path& path) {
+    if(path.str().ends_with(".pt2") || path.str().ends_with(".pt") || path.str().ends_with(".pth"))
+        return path.is_regular();
+
+    for(auto suffix : {"_dict.pth", ".pth", "_model.pt2", "_model.pth"}) {
+        if(file::Path(path.str() + suffix).is_regular())
+            return true;
+    }
+    return false;
+}
+
+static bool loadable_weights_at(const file::Path& path) {
+    if(weights_available_at(path))
+        return true;
+    // Loading an explicit dictionary also accepts its sibling inference graph.
+    constexpr std::string_view suffix = "_dict.pth";
+    if(path.str().ends_with(suffix)) {
+        const auto base = path.str().substr(0, path.str().size() - suffix.size());
+        return file::Path(base + "_model.pt2").is_regular() || file::Path(base + "_model.pth").is_regular();
+    }
+    return false;
+}
+
+static file::Path find_weights(const file::Path& requested, bool (*available)(const file::Path&)) {
+    return GlobalSettings::read([&](const Configuration& config) {
+        const auto input = file::DataLocation::parse("input", requested, &config.values);
+        if(requested.is_absolute() || available(input))
+            return input;
+        const auto output = file::DataLocation::parse("output", requested, &config.values);
+        return available(output) ? output : requested;
+    });
+}
+
 std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     //reinitialize_internal();
     
     if(weights.path().empty()) {
-        auto visual_identification_model_path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>);
-        if(visual_identification_model_path.has_value()
-           && not visual_identification_model_path->empty())
-        {
-            weights._path = visual_identification_model_path.value();
-            
-        } else {
-            weights._path = network_path();
-        }
+        weights._path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>).value_or(file::Path{});
     }
+    weights._path = weights.path().empty()
+        ? network_path() : find_weights(weights.path(), loadable_weights_at);
     
     try {
         auto json = py::run(module_name, "load_weights", weights.path().str());
@@ -320,17 +351,7 @@ VIWeights VINetwork::load_weights(VIWeights&& weights) {
 
 
 bool VINetwork::weights_available() {
-    auto base = network_path();
-    // New canonical weights file
-    if (file::Path(base.str() + "_dict.pth").exists())
-        return true;
-    // Legacy weights file
-    if (base.add_extension("pth").exists())
-        return true;
-    // Serialized model bundle (less ideal, but indicates presence of a checkpoint)
-    if (file::Path(base.str() + "_model.pth").exists())
-        return true;
-    return false;
+    return weights_available_at(network_path());
 }
 
 std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
@@ -369,13 +390,14 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                         ModuleProxy m(module_name, [](ModuleProxy&){
                             instance()->setup(false);
                         });
-                        std::optional<glz::json_t> array;
+                        std::optional<glz::generic> array;
                         
                         auto visual_identification_model_path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>);
                         if(visual_identification_model_path.has_value()
                            && not visual_identification_model_path->empty())
                         {
-                            array = m.run("find_available_weights", visual_identification_model_path->str());
+                            auto path = find_weights(*visual_identification_model_path, weights_available_at);
+                            array = m.run("find_available_weights", path.str());
                             
                         } else {
                             array = m.run("find_available_weights");
@@ -632,7 +654,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 uchar setting_max_epochs = int(READ_SETTING(gpu_max_epochs, uchar));
                 py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), module_name);
                 py::set_variable("min_iterations", long_t(READ_SETTING(gpu_min_iterations, uchar)), module_name);
-                py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()), module_name);
+                py::set_variable("verbosity", uint32_t(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class)), module_name);
                 
                 auto filename = network_path();
                 try {

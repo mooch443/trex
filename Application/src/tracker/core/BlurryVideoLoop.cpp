@@ -1,7 +1,7 @@
 #include "BlurryVideoLoop.h"
 #include <file/PathArray.h>
 #include <core/AbstractVideoSource.h>
-#include <core/SettingsPaths.h>
+#include <file/DataLocation.h>
 #include <core/WebcamVideoSource.h>
 #include <core/VideoVideoSource.h>
 #include <core/PVVideoSource.h>
@@ -21,9 +21,16 @@ BlurryVideoLoop::BlurryVideoLoop(const std::string& name)
 }
 
 void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
-    auto video_changed = not _source || between_equals(allowances, 1, 15)
-        ? _video_path.get()
-        : _video_path.getIfChanged();
+    auto video_changed = _video_path.getIfChanged();
+    if(video_changed) {
+        allowances = 0;
+    } else if(
+       not _source
+       && between_equals(allowances, 0, 15))
+    {
+        video_changed = _video_path.get();
+    }
+    
     if(video_changed.has_value())
     {
         // video has changed! need to update
@@ -34,7 +41,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
         
         std::unique_ptr<AbstractBaseVideoSource> tmp;
         try {
-            if(path == file::PathArray{"webcam"}) {
+            const auto expression = path.expression();
+            if(expression == "webcam") {
                 try {
                     fg::Webcam cam;
                     cam.set_color_mode(ImageMode::RGBA);
@@ -53,12 +61,9 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                         
                         ThreadManager::getInstance().notify(gid);
                     }
-                    
-                    _intial_resolution_promise.set_value({});
-                    _intial_resolution_promise = {};
                 }
                 
-            } else if(path == file::PathArray{"basler"}) {
+            } else if(expression == "basler") {
 #if WITH_PYLON
                 auto created = fg::PylonCamera::create();
                 if(created.has_value()) {
@@ -67,60 +72,64 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                     _last_image_timer.reset();
                 } else {
                     FormatWarning("[blurry] Failed to create Basler camera: ", created.error().user_message, " / ", created.error().diagnostic);
-                    _intial_resolution_promise.set_value({});
-                    _intial_resolution_promise = {};
                 }
 #else
                 FormatWarning("[blurry] Basler source requested, but WITH_PYLON is disabled in this build.");
-                _intial_resolution_promise.set_value({});
-                _intial_resolution_promise = {};
 #endif
                 
-            } else if(path.empty()) {
-                // we cant do anything
-                _intial_resolution_promise.set_value({});
-                _intial_resolution_promise = {};
-                
-            } else if(path.get_paths().size() == 1
-                      && path.get_paths().front().has_extension("pv"))
+            } else if(const auto files = file::DataLocation::parse("input", path);
+                      files.empty())
             {
-                auto output = GlobalSettings::read([](const Configuration& config){
-                    return settings::find_output_name(config.values);
-                });
-                auto video = pv::File::Read(output);
+                // The preview opens only when the source resolves to at least one file.
+
+            } else if(files.has_single_match("pv")) {
+                auto video = pv::File::Read(files[0]);
                 video.header();
-                
+
                 tmp = std::unique_ptr<AbstractBaseVideoSource>(new PVVideoSource{ std::move(video) });
                 tmp->set_loop(true);
                 _next_frame = 0_f;
-                
+
             } else {
-                VideoSource video(path);
-                video.set_colors(ImageMode::RGBA);
-                tmp = std::unique_ptr<AbstractBaseVideoSource>(new VideoSourceVideoSource{ std::move(video) });
-                tmp->set_loop(true);
-                _next_frame = 0_f;
+                auto test = VideoSource::TestVideoSource(files);
+                if(test) {
+                    VideoSource video(files);
+                    video.set_colors(ImageMode::RGBA);
+                    tmp = std::unique_ptr<AbstractBaseVideoSource>(new VideoSourceVideoSource{ std::move(video) });
+                    tmp->set_loop(true);
+                    _next_frame = 0_f;
+                } else {
+                    allowances = 100;
+                }
             }
             
-            if(tmp) {
-                allowances = 0;
-                _last_image_timer.reset();
-                
-                _resolution = tmp->size();
-                _intial_resolution_promise.set_value(tmp->size());
-                _intial_resolution_promise = {};
-                _source = std::move(tmp);
-                _video_updated = true;
-                intermediate = nullptr;
-                
+        } catch(...) {
+            // could not load...
+            tmp = nullptr;
+            allowances = 100;
+        }
+        
+        if(not tmp) {
+            /// could not load a video file, set promise and source
+            _source.reset();
+            _intial_resolution_promise.set_value({});
+            _intial_resolution_promise = {};
+        } else {
+            _source = std::move(tmp);
+            
+            allowances = 0;
+            _last_image_timer.reset();
+            _video_updated = true;
+            intermediate = nullptr;
+            _resolution = _source->size();
+            
+            {
                 std::unique_lock guard(image_mutex);
                 return_image = {};
                 transfer_image = {};
             }
             
-        } catch(...) {
-            // could not load
-            _intial_resolution_promise.set_value({});
+            _intial_resolution_promise.set_value(_source->size());
             _intial_resolution_promise = {};
         }
     }
@@ -138,8 +147,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
     {                               /// so we dont fill up the buffer queue
         auto e = _source->next();
         
-        if(e.has_value()) {
-            auto &image = e.value();
+        if(e && std::holds_alternative<PreprocessedFrame>(e.value())) {
+            auto &image = std::get<PreprocessedFrame>(e.value());
             if(_source->is_finite()
                && image.index + 1_f >= _source->length())
             {
@@ -168,8 +177,8 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
             }
         }
         else {
-            /// oh no, it went wrong!
-            FormatError("[blurry] Failed to load video frame: ", e.error());
+            if(not e)
+                FormatError("[blurry] Failed to load video frame: ", e.error());
             
             /// if its a video
             if(_source->is_finite()) {
@@ -291,7 +300,7 @@ void BlurryVideoLoop::start() {
     _intial_resolution_promise = {};
     _initial_resolution_future = _intial_resolution_promise.get_future();
     ThreadManager::getInstance().startGroup(group);
-    if(_initial_resolution_future.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready) 
+    if(cmn::is_future_ready<500ms>(_initial_resolution_future))
     {
         _resolution = _initial_resolution_future.get();
     } else
@@ -350,7 +359,7 @@ void BlurryVideoLoop::set_open_callback(std::function<void (VideoInfo)> fn) {
 
 [[nodiscard]] BlurryVideoLoop::VideoFrame BlurryVideoLoop::get_if_ready() {
     if(_initial_resolution_future.valid()
-       && _initial_resolution_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+       && cmn::is_future_ready(_initial_resolution_future))
     {
         _initial_resolution_future.get();
     }

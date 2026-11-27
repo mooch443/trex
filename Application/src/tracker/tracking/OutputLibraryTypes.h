@@ -9,9 +9,7 @@ class Individual;
 class MotionRecord;
 }
 
-namespace Output {
-
-ENUM_CLASS(Functions,
+ENUM_CLASS( Output::, Functions,
            X,Y,
            VX,VY,
            SPEED,
@@ -25,6 +23,21 @@ ENUM_CLASS(Functions,
            BORDER_DISTANCE,
            NEIGHBOR_DISTANCE
         )
+
+
+
+ENUM_CLASS( Output::, Modifiers,
+    SMOOTH,
+    CENTROID,
+    POSTURE_CENTROID,
+    WEIGHTED_CENTROID,
+    HEAD,
+    POINTS,
+    PLUSMINUS
+);
+
+namespace Output {
+
 
 struct Calculation {
     float _factor;
@@ -50,16 +63,6 @@ struct Calculation {
         return _factor + val;
     }
 };
-
-ENUM_CLASS( Modifiers,
-    SMOOTH,
-    CENTROID,
-    POSTURE_CENTROID,
-    WEIGHTED_CENTROID,
-    HEAD,
-    POINTS,
-    PLUSMINUS
-);
 
 using Options_t = OptionsList<Output::Modifiers::Class>;
 

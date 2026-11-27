@@ -29,6 +29,7 @@ public:
            std::shared_ptr<TimingStatsCollector> timing_stats,
            std::function<FrameType(Frame_t)> retrieve,
            std::function<void(FrameType&&)> discard = nullptr,
+           std::function<void(Frame_t)> pushed_frame = nullptr,
            TimingMetric announceMetric = TimingMetric_t::None,
            TimingMetric loadMetric = TimingMetric_t::None,
            TimingMetric waitMetric = TimingMetric_t::None,
@@ -36,6 +37,7 @@ public:
         : stats(std::move(timing_stats)),
           retrieve_next(retrieve),
           discard(discard),
+          _pushed_frame(std::move(pushed_frame)),
           _announceMetric(announceMetric),
           _loadMetric(loadMetric),
           _waitMetric(waitMetric),
@@ -75,13 +77,13 @@ public:
         
         for (auto& f : futures) {
             // bounded wait prevents permanent hang
-            if (f.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
+            if (cmn::is_future_ready<cmn::Milliseconds{std::chrono::seconds(1)}>(f))
                 f.get();
         }
     }
     
     // Non-blocking call to get a frame
-    std::optional<FrameType> get_frame(Frame_t target_index, std::chrono::milliseconds delay = std::chrono::milliseconds(0));
+    std::optional<FrameType> get_frame(Frame_t target_index, std::chrono::milliseconds delay = 0ms);
     
     // Non-blocking announcement of next frame
     void announce(Frame_t target_index) {
@@ -145,6 +147,7 @@ private:
     std::function<FrameType(Frame_t)> retrieve_next;
     std::function<void(FrameType&&)> discard;
     std::condition_variable updated_frame;
+    std::function<void(Frame_t)> _pushed_frame;
     std::mutex frame_update_mutex;
     
     LOGGED_MUTEX_VAR(preloaded_frame_mutex, "preloaded_frame_mutex");
@@ -255,7 +258,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
          * ----------------------------------------------------------- */
         case FutureMode::WrongTarget: {
             // Poll once without blocking.
-            if (local_future->future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+            if (cmn::is_future_ready(local_future->future))
             {
                 auto [index, image] = local_future->future.get();
                 assert(not image || index == local_future->index);
@@ -368,6 +371,8 @@ void FramePreloader<FrameType>::preload_frames() {
         
         std::unique_lock g(frame_update_mutex);
         updated_frame.notify_all();
+        if(_pushed_frame)
+            _pushed_frame(current);
     }
 }
 

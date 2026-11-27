@@ -19,6 +19,7 @@ using ::cmn::gui::dyn::CurrentObjectHandler;
 using ::cmn::gui::dyn::CustomElement;
 using ::cmn::gui::dyn::DefaultSettings;
 using ::cmn::gui::dyn::LabeledField;
+using ::cmn::gui::dyn::LocalSettingTypes;
 }
 
 // gui/dyn/ParseText.h
@@ -32,6 +33,7 @@ using ::cmn::gui::dyn::Context;
 using ::cmn::gui::dyn::Pattern;
 using ::cmn::gui::dyn::PreVarProps;
 using ::cmn::gui::dyn::State;
+using ::cmn::gui::dyn::_handle_subobjects;
 using ::cmn::gui::dyn::apply_modifier_to_object;
 using ::cmn::gui::dyn::convert_to_bool;
 using ::cmn::gui::dyn::create_parse_result;
@@ -71,6 +73,7 @@ using ::cmn::gui::dyn::is_one_of;
 // gui/dyn/UnresolvedStringPattern.h
 namespace commons_module_smoke::commons_gui_dyn::cmn::gui::dyn {
 using ::cmn::gui::dyn::Context;
+using ::cmn::gui::dyn::CurrentObjectHandler;
 using ::cmn::gui::dyn::State;
 }
 
@@ -78,10 +81,12 @@ namespace commons_module_smoke::commons_gui_dyn::cmn::pattern {
 using ::cmn::pattern::Prepared;
 using ::cmn::pattern::PreparedPattern;
 using ::cmn::pattern::PreparedPatterns;
+using ::cmn::pattern::ResolveContext;
 using ::cmn::pattern::Unprepared;
 using ::cmn::pattern::UnpreparedPattern;
 using ::cmn::pattern::UnpreparedPatterns;
 using ::cmn::pattern::UnresolvedStringPattern;
+using ::cmn::pattern::no_context_required;
 }
 
 // gui/dyn/VarProps.h

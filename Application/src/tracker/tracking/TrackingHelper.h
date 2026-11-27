@@ -1,7 +1,9 @@
 #pragma once
 
+#include <data/MotionRecord.h>
 #include <tracking/Individual.h>
 #include <tracking/Stuffs.h>
+#include <tracking/PairingGraph.h>
 #include <processing/PVBlob.h>
 #include <core/default_config.h>
 #include <core/TrackingSettings.h>
@@ -9,6 +11,7 @@
 
 namespace track {
 
+class Tracker;
 class IndividualManager;
 
 #define DEFINE_CACHE_SETTING(NAME) const Settings:: NAME ## _t NAME = SLOW_SETTING(NAME)
@@ -27,6 +30,7 @@ struct CachedSettings {
     DEFINE_CACHE_SETTING(match_topk);
     DEFINE_CACHE_SETTING(huge_timestamp_seconds);
     DEFINE_CACHE_SETTING(posture_direction_smoothing);
+    DEFINE_CACHE_SETTING(output_min_frames);
 };
 
 struct TrackingHelper {
@@ -39,6 +43,7 @@ public:
     bool save_tags() const;
     
     PPFrame& frame;
+    const data::FrameRepository& repo;
     IndividualManager _manager;
     
     // ------------------------------------
@@ -66,15 +71,15 @@ public:
     Match::PairedProbabilities paired;
     default_config::matching_mode_t::Class match_mode{default_config::matching_mode_t::automatic};
     
-    TrackingHelper(PPFrame& frame, const std::vector<FrameProperties::Ptr>& added_frames, Frame_t approximative_enabled_in_frame);
+    TrackingHelper(Tracker& tracker, PPFrame& frame, Frame_t approximative_enabled_in_frame);
     ~TrackingHelper();
     
-    void apply_manual_matches();
+    void apply_manual_matches(Tracker&);
     void apply_automatic_matches();
     
     void apply_matching();
     
-    double process_postures();
+    double process_postures(Tracker&);
 };
 
 }

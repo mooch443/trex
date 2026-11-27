@@ -50,6 +50,11 @@ using ::cmn::Deprecation;
 using ::cmn::Deprecations;
 }
 
+// misc/DisplayValue.h
+namespace commons_module_smoke::commons_misc::cmn::sprite {
+using ::cmn::sprite::display_property;
+}
+
 // misc/EnumClass.h
 namespace commons_module_smoke::commons_misc::EnumMeta {
 using ::EnumMeta::HasCustomParser;
@@ -67,21 +72,29 @@ using ::cmn::FormatColor_t;
 using ::cmn::FormatterType;
 }
 
+// misc/FrameTag.h
+namespace commons_module_smoke::commons_misc::cmn {
+using ::cmn::FrameTag;
+using ::cmn::IdentifiedTag;
+using ::cmn::SimpleTag;
+using ::cmn::SpatialTag;
+}
+
 // misc/GlobalSettings.h
 namespace commons_module_smoke::commons_misc::cmn {
+using ::cmn::AccessLevel;
+using ::cmn::CommandLine;
 using ::cmn::Configuration;
 using ::cmn::GlobalSettings;
+using ::cmn::HistoryItem;
 using ::cmn::NoType;
-using ::cmn::bool_setting;
+using ::cmn::ParameterHistory;
+using ::cmn::SafeWriteWrapper;
 using ::cmn::bool_setting_config;
 using ::cmn::docs_map_t;
-using ::cmn::optional_setting;
 using ::cmn::optional_setting_config;
-using ::cmn::read_setting;
 using ::cmn::read_setting_config;
-using ::cmn::read_setting_with_default;
 using ::cmn::read_setting_with_default_config;
-using ::cmn::setting;
 using ::cmn::setting_config;
 using ::cmn::user_access_map_t;
 }
@@ -123,12 +136,15 @@ using ::cmn::ObjectManager;
 
 // misc/Path.h
 namespace commons_module_smoke::commons_misc::cmn::file {
+using ::cmn::file::Filename;
 using ::cmn::file::Path;
+using ::cmn::file::RelativePath;
 using ::cmn::file::UseNotOsSep;
 using ::cmn::file::cd;
 using ::cmn::file::cwd;
 using ::cmn::file::enumerate;
 using ::cmn::file::exec;
+using ::cmn::file::from_launch_dir;
 using ::cmn::file::make_path;
 using ::cmn::file::operator/;
 using ::cmn::file::valid_extension;
@@ -287,6 +303,7 @@ using ::cmn::curves::interpolate;
 // misc/default_settings.h
 namespace commons_module_smoke::commons_misc::cmn::settings {
 using ::cmn::settings::Adding;
+using ::cmn::settings::ParameterCategory;
 using ::cmn::settings::help_html;
 using ::cmn::settings::help_restructured_text;
 using ::cmn::settings::htmlify;
@@ -400,6 +417,18 @@ using ::cmn::MathArray;
 using ::cmn::RGBArray;
 using ::cmn::clamp;
 using ::cmn::is_rgb_array;
+}
+
+// misc/metastring.h
+namespace commons_module_smoke::commons_misc::cmn {
+using ::cmn::FileSize;
+using ::cmn::illegal_syntax;
+}
+
+namespace commons_module_smoke::commons_misc::cmn::util {
+using ::cmn::util::ConstexprString;
+using ::cmn::util::all_conststrings_v;
+using ::cmn::util::to_readable_errc;
 }
 
 // misc/pretty.h

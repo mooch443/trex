@@ -334,6 +334,7 @@ int main(int argc, char** argv) {
     const char* locale = "C";
     std::locale::global(std::locale(locale));
 
+    GlobalSettings::create();
     SETTING(quiet) = true;
     
     Options options;

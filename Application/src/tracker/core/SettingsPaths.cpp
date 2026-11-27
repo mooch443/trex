@@ -1,5 +1,4 @@
 #include "SettingsPaths.h"
-#include <file/PathArray.h>
 #include <core/TrackingSettings.h>
 #include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>
@@ -7,69 +6,83 @@
 
 namespace cmn::settings {
 
-file::Path find_output_name(const sprite::Map& map,
-                            file::PathArray source,
-                            file::Path filename,
-                            bool respect_user_choice)
-{
-    const auto source_ref = map.at("source");
-    const auto _source = source.empty()
-        ? (source_ref.valid() ? source_ref.value<file::PathArray>() : file::PathArray{})
-        : source;
+std::optional<std::string> video_source_error(const file::PathArray& source) {
+    if(source.empty_or_invalid() || is_camera_source(source))
+        return std::nullopt;
+    if(source.needs_resolving())
+        return video_source_error(source.resolved_at());
+    if(source.any_files_are("pv") && not source.all_files_are("pv"))
+        return "The source mixes PV recordings with raw input files. Select PV recordings or raw inputs separately.";
+    if(source.all_files_are("pv") && not source.has_single_match())
+        return format<FormatterType::NONE>("Tracking requires one PV recording. Selected ", source, ".");
+    return std::nullopt;
+}
 
-    auto name = file::Path{};
-    if(respect_user_choice) {
-        if(auto filename_ref = map.at("filename");
-           filename_ref.valid())
-        {
-            name = filename_ref.value<file::Path>();
-        }
-    }
+file::Filename choose_output_name() {
+    return GlobalSettings::read([](const Configuration& config) {
+        return settings::choose_output_name(config.values);
+    });
+}
 
-    filename = name.empty()
-        ? file::Path()
-        : file::DataLocation::parse("output", name, &map);
+/// Derives the default recording name using the effective input location.
+static file::Filename choose_output_name(const file::PathArray& source, const sprite::Map* map) {
+    if(source.empty_or_invalid())
+        return {};
+    if(is_camera_source(source))
+        return file::Filename(file::Path(*source.expression()).add_extension("pv"));
 
-    if(not filename.empty()) {
-        if(filename.has_extension("pv")) {
-            filename = filename.remove_extension();
-        }
-        return filename;
-    }
+    const auto files = file::DataLocation::parse("input", source, map);
+    if(files.has_single_match("pv"))
+        return file::Filename(files[0].filename());
 
-    if(_source.get_paths().empty()) {
-        return filename;
-    }
+    const file::Path name(file::find_basename(files));
+    return name.empty() ? file::Filename{} : file::Filename(name.add_extension("pv"));
+}
 
-    if(_source.get_paths().size() == 1
-       && _source.get_paths().front().has_extension("pv"))
-    {
-        file::Path path = _source.get_paths().front();
-        if(not path.empty()) {
-            filename = path.absolute();
-        } else {
-            filename = {};
-        }
-    } else {
-        filename = file::find_basename(_source);
-        if(filename.has_extension() && filename.exists()) {
-            filename = filename.remove_extension();
-        }
-    }
+file::Filename choose_output_name(const file::PathArray& source) {
+    return choose_output_name(source, nullptr);
+}
 
-    if(not filename.empty()
-       && not filename.has_extension("pv"))
-    {
-        filename = file::DataLocation::parse("output", filename, &map);
-    } else if(filename.empty()) {
-        filename = {};
-    }
+/// Uses an explicit filename first, then the caller's matches or the configured source.
+static file::Filename choose_output_name(const sprite::Map& map, const file::PathArray* matches) {
+    const auto requested = map.value_with_default("filename", file::Filename{});
+    if(not requested.path().empty())
+        return file::Filename(requested.path().add_extension("pv"));
 
-    if(filename.has_extension("pv")) {
-        filename = filename.remove_extension();
-    }
+    if(matches)
+        return choose_output_name(*matches, &map);
+    return choose_output_name(map.value_with_default("source", file::PathArray{}), &map);
+}
 
-    return filename;
+file::Filename choose_output_name(const sprite::Map& map) {
+    return choose_output_name(map, nullptr);
+}
+
+file::Path resolve_recording_path() {
+    return GlobalSettings::read([](const Configuration& config) {
+        return resolve_recording_path(config.values);
+    });
+}
+
+file::Path resolve_recording_path(const sprite::Map& map) {
+    const auto source = map.at("source").value<file::PathArray>();
+    return resolve_recording_path(map, source);
+}
+
+file::Path resolve_recording_path(const sprite::Map& map, const file::PathArray& source) {
+    const bool camera = is_camera_source(source);
+    if(not camera && source.needs_resolving())
+        return resolve_recording_path(map, source.resolved_at());
+    if(source.empty_or_invalid() || video_source_error(source))
+        return {};
+
+    // One PV match identifies the recording to open. A raw source uses the
+    // configured conversion output. Source validation rejects multiple PVs
+    // and selections that mix PVs with raw files.
+    if(not camera && source.has_single_match("pv"))
+        return file::DataLocation::parse("input", source[0], &map);
+    const auto name = choose_output_name(map, &source);
+    return file::DataLocation::parse("output", name.path(), &map);
 }
 
 Float2_t infer_cm_per_pixel(const sprite::Map* map) {
@@ -103,11 +116,12 @@ Float2_t infer_meta_real_width_from(const pv::File& file, const sprite::Map* map
 
     if(not meta_real_width || *meta_real_width == 0_F) {
         if(file.header().meta_real_width <= 0) {
-            FormatWarning(
-                "This video does not set `",
-                no_quotes(key),
-                "`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm."
-            );
+            if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+                FormatWarning(
+                    "This video does not set `",
+                    no_quotes(key),
+                    "`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm."
+                );
             return 30_F;
         }
         return file.header().meta_real_width;

@@ -25,12 +25,13 @@ import commons.http;
 #include "generated/commons_module_smoke_gui_dyn.inc"
 #include "generated/commons_module_smoke_http.inc"
 
+ENUM_CLASS(commons_macro_smoke::, CommonsModuleSmokeEnum, alpha, beta)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(commons_macro_smoke::, CommonsModuleSmokeEnum)
+ENUM_CLASS_DOCS_NAMESPACE(commons_macro_smoke::, CommonsModuleSmokeEnum, "alpha", "beta")
+
 namespace commons_macro_smoke {
 
 namespace {
-ENUM_CLASS(CommonsModuleSmokeEnum, alpha, beta)
-ENUM_CLASS_HAS_DOCS(CommonsModuleSmokeEnum)
-ENUM_CLASS_DOCS(CommonsModuleSmokeEnum, "alpha", "beta")
 CREATE_STRUCT(CommonsModuleSmokeStruct, (int, value), (std::string, label))
 }
 
