@@ -116,12 +116,14 @@ to make the suite pass. A repaired/rebuilt binary needs a separate run.
 
 When the release run also covers compiled executables, run the matching
 `test_headless_convert_exit` with the quoted filter
-`--gtest_filter=OutputLayouts/HeadlessAutomaticLaunch.ConvertsMissingPvThenTracksExistingPvAndExportsCsv/*`.
+`--gtest_filter=OutputLayouts/HeadlessAutomaticLaunch.ConvertsMissingPvThenTracksExistingPvAndExportsCsv/*:HeadlessSettingsStartup.AutomaticRelaunchLoadsSavedResultsOnlyWithLoad`.
 Record the companion result and the SHA-256 of its test executable. The app
 and test targets can be rebuilt independently. The round trip checks ordinary
 CSV exports and a fresh conversion with `-auto_no_outputs true` across four
-output layouts. Older binaries have the same test name. Credit suppression
-coverage when the test build or its subprocess log confirms that phase ran.
+output layouts. The saved-results test checks that automatic startup restores
+the saved frame only with `-load`. Record each result by name because older
+binaries may omit the saved-results case. Credit suppression coverage when the
+test build or its subprocess log confirms that phase ran.
 
 Close only the suite-owned process through the GUI, observe its exit, and finish
 the Computer Use completion summary. Preserve run artifacts. Inspect outputs

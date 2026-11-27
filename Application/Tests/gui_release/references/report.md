@@ -49,6 +49,8 @@ cases and subcases to pass; report failures and incomplete coverage separately.
 | GUI-10 | Hole-outline alignment | NOT_RUN | |
 | GUI-11 | Error recovery | NOT_RUN | |
 | GUI-12 | Quit | NOT_RUN | |
+| GUI-13a | Automatic raw-video startup without `-load` | NOT_RUN | Record both launches, the PV hash, and the reopened frame. |
+| GUI-13b | Automatic raw-video startup with `-load` | NOT_RUN | Record both launches, the PV hash, and the restored saved frame. |
 
 ## Action trace
 

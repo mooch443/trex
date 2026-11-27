@@ -1116,6 +1116,52 @@ INSTANTIATE_TEST_SUITE_P(
         return std::string(info.param.name);
     });
 
+TEST(HeadlessSettingsStartup, AutomaticRelaunchLoadsSavedResultsOnlyWithLoad) {
+    TempDirectory workspace;
+    const ScopedCurrentPath launch_directory(workspace.path);
+    const auto source = copy_video_fixture(workspace.path / "source");
+    const auto pv_path = source.parent_path() / "video.pv";
+    const auto results_path = source.parent_path() / "video.results";
+    const auto saved_results = workspace.path / "saved.results";
+    const auto results = file::Path(results_path.string());
+    constexpr uint64_t saved_frame = 12;
+
+    const std::vector<std::string> arguments{
+        TREX_TEST_EXECUTABLE, "-nowindow", "-i", source.string(),
+        "-detect_type", "background_subtraction", "-video_conversion_range", "[0,30]",
+        "-calculate_posture", "false", "-track_max_individuals", "5",
+        "-output_format", "csv", "-auto_quit"
+    };
+    auto load_arguments = arguments;
+    load_arguments.push_back("-load");
+    auto fresh_arguments = load_arguments;
+    fresh_arguments.insert(fresh_arguments.end(), {"-gui_frame", std::to_string(saved_frame)});
+
+    // With neither a PV nor saved results, -load still allows automatic conversion.
+    ASSERT_FALSE(fs::exists(pv_path));
+    ASSERT_FALSE(fs::exists(results_path));
+    ASSERT_EQ(run_process(fresh_arguments, std::chrono::seconds(300)), 0);
+    ASSERT_TRUE(fs::is_regular_file(pv_path));
+    expect_pv_range(pv_path, 0, 30);
+    ASSERT_TRUE(fs::is_regular_file(results_path));
+    ASSERT_EQ(Output::TrackingResults::load_header(results).gui_frame, saved_frame);
+    const auto converted_pv = read_binary_file(pv_path);
+    ASSERT_TRUE(fs::copy_file(results_path, saved_results));
+
+    // The original movie selects the existing PV and tracks from the default frame.
+    ASSERT_EQ(run_process(arguments, std::chrono::seconds(300)), 0);
+    EXPECT_EQ(read_binary_file(pv_path), converted_pv);
+    ASSERT_TRUE(fs::is_regular_file(results_path));
+    EXPECT_EQ(Output::TrackingResults::load_header(results).gui_frame, 0u);
+
+    // Give the -load relaunch the same saved state and verify that it restores the frame.
+    ASSERT_TRUE(fs::copy_file(saved_results, results_path, fs::copy_options::overwrite_existing));
+    ASSERT_EQ(run_process(load_arguments, std::chrono::seconds(300)), 0);
+    EXPECT_EQ(read_binary_file(pv_path), converted_pv);
+    ASSERT_TRUE(fs::is_regular_file(results_path));
+    EXPECT_EQ(Output::TrackingResults::load_header(results).gui_frame, saved_frame);
+}
+
 TEST(HeadlessSettingsStartup, SuppressedConversionPreservesExistingSettings) {
     TempDirectory workspace;
     const ScopedCurrentPath launch_directory(workspace.path);

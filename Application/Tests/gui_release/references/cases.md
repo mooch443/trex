@@ -286,3 +286,32 @@ forced termination as a failure/blocker rather than a successful quit.
 
 After TRex exits, verify that the existence and modification time of each
 `imgui.ini` path match the observations from GUI-01.
+
+## GUI-13 — Automatic startup from a raw video
+
+Run both subcases with separate copies of the suite MP4 and empty output folders.
+In each subcase, relaunch with the same arguments and the same raw input path.
+
+- **GUI-13a — Without `-load`.** Omit the flag on both launches.
+- **GUI-13b — With `-load`.** Pass the flag on both launches.
+
+1. Launch with `-i` pointing to the copied MP4, `-d` pointing to its output folder,
+   `-detect_type background_subtraction`, `-video_conversion_range "[0,30]"`,
+   and `-auto_quit false`. Leave `-task` unset and keep the native window open. Confirm
+   the raw input in the startup log and verify conversion starts in the window
+   without choosing a task. Wait for Tracking and verify that the expected PV
+   exists with 31 frames.
+2. After tracking finishes, pause playback, scrub to a nonzero frame, and record
+   the displayed frame number. Use **Menu → Save state**. Verify the matching
+   `.results` file exists and record the PV's SHA-256. Quit normally and retain
+   the PV and saved results.
+3. Relaunch from the same working directory. Verify the window opens directly
+   in Tracking and the startup log identifies the expected PV. Verify its
+   SHA-256 still matches. In GUI-13a, verify tracking starts fresh at frame 0
+   and the log shows no successful read of the saved results. In GUI-13b, verify
+   the saved frame is restored without a prompt and the log confirms a successful
+   read of the matching `.results` file. Quit normally.
+
+Capture the conversion and reopened Tracking windows for each subcase as
+`13a-convert`, `13a-track`, `13b-convert`, and `13b-track`. Retain the launch logs
+and record each subcase's result separately.
